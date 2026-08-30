@@ -51,6 +51,13 @@
   color-scheme: dark;
   --font-ui: "IBM Plex Sans", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Noto Sans Mono CJK SC", "Liberation Mono", monospace;
+  /* 系统字体模式：不加载 Plex/JetBrains，使用系统 UI 字体 */
+  --font-ui-system: system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-mono-system: system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+}
+html[data-font="system"] {
+  --font-ui: var(--font-ui-system);
+  --font-mono: var(--font-mono-system);
   --r-lg: 10px; --r-md: 8px; --r-sm: 6px;
   --shadow-pop: 0 14px 38px rgba(2, 8, 20, .55), 0 2px 8px rgba(2, 8, 20, .4);
 }
@@ -189,6 +196,11 @@ svg { display: block; }
 .menu button:hover { background: rgba(120,150,200,.14); }
 .menu button svg { color: var(--muted); flex: none; }
 .menu button .kbd { margin-left: auto; font: 10px var(--font-mono); color: var(--faint); }
+.menu button .check { margin-left: auto; color: var(--acc-bright); }
+#m-font .menu { min-width: 258px; }
+#m-font .menu button { white-space: nowrap; }
+#m-font .menu button .kbd { margin-left: auto; }
+#m-font .menu button .check { margin-left: 8px; }
 .menu .sep { height: 1px; background: var(--line-soft); margin: 5px 4px; }
 
 /* ============ 工作区 ============ */
@@ -663,6 +675,12 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     </div>
   </div>
   <div class="spacer"></div>
+  <div class="menu-wrap" id="m-font">
+    <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13 7.2 3h1.6L13 13M4.6 9.6h6.8"/></svg>
+    </button>
+    <div class="menu"></div>
+  </div>
   <button class="icon-btn" id="traceBtn" title="轨迹样式：纤细（点击切换为荧光辉光）" aria-label="切换轨迹样式" style="width:30px;height:30px">
     <svg class="ic-slim" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 12C5 12 6 4 9 4s4 3 5 3"/><path d="M12.5 2.5v0M13.5 5v0" stroke-width="1.8"/></svg>
     <svg class="ic-glow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 12C5 12 6 4 9 4s4 3 5 3"/></svg>
@@ -840,6 +858,7 @@ try { module.exports = WaveSkin; } catch(err) {}
 document.documentElement.dataset.theme = localStorage.getItem('wdgui-theme') === 'dark' ? 'dark' : 'light';
 document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === 'side' ? 'side' : 'below';
 document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
+document.documentElement.dataset.font = localStorage.getItem('wdgui-font') === 'system' ? 'system' : 'default';
 
 /* ---------- 常量 ---------- */
 const CELLW = 40, NAMEW = 196;
@@ -2521,8 +2540,32 @@ function addLane(type) {
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
 function closeMenus() { document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')); }
+function buildFontMenu(menu) {
+  menu.textContent = '';
+  const mk = (key, label, desc) => {
+    const b = h('button', { 'data-font': key });
+    b.appendChild(icon('M3 13 7.2 3h1.6L13 13M4.6 9.6h6.8', 13));
+    b.appendChild(h('span', null, label));
+    b.appendChild(h('span', { class: 'kbd' }, desc));
+    if (document.documentElement.dataset.font === key) {
+      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
+      ck.setAttribute('class', 'check');
+      b.appendChild(ck);
+    }
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      closeMenus();
+      document.documentElement.dataset.font = key;
+      localStorage.setItem('wdgui-font', key);
+      toast(key === 'system' ? '界面字体：系统字体' : '界面字体：默认（IBM Plex Sans / JetBrains Mono）');
+    });
+    return b;
+  };
+  menu.appendChild(mk('default', '默认字体', 'IBM Plex Sans / JetBrains Mono'));
+  menu.appendChild(mk('system', '系统字体', 'system-ui（界面与数据）'));
+}
 function bindMenus() {
-  [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null]].forEach(([sel, builder]) => {
+  [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-font', buildFontMenu]].forEach(([sel, builder]) => {
     const wrap = $(sel);
     const btn = wrap.querySelector(':scope > button');
     const menu = wrap.querySelector(':scope > .menu');
