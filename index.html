@@ -247,8 +247,11 @@ svg { display: block; }
 .tree-row:hover .lane-actions, .tree-row:focus-within .lane-actions { display: inline-flex; }
 .tree-row .lane-actions .icon-btn { width: 22px; height: 22px; }
 .tree-empty { color: var(--faint); font-size: 12px; padding: 10px 6px; }
-.add-lane-btns { display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
-.add-lane-btns .btn { flex: 1; justify-content: center; padding: 0 6px; font-size: 12px; height: 28px; min-width: 0; }
+.add-lane-btns {
+  display: grid; gap: 6px; margin-top: 9px;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+}
+.add-lane-btns .btn { justify-content: center; padding: 0 6px; font-size: 12px; height: 28px; min-width: 0; white-space: nowrap; }
 
 /* 输入控件 */
 .field { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
@@ -362,6 +365,15 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .lane-row.row-active .lane-track { background: rgba(52, 211, 153, .06); }
 #wv0 svg .lane-dim { opacity: .12; }
 .pop-glyphs .pg.active { border-color: var(--acc); background: var(--acc-veil); box-shadow: inset 0 0 0 1px var(--acc); }
+#morePop { width: 210px; padding: 6px; }
+#morePop .menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 9px; border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--text); text-align: left;
+  font-size: 12.5px;
+}
+#morePop .menu-item:hover { background: var(--hover-veil); }
+#morePop .menu-item svg { color: var(--muted); flex: none; }
 .pop-glyphs .pg.active .tlabel { color: var(--acc-text); }
 
 .lane-row { display: flex; height: 48px; }
@@ -785,6 +797,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 </main>
 
 <div class="popover" id="cellPop" role="dialog" aria-label="单元格状态"></div>
+<div class="popover" id="morePop" role="menu" aria-label="更多操作"></div>
 
 <div class="modal-mask" id="pasteMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="粘贴 WaveJSON">
@@ -1532,6 +1545,7 @@ const IC = {
   plus: '<path d="M8 3v10M3 8h10"/>',
   gear: '<circle cx="8" cy="8" r="2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6 11 5M5 11l-1.4 1.4"/>',
   subgroup: '<path d="M3 3.5v9M6 5h3.5M6 8h7M6 11h7"/><path d="M8.5 3.5v3"/>',
+  more: '<circle cx="3" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r="1.1" fill="currentColor" stroke="none"/>',
 };
 function toast(msg, err) {
   const t = h('div', { class: 'toast' + (err ? ' err' : '') }, msg);
@@ -1798,21 +1812,50 @@ function rowActions(node, kind, inTree) {
   };
   wrap.appendChild(mk(IC.up, '上移', () => moveNode(node, -1)));
   wrap.appendChild(mk(IC.down, '下移', () => moveNode(node, 1)));
-  if (kind === 'lane') {
-    if (inTree) {
-      wrap.appendChild(mk(IC.copy, '复制通道', () => dupLane(node)));
-      wrap.appendChild(mk(IC.into, '移入上方最近的分组', () => intoGroup(node)));
-      wrap.appendChild(mk(IC.out, '移出所在分组', () => outOfGroup(node)));
-      wrap.appendChild(mk(IC.gear, '通道属性（period / phase）', btn => openLanePropPop(node, btn)));
-    }
+  if (!inTree) {
+    if (kind === 'group') wrap.appendChild(mk(IC.subgroup, '添加子分组', () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
+    wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
+    return wrap;
   }
-  if (kind === 'group') {
-    if (inTree) wrap.appendChild(mk(IC.plus, '在组内添加通道', () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
-    wrap.appendChild(mk(IC.subgroup, '添加子分组', () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
-  }
+  wrap.appendChild(mk(IC.more, '更多操作', btn => openMoreMenu(node, kind, btn)));
   wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
   return wrap;
 }
+/* ⋯ 更多操作小菜单（固定定位弹层，窄侧栏也完整展示） */
+function openMoreMenu(node, kind, anchor) {
+  const pop = $('#morePop');
+  const mkItem = (ic, title, fn) => {
+    const b = h('button', { class: 'menu-item', title, 'aria-label': title });
+    b.appendChild(icon(ic, 13));
+    b.appendChild(h('span', null, title));
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      closeMoreMenu();
+      fn(b);
+    });
+    return b;
+  };
+  pop.textContent = '';
+  pop.appendChild(h('div', { class: 'pop-title' }, '更多操作 · ' + (node.name || '未命名')));
+  if (kind === 'lane') {
+    pop.appendChild(mkItem(IC.copy, '复制通道', () => dupLane(node)));
+    pop.appendChild(mkItem(IC.into, '移入上方最近的分组', () => intoGroup(node)));
+    pop.appendChild(mkItem(IC.out, '移出所在分组', () => outOfGroup(node)));
+    pop.appendChild(mkItem(IC.gear, '通道属性（period / phase）', btn => openLanePropPop(node, btn)));
+  } else if (kind === 'group') {
+    pop.appendChild(mkItem(IC.plus, '在组内添加通道', () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
+    pop.appendChild(mkItem(IC.subgroup, '添加子分组', () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
+  }
+  pop.classList.add('open');
+  const r = anchor.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = r.right + 4, y = r.top - 8;
+  if (x + pw > innerWidth - 8) x = Math.max(8, r.left - pw - 4);
+  if (y + ph > innerHeight - 8) y = Math.max(8, innerHeight - ph - 8);
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
+}
+function closeMoreMenu() { $('#morePop').classList.remove('open'); }
 function buildLaneRow(lane, depth, colCount) {
   const color = laneColor(lane);
   const row = h('div', { class: 'lane-row', 'data-lane': lane.id });
@@ -2303,6 +2346,7 @@ function closePop() {
   $('#cellPop').classList.remove('open');
   popCell = null;
   clearEditingRow();
+  closeMoreMenu();
 }
 
 /* 通道属性弹窗（period / phase） */
@@ -2403,6 +2447,8 @@ function bindGrid() {
   document.addEventListener('mousedown', ev => {
     const pop = $('#cellPop');
     if (pop.classList.contains('open') && !pop.contains(ev.target) && !ev.target.closest('.cell')) closePop();
+    const mp = $('#morePop');
+    if (mp.classList.contains('open') && !mp.contains(ev.target) && !ev.target.closest('button[title="更多操作"]')) closeMoreMenu();
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); } });
 }
