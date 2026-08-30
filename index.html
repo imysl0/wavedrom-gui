@@ -1139,7 +1139,9 @@ function adoptState(st) {
 /* ---------- 迷你波形渲染 ---------- */
 const HI = 13, LO = 35, MID = 24;
 function laneSVG(lane, colCount, color) {
-  const W = CELLW, H = 48, len = Math.min(colCount, laneLen(lane));
+  const W = CELLW * (lane.period || 1), H = 48, len = Math.min(colCount, laneLen(lane));
+  const ph = lane.phase || 0;
+  const X = t => (t - ph) * W;
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'mini');
@@ -1160,7 +1162,7 @@ function laneSVG(lane, colCount, color) {
   };
   while (t < len) {
     const s = slots[t];
-    const x0 = t * W, x1 = x0 + W;
+    const x0 = X(t), x1 = x0 + W;
     if (!s || s.glyph === '.') {
       if (prevClock) { edgeInto(x0, prevClock === 'p' ? LO : HI); drawClock(x0, prevClock, W); }
       else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') Hline(x1);
@@ -1278,7 +1280,7 @@ function laneSVG(lane, colCount, color) {
     svg.appendChild(p);
   }
   Object.keys(lane.nodeByT).forEach(k => {
-    const x = (+k) * W + W - 9;
+    const x = X(+k) + W - 9;
     const c = document.createElementNS(NS, 'circle');
     c.setAttribute('cx', x); c.setAttribute('cy', 8); c.setAttribute('r', 6.5);
     c.setAttribute('fill', cssVar('--node-fill')); c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3);
@@ -1346,9 +1348,12 @@ function toast(msg, err) {
 }
 
 /* ---------- 渲染：网格 ---------- */
+function laneUnits(lane) {
+  return Math.ceil((laneLen(lane) - (lane.phase || 0)) * (lane.period || 1));
+}
 function computeCols() {
   let max = 8;
-  eachLane(l => { max = Math.max(max, laneLen(l)); });
+  eachLane(l => { max = Math.max(max, laneUnits(l)); });
   return Math.max(max, +localStorage.getItem('wdgui-cols-min') || 8, 8);
 }
 function laneColor(lane) {
@@ -1417,7 +1422,8 @@ function renderMiniEdges() {
     if (!rowEl) return null;
     const track = rowEl.querySelector('.lane-track');
     if (!track) return null;
-    return { x: track.offsetLeft + n.t * CELLW + CELLW - 9, y: rowEl.offsetTop + 8 };
+    const lw = CELLW * (n.lane.period || 1);
+    return { x: track.offsetLeft + (n.t - (n.lane.phase || 0)) * lw + lw - 9, y: rowEl.offsetTop + 8 };
   };
   const arrow = (x, y, dx, dy) => {
     const len = Math.hypot(dx, dy) || 1;
@@ -1540,10 +1546,12 @@ function buildLaneRow(lane, depth, colCount) {
     });
   }
   track.appendChild(svg);
-  for (let t = 0; t < colCount; t++) {
+  const per = lane.period || 1, lph = lane.phase || 0, cw = CELLW * per;
+  const laneCells = Math.ceil((colCount + Math.max(0, lph)) / per);
+  for (let t = 0; t < laneCells; t++) {
     track.appendChild(h('div', {
       class: 'cell', 'data-t': t, 'data-lane': lane.id,
-      style: `left:${t * CELLW}px`, role: 'button', tabindex: '-1',
+      style: `left:${((t - lph) * cw).toFixed(1)}px;width:${cw}px`, role: 'button', tabindex: '-1',
       'aria-label': `${lane.name || '未命名'} 第 ${t} 拍`,
     }));
   }
