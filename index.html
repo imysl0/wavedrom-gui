@@ -286,10 +286,20 @@ svg { display: block; }
 
 /* ---- 中间编辑器 ---- */
 .main-col { flex: 1; min-width: 0; display: flex; }
+.split { flex: none; position: relative; z-index: 6; background: transparent; transition: background .15s ease; }
+.split.v { width: 6px; margin: 0 -3px; cursor: col-resize; }
+.split.h { height: 6px; margin: -3px 0; cursor: row-resize; }
+.split.main-split { width: 6px; margin: 0 -3px; cursor: col-resize; }
+html[data-view="below"] .main-split { width: auto; height: 6px; margin: -3px 0; cursor: row-resize; }
+.split:hover, .split.dragging { background: var(--acc-veil); }
+body.col-resizing, body.row-resizing { user-select: none; }
+body.col-resizing *, body.row-resizing * { cursor: inherit !important; }
+body.col-resizing { cursor: col-resize; }
+body.row-resizing { cursor: row-resize; }
 .editor-col { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
 html[data-view="below"] .main-col { flex-direction: column; }
-html[data-view="below"] .editor-col { flex: 1 1 58%; }
-html[data-view="below"] .right-col { width: auto; flex: 1 1 42%; border-left: none; border-top: 1px solid var(--line); }
+html[data-view="below"] .editor-col { flex: 1 1 58%; min-height: 0; }
+html[data-view="below"] .right-col { width: auto; flex: none; height: 42%; border-left: none; border-top: 1px solid var(--line); }
 #viewBtn .ic-side { display: none; }
 html[data-view="below"] #viewBtn .ic-stack { display: none; }
 html[data-view="below"] #viewBtn .ic-side { display: block; }
@@ -587,8 +597,10 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
   .side { width: 100%; flex-direction: row; flex-wrap: wrap; overflow: visible; }
   .side-section { flex: 1 1 320px; }
   .main-col { flex-direction: column; flex: none; }
+  .split { display: none; }
+  .side { width: 100% !important; }
   .editor-col { flex: none; min-height: 62vh; }
-  .right-col { flex: none; width: 100%; border-left: none; border-top: 1px solid var(--line); }
+  .right-col { flex: none; width: auto !important; height: auto !important; border-left: none; border-top: 1px solid var(--line); }
   .preview-stage { min-height: 320px; }
   .code-wrap textarea { min-height: 240px; }
 }
@@ -692,6 +704,7 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
     </details>
   </aside>
 
+  <div class="split v" id="splitSide" title="拖动调整侧栏宽度 · 双击重置"></div>
   <div class="main-col">
   <section class="editor-col">
     <div class="editor-toolbar">
@@ -706,6 +719,9 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
     <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
   </section>
+
+
+  <div class="split main-split" id="splitMain" title="拖动调整预览区大小 · 双击重置"></div>
 
   <section class="right-col">
     <div class="right-tabs">
@@ -953,6 +969,7 @@ const state = {
   tool: { type: 'select' },
   zoom: 1,
   autoFit: true,
+  sizes: {},
 };
 function newLane(name, slots) {
   return { kind: 'lane', id: nextId(), name: name || '', slots: slots || [], period: null, phase: null, nodeByT: {}, extras: {} };
@@ -2375,6 +2392,64 @@ function bindSettings() {
   $('#skin').addEventListener('change', e => { state.skin = e.target.value; update(); });
 }
 
+/* ---------- 可拖拽分割条 ---------- */
+function applySizes() {
+  const right = $('.right-col');
+  if (document.documentElement.dataset.view === 'below') {
+    right.style.width = '';
+    if (state.sizes.mainH) right.style.height = state.sizes.mainH + 'px';
+  } else {
+    right.style.height = '';
+    if (state.sizes.right) right.style.width = state.sizes.right + 'px';
+  }
+}
+function saveSizes() { localStorage.setItem('wdgui-splits', JSON.stringify(state.sizes)); }
+function bindSplitters() {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  let drag = null;
+  const splitSide = $('#splitSide'), splitMain = $('#splitMain');
+  splitSide.addEventListener('mousedown', ev => {
+    drag = { kind: 'side', start: ev.clientX, size: $('.side').getBoundingClientRect().width };
+    splitSide.classList.add('dragging'); document.body.classList.add('col-resizing');
+    ev.preventDefault();
+  });
+  splitMain.addEventListener('mousedown', ev => {
+    const below = document.documentElement.dataset.view === 'below';
+    drag = {
+      kind: below ? 'mainH' : 'mainV',
+      start: below ? ev.clientY : ev.clientX,
+      size: $('.right-col').getBoundingClientRect()[below ? 'height' : 'width'],
+    };
+    splitMain.classList.add('dragging');
+    document.body.classList.add(below ? 'row-resizing' : 'col-resizing');
+    ev.preventDefault();
+  });
+  window.addEventListener('mousemove', ev => {
+    if (!drag) return;
+    if (drag.kind === 'side') {
+      const w = clamp(drag.size + ev.clientX - drag.start, 210, 560);
+      $('.side').style.width = w + 'px'; state.sizes.side = w;
+    } else if (drag.kind === 'mainV') {
+      const w = clamp(drag.size - (ev.clientX - drag.start), 300, 1000);
+      $('.right-col').style.width = w + 'px'; state.sizes.right = w;
+    } else {
+      const maxH = $('.main-col').getBoundingClientRect().height - 220;
+      const h = clamp(drag.size - (ev.clientY - drag.start), 160, Math.max(240, maxH));
+      $('.right-col').style.height = h + 'px'; state.sizes.mainH = h;
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag = null;
+    document.body.classList.remove('col-resizing', 'row-resizing');
+    splitSide.classList.remove('dragging'); splitMain.classList.remove('dragging');
+    saveSizes();
+    state.autoFit = true; renderPreview();
+  });
+  splitSide.addEventListener('dblclick', () => { $('.side').style.width = ''; delete state.sizes.side; saveSizes(); });
+  splitMain.addEventListener('dblclick', () => { $('.right-col').style.width = ''; $('.right-col').style.height = ''; delete state.sizes.right; delete state.sizes.mainH; saveSizes(); state.autoFit = true; renderPreview(); });
+}
+
 /* ---------- 主题切换 ---------- */
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
@@ -2399,9 +2474,14 @@ function init() {
     document.documentElement.dataset.view = v;
     localStorage.setItem('wdgui-view', v);
     $('#viewBtn').title = v === 'below' ? '切换视图：预览放右侧' : '切换视图：预览放编辑区下方';
+    applySizes();
     state.autoFit = true;
     renderPreview();
   });
+  try { state.sizes = JSON.parse(localStorage.getItem('wdgui-splits')) || {}; } catch (e) { state.sizes = {}; }
+  if (state.sizes.side) $('.side').style.width = state.sizes.side + 'px';
+  applySizes();
+  bindSplitters();
 
   $('#themeBtn').addEventListener('click', () => {
     applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
