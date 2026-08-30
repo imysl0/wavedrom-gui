@@ -6,6 +6,8 @@
 <title>WaveDrom 可视化编辑器</title>
 <meta name="description" content="用鼠标点击编辑 WaveDrom 时序图，实时预览，单文件离线可用">
 <style>
+@import url('https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkaimono-regular.css');
+@import url('https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkai-regular.css');
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
@@ -26,15 +28,15 @@
   --danger: #F87171;
   --ch1: #34D399; --ch2: #38BDF8; --ch3: #FBBF24;
   --ch4: #F472B6; --ch5: #A78BFA; --ch6: #FB7185;
-  --sel: var(--sel);
-  --hover-veil: var(--hover-veil);
+  --sel: rgba(52, 211, 153, .28);
+  --hover-veil: rgba(120, 150, 200, .14);
   --raise-hover: #1B2A46;
   --line-hover: #2C4269;
-  --row-alt: var(--row-alt);
+  --row-alt: rgba(16, 26, 46, .4);
   --head-hover: #14203A;
-  --cell-hover: var(--cell-hover);
-  --cell-hl: var(--cell-hl);
-  --cell-paint: var(--cell-paint);
+  --cell-hover: rgba(110, 231, 183, .1);
+  --cell-hl: rgba(110, 231, 183, .06);
+  --cell-paint: rgba(110, 231, 183, .14);
   --acc-veil: rgba(52, 211, 153, .12);
   --stage-bg: radial-gradient(ellipse 90% 60% at 50% -10%, rgba(56, 130, 246, .06), transparent), #0D1526;
   --code-text: #C9D8F0;
@@ -49,15 +51,8 @@
   --danger-line: rgba(248, 113, 113, .4);
   --danger-veil: rgba(248, 113, 113, .12);
   color-scheme: dark;
-  --font-ui: "IBM Plex Sans", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Noto Sans Mono CJK SC", "Liberation Mono", monospace;
-  /* 系统字体模式：不加载 Plex/JetBrains，使用系统 UI 字体 */
-  --font-ui-system: system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-  --font-mono-system: system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
-}
-html[data-font="system"] {
-  --font-ui: var(--font-ui-system);
-  --font-mono: var(--font-mono-system);
+  --font-ui: "LXGW WenKai Mono", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "LXGW WenKai Mono", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace;
   --r-lg: 10px; --r-md: 8px; --r-sm: 6px;
   --shadow-pop: 0 14px 38px rgba(2, 8, 20, .55), 0 2px 8px rgba(2, 8, 20, .4);
 }
@@ -858,7 +853,42 @@ try { module.exports = WaveSkin; } catch(err) {}
 document.documentElement.dataset.theme = localStorage.getItem('wdgui-theme') === 'dark' ? 'dark' : 'light';
 document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === 'side' ? 'side' : 'below';
 document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
-document.documentElement.dataset.font = localStorage.getItem('wdgui-font') === 'system' ? 'system' : 'default';
+/* 界面字体 / 数据·代码字体（独立选择，JS 写入 CSS 变量） */
+const FONT_STACKS = {
+  'lxgw-mono': {
+    ui: '"LXGW WenKai Mono", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
+    mono: '"LXGW WenKai Mono", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace',
+  },
+  'lxgw': {
+    ui: '"LXGW WenKai", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
+    mono: '"LXGW WenKai", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace',
+  },
+  'plex': {
+    ui: '"IBM Plex Sans", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
+    mono: '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Noto Sans Mono CJK SC", monospace',
+  },
+  'system': {
+    ui: 'system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif',
+    mono: 'system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif',
+  },
+};
+const state_font = {
+  ui: localStorage.getItem('wdgui-uifont') || 'lxgw-mono',
+  data: localStorage.getItem('wdgui-dfont') || 'lxgw-mono',
+};
+// 旧单键迁移
+const legacyFont = localStorage.getItem('wdgui-font');
+if (legacyFont && !localStorage.getItem('wdgui-uifont')) {
+  const m = { lxgw: ['lxgw-mono', 'lxgw-mono'], plex: ['plex', 'plex'], system: ['system', 'system'], default: ['plex', 'plex'] }[legacyFont];
+  if (m) { state_font.ui = m[0]; state_font.data = m[1]; }
+}
+if (!FONT_STACKS[state_font.ui]) state_font.ui = 'lxgw-mono';
+if (!FONT_STACKS[state_font.data]) state_font.data = 'lxgw-mono';
+applyFonts();
+function applyFonts() {
+  document.documentElement.style.setProperty('--font-ui', FONT_STACKS[state_font.ui].ui);
+  document.documentElement.style.setProperty('--font-mono', FONT_STACKS[state_font.data].mono);
+}
 
 /* ---------- 常量 ---------- */
 const CELLW = 40, NAMEW = 196;
@@ -2542,27 +2572,39 @@ function addLane(type) {
 function closeMenus() { document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')); }
 function buildFontMenu(menu) {
   menu.textContent = '';
-  const mk = (key, label, desc) => {
-    const b = h('button', { 'data-font': key });
-    b.appendChild(icon('M3 13 7.2 3h1.6L13 13M4.6 9.6h6.8', 13));
-    b.appendChild(h('span', null, label));
+  const mkSection = (title) => {
+    menu.appendChild(h('div', { class: 'menu-sec' }, title));
+  };
+  const mkItem = (section, key, label, desc) => {
+    const active = state_font[section] === key;
+    const b = h('button', { 'data-fsec': section, 'data-fkey': key, class: active ? 'active' : '' });
+    b.appendChild(h('span', { class: 'f-label' }, label));
     b.appendChild(h('span', { class: 'kbd' }, desc));
-    if (document.documentElement.dataset.font === key) {
+    if (active) {
       const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
       ck.setAttribute('class', 'check');
       b.appendChild(ck);
     }
     b.addEventListener('click', ev => {
       ev.stopPropagation();
-      closeMenus();
-      document.documentElement.dataset.font = key;
-      localStorage.setItem('wdgui-font', key);
-      toast(key === 'system' ? '界面字体：系统字体' : '界面字体：默认（IBM Plex Sans / JetBrains Mono）');
+      state_font[section] = key;
+      localStorage.setItem(section === 'ui' ? 'wdgui-uifont' : 'wdgui-dfont', key);
+      applyFonts();
+      buildFontMenu(menu);
     });
     return b;
   };
-  menu.appendChild(mk('default', '默认字体', 'IBM Plex Sans / JetBrains Mono'));
-  menu.appendChild(mk('system', '系统字体', 'system-ui（界面与数据）'));
+  mkSection('界面字体');
+  menu.appendChild(mkItem('ui', 'lxgw-mono', '霞鹜文楷等宽', 'LXGW WenKai Mono'));
+  menu.appendChild(mkItem('ui', 'lxgw', '霞鹜文楷', 'LXGW WenKai'));
+  menu.appendChild(mkItem('ui', 'plex', 'IBM Plex Sans', 'Plex Sans'));
+  menu.appendChild(mkItem('ui', 'system', '系统字体', 'system-ui'));
+  menu.appendChild(h('div', { class: 'sep' }));
+  mkSection('数据·代码字体');
+  menu.appendChild(mkItem('data', 'lxgw-mono', '霞鹜文楷等宽', 'LXGW WenKai Mono'));
+  menu.appendChild(mkItem('data', 'lxgw', '霞鹜文楷', 'LXGW WenKai'));
+  menu.appendChild(mkItem('data', 'plex', 'JetBrains Mono', 'JetBrains Mono'));
+  menu.appendChild(mkItem('data', 'system', '系统字体', 'system-ui'));
 }
 function bindMenus() {
   [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-font', buildFontMenu]].forEach(([sel, builder]) => {
