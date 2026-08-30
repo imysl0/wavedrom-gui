@@ -1536,9 +1536,11 @@ function laneUnits(lane) {
   return Math.ceil((laneLen(lane) - (lane.phase || 0)) * (lane.period || 1));
 }
 function computeCols() {
-  let max = 8;
+  let max = 0;
   eachLane(l => { max = Math.max(max, laneUnits(l)); });
-  return Math.max(max, +localStorage.getItem('wdgui-cols-min') || 8, 8);
+  const min = +localStorage.getItem('wdgui-cols-min') || 0;
+  if (max === 0) return Math.max(8, min);
+  return Math.max(max, min);
 }
 function laneColor(lane) {
   const flats = allLanes();
