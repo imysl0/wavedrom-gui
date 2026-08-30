@@ -1611,6 +1611,41 @@ function renderMiniEdges() {
       c.setAttribute('fill', col); c.setAttribute('opacity', .9);
       svg.appendChild(c);
     }
+    if (e.label) {
+      let lp = null;
+      if (!segs.length && dots.length === 2) {
+        lp = [(dots[0].x + dots[1].x) / 2, Math.min(dots[0].y, dots[1].y) - 6, 'middle'];
+      } else if (segs.length === 1 && segs[0][0][0] === 'Q') {
+        const [, ax, ay, cx2, cy2, bx, by] = segs[0][0];
+        lp = [(ax + 2 * cx2 + bx) / 4, (ay + 2 * cy2 + by) / 4 - 5, 'middle'];
+      } else if (segs.length === 1) {
+        lp = [(segs[0][0][0] + segs[0][1][0]) / 2, (segs[0][0][1] + segs[0][1][1]) / 2 - 5, 'middle'];
+      } else {
+        let best = null, bl = -1;
+        segs.forEach(sg => {
+          const l = Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]);
+          if (l > bl) { bl = l; best = sg; }
+        });
+        if (best) {
+          const mx2 = (best[0][0] + best[1][0]) / 2, my2 = (best[0][1] + best[1][1]) / 2;
+          lp = best[0][1] === best[1][1] ? [mx2, my2 - 5, 'middle'] : [mx2 + 7, my2, 'start'];
+        }
+      }
+      if (lp) {
+        const tx = document.createElementNS(NS, 'text');
+        tx.setAttribute('x', lp[0]); tx.setAttribute('y', lp[1]);
+        tx.setAttribute('text-anchor', lp[2]);
+        tx.setAttribute('font-size', '9.5');
+        tx.style.fontFamily = 'var(--font-mono)';
+        tx.setAttribute('fill', col);
+        tx.setAttribute('stroke', cssVar('--bg'));
+        tx.setAttribute('stroke-width', '3');
+        tx.setAttribute('paint-order', 'stroke');
+        tx.setAttribute('stroke-linejoin', 'round');
+        tx.textContent = e.label;
+        svg.appendChild(tx);
+      }
+    }
   }
   inner.appendChild(svg);
 }
