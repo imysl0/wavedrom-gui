@@ -1601,6 +1601,11 @@ function renderMiniEdges() {
     const dots = [];
     const r = 9;
     if (spec === '+') {
+      // 两端圆点 + 连接线
+      const dx = pb.x - pa.x, dy = pb.y - pa.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ux = dx / dist, uy = dy / dist;
+      segs.push([[pa.x + ux * r, pa.y + uy * r], [pb.x - ux * r, pb.y - uy * r]]);
       dots.push(pa, pb);
     } else if (spec.includes('|')) {
       // 官方正交走线：| 靠近终点 → 水平后垂直进入；| 在开头 → 垂直后水平；-|- → Z 形
@@ -2081,14 +2086,16 @@ function openPop(lane, t, anchor) {
   popCell = { lane, t };
   pop.textContent = '';
   const slot = lane.slots[t];
+  // 有效渲染状态：显式状态优先；空槽在通道长度内视为延续
+  const eff = (slot && slot.glyph) || (t < laneLen(lane) ? '.' : null);
   const glyphLabel = ch => ch === '.' ? '延续 (.)' : (GLYPH_MAP[ch] ? `${GLYPH_MAP[ch].name} (${ch})` : '');
-  const curLabel = slot ? glyphLabel(slot.glyph) : '';
+  const curLabel = eff ? glyphLabel(eff) : '';
   const title = h('div', { class: 'pop-title' },
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
     (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空'));
   const glyphs = h('div', { class: 'pop-glyphs' });
   const mkG = (ch, name) => {
-    const b = h('button', { class: 'pg' + (slot && slot.glyph === ch ? ' active' : ''), title: name, 'aria-label': name });
+    const b = h('button', { class: 'pg' + (eff === ch ? ' active' : ''), title: name, 'aria-label': name });
     const s = ch === '.' ? extendSample() : glyphSample(ch);
     b.appendChild(s);
     b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? '延续' : ch));
