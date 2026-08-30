@@ -308,7 +308,8 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   padding: 8px 12px;
   border-bottom: 1px solid var(--line-soft);
 }
-.col-stepper { display: flex; gap: 4px; }
+.icon-btn:disabled { opacity: .32; pointer-events: none; }
+.col-stepper { display: flex; gap: 4px; margin-left: 4px; }
 .col-stepper .btn { padding: 0 9px; font-family: var(--font-mono); font-size: 12px; }
 .editor-toolbar .hint { color: var(--faint); font-size: 11.5px; margin-left: auto; }
 .editor-toolbar .hint b { color: var(--muted); font-weight: 600; }
@@ -722,6 +723,12 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <div class="main-col">
   <section class="editor-col">
     <div class="editor-toolbar">
+      <button class="icon-btn" id="undoBtn" title="撤销 (Ctrl+Z)" aria-label="撤销" disabled>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </button>
+      <button class="icon-btn" id="redoBtn" title="重做 (Ctrl+Y)" aria-label="重做" disabled>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m10 3.5 3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H10"/></svg>
+      </button>
       <div class="col-stepper" role="group" aria-label="网格拍数增减">
         <button class="btn ghost" data-act="add-col" data-n="-4" title="网格减少 4 拍">−4</button>
         <button class="btn ghost" data-act="add-col" data-n="-1" title="网格减少 1 拍">−</button>
@@ -991,6 +998,52 @@ const state = {
   autoFit: true,
   sizes: {},
 };
+const undoStack = [], redoStack = [];
+let undoBase = null, commitTag = null, lastCommitTag = null, lastCommitTime = 0;
+const UNDO_MAX = 100;
+
+function commitUndo() {
+  const cur = JSON.stringify(buildJSON());
+  if (cur === undoBase) return;
+  const now = Date.now();
+  if (commitTag && commitTag === lastCommitTag && now - lastCommitTime < 700) {
+    // 连续同类小改动（涂抹/打字/拖滑块）合并为一步
+  } else {
+    undoStack.push(undoBase);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+  }
+  lastCommitTag = commitTag; lastCommitTime = now;
+  undoBase = cur;
+  redoStack.length = 0;
+  updateUndoButtons();
+}
+function updateUndoButtons() {
+  const u = $('#undoBtn'), r = $('#redoBtn');
+  if (u) u.disabled = !undoStack.length;
+  if (r) r.disabled = !redoStack.length;
+}
+function restoreSnapshot(json) {
+  closePop();
+  adoptState(parseDoc(JSON.parse(json)));
+  undoBase = json;
+  syncSettings();
+  update(true);
+  persist();
+}
+function doUndo() {
+  if (!undoStack.length) { toast('没有可撤销的操作'); return; }
+  redoStack.push(JSON.stringify(buildJSON()));
+  restoreSnapshot(undoStack.pop());
+  updateUndoButtons();
+  toast('已撤销');
+}
+function doRedo() {
+  if (!redoStack.length) { toast('没有可重做的操作'); return; }
+  undoStack.push(JSON.stringify(buildJSON()));
+  restoreSnapshot(redoStack.pop());
+  updateUndoButtons();
+  toast('已重做');
+}
 function newLane(name, slots) {
   return { kind: 'lane', id: nextId(), name: name || '', slots: slots || [], period: null, phase: null, nodeByT: {}, extras: {} };
 }
@@ -1824,7 +1877,7 @@ function renderEdges() {
       h('optgroup', { label: '更多' }, ...EDGE_SPECS.slice(9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${s.name}`); if (s.s === e.spec) o.selected = true; return o; })));
     const prevWrap = h('span', { class: 'preview' }); prevWrap.appendChild(edgePreviewSVG(e.spec));
     const labelInp = h('input', { type: 'text', value: e.label, placeholder: '箭头标注（可选）', 'aria-label': '箭头标注' });
-    labelInp.addEventListener('input', () => { e.label = labelInp.value; scheduleUpdate(); });
+    labelInp.addEventListener('input', () => { commitTag = 'edge'; e.label = labelInp.value; scheduleUpdate(); });
     fromSel.addEventListener('change', () => { e.from = fromSel.value; scheduleUpdate(); });
     toSel.addEventListener('change', () => { e.to = toSel.value; scheduleUpdate(); });
     styleSel.addEventListener('change', () => {
@@ -1909,6 +1962,8 @@ function renderPreview() {
 let rafPending = false, saveTimer = null, previewTimer = null;
 function scheduleUpdate() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; update(); }); }
 function update(structureChanged) {
+  commitUndo();
+  commitTag = null;
   if (popCell && !getLaneById(popCell.lane.id)) closePop();
   renderGrid();
   if (popCell) markEditingRow(popCell.lane);
@@ -1988,6 +2043,7 @@ function buildPalette() {
 let painting = false, paintLane = null, paintedSinceDown = false, dragLastT = -1, extendMode = false;
 function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l; }); return r; }
 function paintCell(lane, t, glyph) {
+  commitTag = 'paint';
   while (lane.slots.length <= t) lane.slots.push(null);
   lane.slots[t] = { glyph };
   lane.len = Math.max(lane.len || 0, t + 1);
@@ -1995,6 +2051,7 @@ function paintCell(lane, t, glyph) {
   update();
 }
 function clearCell(lane, t) {
+  commitTag = 'paint';
   if (lane.slots[t]) { lane.slots[t] = null; delete lane.nodeByT[t]; }
   while (lane.slots.length && !lane.slots[lane.slots.length - 1]) lane.slots.pop();
   lane.len = null;
@@ -2044,7 +2101,7 @@ function openPop(lane, t, anchor) {
 
   if (slot && isData(slot.glyph)) {
     const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '如 0x1F、D0、NOP', 'aria-label': '数据标签' });
-    inp.addEventListener('input', () => { slot.label = inp.value; scheduleUpdate(); });
+    inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
     pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '数据标签'), inp));
     const row = h('div', { class: 'pop-colors' });
@@ -2489,14 +2546,15 @@ function applyZoom() {
 
 /* ---------- 设置绑定 ---------- */
 function bindSettings() {
-  $('#headText').addEventListener('input', e => { state.head.text = e.target.value; scheduleUpdate(); });
-  $('#headTick').addEventListener('input', e => { state.head.tick = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#headTock').addEventListener('input', e => { state.head.tock = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#headEvery').addEventListener('input', e => { state.head.every = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#footText').addEventListener('input', e => { state.foot.text = e.target.value; scheduleUpdate(); });
-  $('#footTick').addEventListener('input', e => { state.foot.tick = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#footTock').addEventListener('input', e => { state.foot.tock = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#hscale').addEventListener('input', e => { state.hscale = +e.target.value; $('#hscaleVal').textContent = e.target.value; scheduleUpdate(); });
+  const cfgTag = t => { commitTag = t; };
+  $('#headText').addEventListener('input', e => { commitTag = 'cfg'; state.head.text = e.target.value; scheduleUpdate(); });
+  $('#headTick').addEventListener('input', e => { commitTag = 'cfg'; state.head.tick = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#headTock').addEventListener('input', e => { commitTag = 'cfg'; state.head.tock = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#headEvery').addEventListener('input', e => { commitTag = 'cfg'; state.head.every = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#footText').addEventListener('input', e => { commitTag = 'cfg'; state.foot.text = e.target.value; scheduleUpdate(); });
+  $('#footTick').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tick = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#footTock').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tock = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#hscale').addEventListener('input', e => { commitTag = 'cfg'; state.hscale = +e.target.value; $('#hscaleVal').textContent = e.target.value; scheduleUpdate(); });
   $('#skin').addEventListener('change', e => { state.skin = e.target.value; update(); });
 }
 
@@ -2598,6 +2656,16 @@ function init() {
   if (state.sizes.side) $('.side').style.width = state.sizes.side + 'px';
   applySizes();
   bindSplitters();
+
+  undoBase = JSON.stringify(buildJSON());
+  $('#undoBtn').addEventListener('click', doUndo);
+  $('#redoBtn').addEventListener('click', doRedo);
+  document.addEventListener('keydown', ev => {
+    if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+    if (ev.key === 'z' || ev.key === 'Z') { ev.preventDefault(); ev.shiftKey ? doRedo() : doUndo(); }
+    else if (ev.key === 'y' || ev.key === 'Y') { ev.preventDefault(); doRedo(); }
+  });
+  updateUndoButtons();
 
   $('#themeBtn').addEventListener('click', () => {
     applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
