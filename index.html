@@ -233,6 +233,14 @@ svg { display: block; }
   font: 500 12.5px var(--font-mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.tree-row input.tw-name-input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  font: 500 12.5px var(--font-mono); color: var(--text);
+  padding: 1px 4px;
+}
+.tree-row input.tw-name-input:hover { border-color: var(--line); }
+.tree-row input.tw-name-input:focus { outline: none; border-color: var(--acc); background: var(--panel-2); }
 .tree-row.group > .tw-name { font-family: var(--font-ui); font-weight: 600; }
 .tree-row .tw-kind { font-size: 10px; color: var(--faint); flex: none; }
 .tree-row .lane-actions { display: none; align-items: center; gap: 1px; flex: none; }
@@ -325,7 +333,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 }
 .time-corner {
   position: sticky; left: 0; z-index: 6;
-  width: 196px; flex: none;
+  width: var(--namew, 196px); flex: none;
   background: var(--bg);
   border-right: 1px solid var(--line);
   display: flex; align-items: center; padding: 0 12px;
@@ -342,7 +350,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .time-cell.tick { color: var(--acc-text); font-weight: 600; }
 
 .strip { display: flex; }
-.strip-corner { width: 196px; flex: none; }
+.strip-corner { width: var(--namew, 196px); flex: none; }
 .strip-text { flex: none; text-align: center; color: var(--muted); font: 600 12.5px var(--font-ui); padding: 5px 8px; white-space: nowrap; }
 .foot-nums { border-top: 1px solid var(--line-soft); padding: 3px 0; }
 .strip-cells { display: flex; }
@@ -360,7 +368,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .lane-row:nth-child(odd) .lane-track { background: var(--row-alt); }
 .lane-head {
   position: sticky; left: 0; z-index: 4;
-  width: 196px; flex: none; height: 100%;
+  width: var(--namew, 196px); flex: none; height: 100%;
   background: var(--panel);
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
@@ -1553,6 +1561,14 @@ let animateLanes = null; // Set of lane ids to animate
 function renderGrid() {
   const inner = $('#gridInner');
   inner.textContent = '';
+  // 信号名列宽自适应：整棵树最长名称（含分组名）+ 固定余量，带上限/下限
+  let maxName = '';
+  walkTree(state.tree, (n, d) => {
+    const nm = n.name || '';
+    if (nm.length > maxName.length) maxName = nm;
+  });
+  const namew = Math.max(120, Math.min(340, 64 + maxName.length * 8.5));
+  document.documentElement.style.setProperty('--namew', namew + 'px');
   const colCount = computeCols();
   if (!state.tree.length) {
     inner.appendChild(buildEmptyState());
@@ -1569,7 +1585,7 @@ function renderGrid() {
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, H.text)));
   }
   const timeRow = h('div', { class: 'time-row' },
-    h('div', { class: 'time-corner' }, '通道 \\ 拍'),
+    h('div', { class: 'time-corner' }, '信号 \\ 拍'),
     (() => {
       const cells = h('div', { class: 'time-cells' });
       const headTL = headNums ? tickLabels(H.tick, colCount) : { L: [], offset: 0 };
@@ -1787,8 +1803,8 @@ function rowActions(node, kind, inTree) {
       wrap.appendChild(mk(IC.copy, '复制通道', () => dupLane(node)));
       wrap.appendChild(mk(IC.into, '移入上方最近的分组', () => intoGroup(node)));
       wrap.appendChild(mk(IC.out, '移出所在分组', () => outOfGroup(node)));
+      wrap.appendChild(mk(IC.gear, '通道属性（period / phase）', btn => openLanePropPop(node, btn)));
     }
-    wrap.appendChild(mk(IC.gear, '通道属性（period / phase）', btn => openLanePropPop(node, btn)));
   }
   if (kind === 'group') {
     if (inTree) wrap.appendChild(mk(IC.plus, '在组内添加通道', () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
@@ -1811,8 +1827,7 @@ function buildLaneRow(lane, depth, colCount) {
     })(),
     ((lane.period && lane.period > 1) || lane.phase)
       ? h('span', { class: 'pp-badge' }, (lane.period && lane.period > 1 ? '×' + lane.period : '') + (lane.phase ? ' φ' + lane.phase : ''))
-      : null,
-    rowActions(lane, 'lane'));
+      : null);
   const track = h('div', { class: 'lane-track', style: 'width:' + colCount * gridCellW() + 'px' });
   const svg = laneSVG(lane, colCount, color);
   if (animateLanes && animateLanes.has(lane.id)) {
@@ -1852,7 +1867,7 @@ function buildGroupRow(group, depth) {
   inp.addEventListener('change', () => { group.name = inp.value.trim() || '分组'; update(true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
-    icon('<path d="M6 4l4 4-4 4"/>', 12), inp, rowActions(group, 'group'));
+    icon('<path d="M6 4l4 4-4 4"/>', 12), inp);
   const track = h('div', { class: 'lane-track', style: 'width:' + computeCols() * gridCellW() + 'px' });
   row.appendChild(head); row.appendChild(track);
   return row;
@@ -1860,7 +1875,7 @@ function buildGroupRow(group, depth) {
 function buildSpacerRow(sp, depth) {
   const row = h('div', { class: 'lane-row spacer-row', 'data-spacer': sp.id });
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
-    h('span', { class: 'spacer-label' }, '空白占位'), rowActions(sp, 'spacer'));
+    h('span', { class: 'spacer-label' }, '空白占位'));
   const track = h('div', { class: 'lane-track', style: 'width:' + computeCols() * gridCellW() + 'px' });
   row.appendChild(head); row.appendChild(track);
   return row;
@@ -1894,7 +1909,13 @@ function renderTree() {
         row.appendChild(rowActions(node, 'spacer', true));
       } else {
         row.appendChild(h('span', { class: 'tw-color', style: 'background:' + laneColor(node) }));
-        row.appendChild(h('span', { class: 'tw-name', title: node.name }, node.name || '未命名'));
+        const nameInp = h('input', {
+          class: 'tw-name-input', value: node.name,
+          'aria-label': '通道名称', title: '点击修改名称',
+        });
+        nameInp.addEventListener('change', () => { node.name = nameInp.value.trim(); update(true); });
+        nameInp.addEventListener('keydown', ev => { if (ev.key === 'Enter') nameInp.blur(); });
+        row.appendChild(nameInp);
         const bits = laneWaveStr(node).length;
         row.appendChild(h('span', { class: 'tw-kind' }, bits ? bits + '拍' : '空'));
         row.appendChild(rowActions(node, 'lane', true));
