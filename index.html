@@ -328,6 +328,16 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   font: 500 10px var(--font-mono); color: var(--faint);
   border-left: 1px solid var(--line-soft);
 }
+.time-cell.tick { color: var(--acc-text); font-weight: 600; }
+
+.strip { display: flex; }
+.strip-corner { width: 196px; flex: none; }
+.strip-text { flex: none; text-align: center; color: var(--muted); font: 600 12.5px var(--font-ui); padding: 5px 8px; white-space: nowrap; }
+.foot-nums { border-top: 1px solid var(--line-soft); padding: 3px 0; }
+.strip-cells { display: flex; }
+.strip-num { width: 36px; flex: none; text-align: center; font: 500 10px var(--font-mono); color: var(--acc-text); }
+.foot-text { border-top: 1px solid var(--line-soft); }
+.head-strip { border-bottom: none; }
 
 .lane-row { display: flex; height: 48px; }
 .lane-row:nth-child(odd) .lane-track { background: var(--row-alt); }
@@ -1372,11 +1382,28 @@ function renderGrid() {
     inner.appendChild(buildEmptyState());
     return;
   }
+  const H = state.head, F = state.foot;
+  const headNums = H.tick !== null && H.tick !== '';
+  const headEvery = Math.max(1, H.every || 1);
+  const footNums = (F.tock !== null && F.tock !== '') || (F.tick !== null && F.tick !== '');
+  const footEvery = Math.max(1, F.every || 1);
+  if (H.text) {
+    inner.appendChild(h('div', { class: 'strip head-strip' },
+      h('div', { class: 'strip-corner' }),
+      h('div', { class: 'strip-text', style: `width:${colCount * CELLW}px` }, H.text)));
+  }
   const timeRow = h('div', { class: 'time-row' },
     h('div', { class: 'time-corner' }, '通道 \\ 拍'),
     (() => {
       const cells = h('div', { class: 'time-cells' });
-      for (let t = 0; t < colCount; t++) cells.appendChild(h('div', { class: 'time-cell', 'data-t': t }, String(t)));
+      for (let t = 0; t < colCount; t++) {
+        let label = String(t);
+        if (headNums) {
+          const val = H.tick + t;
+          label = ((val % headEvery) + headEvery) % headEvery === 0 ? String(val) : '';
+        }
+        cells.appendChild(h('div', { class: 'time-cell' + (headNums ? ' tick' : ''), 'data-t': t }, label));
+      }
       return cells;
     })());
   inner.appendChild(timeRow);
@@ -1396,6 +1423,21 @@ function renderGrid() {
   };
   renderNodeList(state.tree, 0);
   inner.appendChild(frag);
+  if (footNums) {
+    const nums = h('div', { class: 'strip-cells' }, h('div', { class: 'strip-corner' }));
+    const base = (F.tock !== null && F.tock !== '') ? F.tock : F.tick;
+    for (let t = 0; t < colCount; t++) {
+      const val = base + t;
+      const label = ((val % footEvery) + footEvery) % footEvery === 0 ? String(val) : '';
+      nums.appendChild(h('div', { class: 'strip-num' }, label));
+    }
+    inner.appendChild(h('div', { class: 'strip foot-nums' }, nums));
+  }
+  if (F.text) {
+    inner.appendChild(h('div', { class: 'strip foot-text' },
+      h('div', { class: 'strip-corner' }),
+      h('div', { class: 'strip-text', style: `width:${colCount * CELLW}px` }, F.text)));
+  }
   renderMiniEdges();
 }
 
