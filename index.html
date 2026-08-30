@@ -587,7 +587,11 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* 迷你波形描边辉光（示波器荧光） */
-.wtrace { filter: drop-shadow(0 0 2.5px currentColor); }
+.wtrace { filter: drop-shadow(0 0 1.2px currentColor); }
+html[data-trace="glow"] .wtrace { filter: drop-shadow(0 0 2.5px currentColor); }
+#traceBtn .ic-glow { display: none; }
+html[data-trace="glow"] #traceBtn .ic-slim { display: none; }
+html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 /* 响应式 */
 @media (max-width: 1360px) { .right-col { width: 400px; } .side { width: 270px; } }
@@ -632,6 +636,10 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
     </div>
   </div>
   <div class="spacer"></div>
+  <button class="icon-btn" id="traceBtn" title="轨迹样式：纤细（点击切换为荧光辉光）" aria-label="切换轨迹样式" style="width:30px;height:30px">
+    <svg class="ic-slim" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 12C5 12 6 4 9 4s4 3 5 3"/><path d="M12.5 2.5v0M13.5 5v0" stroke-width="1.8"/></svg>
+    <svg class="ic-glow" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 12C5 12 6 4 9 4s4 3 5 3"/></svg>
+  </button>
   <button class="icon-btn" id="viewBtn" title="切换视图：预览放编辑区下方" aria-label="切换视图" style="width:30px;height:30px;margin-right:6px">
     <svg class="ic-stack" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12"/></svg>
     <svg class="ic-side" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M10 3v10"/></svg>
@@ -793,6 +801,7 @@ try { module.exports = WaveSkin; } catch(err) {}
 /* ---------- 主题 ---------- */
 document.documentElement.dataset.theme = localStorage.getItem('wdgui-theme') === 'dark' ? 'dark' : 'light';
 document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === 'side' ? 'side' : 'below';
+document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
 
 /* ---------- 常量 ---------- */
 const CELLW = 36, NAMEW = 196;
@@ -803,6 +812,7 @@ let xclipSeq = 0;
 const gridCellW = () => CELLW * (state.hscale || 1);
 const chColors = () => [cssVar('--ch1'), cssVar('--ch2'), cssVar('--ch3'), cssVar('--ch4'), cssVar('--ch5'), cssVar('--ch6')];
 
+const DIGIT_FILLS = { 2: '#ffffff', 3: '#ffffb4', 4: '#ffe0b9', 5: '#b9e0ff', 6: '#ccfdfe', 7: '#cdfdc5', 8: '#f0c1fb', 9: '#f5c2c0' };
 const GLYPHS = [
   { c: '0', name: '低电平' }, { c: '1', name: '高电平' },
   { c: 'p', name: '时钟' }, { c: 'n', name: '反相时钟' },
@@ -812,7 +822,10 @@ const GLYPHS = [
   { c: 'x', name: '不确定' }, { c: 'z', name: '高阻' },
   { c: 'h', name: '高·无沿' }, { c: 'l', name: '低·无沿' },
   { c: 'H', name: '高·带沿' }, { c: 'L', name: '低·带沿' },
-  { c: '=', name: '数据' }, { c: '|', name: '间隙' },
+  { c: '=', name: '数据' },
+  { c: '2', name: '数据·白' }, { c: '3', name: '数据·黄' }, { c: '4', name: '数据·橙' }, { c: '5', name: '数据·蓝' },
+  { c: '6', name: '数据·青' }, { c: '7', name: '数据·绿' }, { c: '8', name: '数据·紫' }, { c: '9', name: '数据·粉' },
+  { c: '|', name: '间隙' },
 ];
 const GLYPH_MAP = {}; GLYPHS.forEach(g => GLYPH_MAP[g.c] = g);
 
@@ -1031,20 +1044,6 @@ function laneDataArr(lane) {
   }
   return labels.some(x => x !== '') ? labels : null;
 }
-function laneDataColors(lane) {
-  const wave = laneWaveStr(lane);
-  const out = []; let i = 0;
-  while (i < wave.length) {
-    const ch = wave[i];
-    if (isData(ch)) {
-      const slot = lane.slots[i];
-      out.push(slot && slot.color ? slot.color : '');
-      i++;
-      while (i < wave.length && wave[i] === '.') i++;
-    } else i++;
-  }
-  return out.some(x => x) ? out : null;
-}
 function buildLaneObj(lane) {
   const o = {};
   if (lane.name) o.name = lane.name;
@@ -1052,8 +1051,6 @@ function buildLaneObj(lane) {
   if (/[^\s.]/.test(w)) o.wave = w;
   const d = laneDataArr(lane);
   if (d) o.data = d;
-  const dc = laneDataColors(lane);
-  if (dc) o.datacolor = dc;
   const n = laneNodeStr(lane);
   if (n) o.node = n;
   if (lane.period) o.period = lane.period;
@@ -1108,7 +1105,6 @@ function parseEntry(e) {
   const wave = typeof e.wave === 'string' ? e.wave : '';
   if (wave.length) lane.len = wave.length;
   const data = Array.isArray(e.data) ? e.data.map(String) : (typeof e.data === 'string' ? e.data.split(/\s+/) : []);
-  const dc = Array.isArray(e.datacolor) ? e.datacolor.map(x => (x && String(x)) || '') : null;
   let runIdx = -1;
   for (let t = 0; t < wave.length; t++) {
     const ch = wave[t];
@@ -1118,7 +1114,6 @@ function parseEntry(e) {
     if (isData(ch)) {
       runIdx++;
       if (data[runIdx] !== undefined) slot.label = data[runIdx];
-      if (dc && dc[runIdx]) slot.color = dc[runIdx];
     }
     lane.slots[t] = slot;
   }
@@ -1191,22 +1186,26 @@ function laneSVG(lane, colCount, color) {
   };
   const edgeInto = (x, target) => { if (lvl !== null && lvl !== target) V(x, yOf(lvl), target); };
   const drawClock = (x0, kind, w, arrowed) => {
+    // 官方相位：p 低前高后（中点上升）；n 高前低后（中点下降）
+    //           P 高前低后（起点上升沿+箭头）；N 低前高后（起点下降沿+箭头）
     const x1 = x0 + w;
-    if (kind === 'p') { M(x0, LO); d += `H${x0 + w / 2}V${HI}`; Hline(x1); lvl = 'hi'; }
-    else { M(x0, HI); d += `H${x0 + w / 2}V${LO}`; Hline(x1); lvl = 'lo'; }
-    if (arrowed) {
-      const xm = x0 + w / 2;
-      const tri = document.createElementNS(NS, 'path');
-      tri.setAttribute('d', kind === 'p' ? `M${xm} ${HI + 2}l-3.4 6.5h6.8z` : `M${xm} ${LO - 2}l-3.4 -6.5h6.8z`);
-      tri.setAttribute('fill', color);
-      svg.appendChild(tri);
+    if (kind === 'p') { edgeInto(x0, HI); M(x0, HI); d += `H${x0 + w / 2}V${LO}`; Hline(x1); lvl = 'lo'; }
+    else if (kind === 'n') { edgeInto(x0, LO); M(x0, LO); d += `H${x0 + w / 2}V${HI}`; Hline(x1); lvl = 'hi'; }
+    else if (kind === 'P') {
+      edgeInto(x0, HI);
+      M(x0, HI); d += `H${x0 + w / 2}V${LO}`; Hline(x1); lvl = 'lo';
+      if (arrowed) arrowTri(x0, (HI + LO) / 2, 'up');
+    } else {
+      edgeInto(x0, LO);
+      M(x0, LO); d += `H${x0 + w / 2}V${HI}`; Hline(x1); lvl = 'hi';
+      if (arrowed) arrowTri(x0, (HI + LO) / 2, 'down');
     }
   };
   while (t < len) {
     const s = slots[t];
     const x0 = X(t), x1 = x0 + W;
     if (!s || s.glyph === '.') {
-      if (prevClock) { edgeInto(x0, prevClock === 'p' ? LO : HI); drawClock(x0, prevClock, W, prevClockArrowed); }
+      if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N');
       else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') Hline(x1);
       t++; continue;
     }
@@ -1249,12 +1248,13 @@ function laneSVG(lane, colCount, color) {
       let e = t + 1;
       while (e < len && (!slots[e] || slots[e].glyph === '.')) e++;
       const w = (e - t) * W;
-      const col = s.color || color;
+      const isDigit = g !== '=';
       const box = document.createElementNS(NS, 'rect');
       box.setAttribute('x', x0 + 1.5); box.setAttribute('y', 13);
       box.setAttribute('width', Math.max(4, w - 3)); box.setAttribute('height', 22);
       box.setAttribute('rx', 2.5);
-      box.setAttribute('fill', hexA(col, .13)); box.setAttribute('stroke', hexA(col, .85));
+      box.setAttribute('fill', isDigit ? DIGIT_FILLS[g] : hexA(color, .13));
+      box.setAttribute('stroke', isDigit ? 'rgba(27,37,54,.55)' : hexA(color, .85));
       box.setAttribute('stroke-width', 1.4);
       svg.appendChild(box);
       const label = s.label;
@@ -1263,7 +1263,7 @@ function laneSVG(lane, colCount, color) {
         tx.setAttribute('x', x0 + w / 2); tx.setAttribute('y', 27);
         tx.setAttribute('text-anchor', 'middle');
         tx.setAttribute('font-size', '9.5'); tx.style.fontFamily = 'var(--font-mono)';
-        tx.setAttribute('fill', col);
+        tx.setAttribute('fill', isDigit ? '#1B2536' : color);
         tx.textContent = String(label);
         if (String(label).length * 6 > w - 8) { tx.setAttribute('textLength', w - 10); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
         svg.appendChild(tx);
@@ -1275,8 +1275,9 @@ function laneSVG(lane, colCount, color) {
         const target = HI, up = g === 'H';
         if (lvl === null || lvl === target) { M(x0, target); }
         else {
-          M(x0, yOf(lvl)); d += `H${x0 + W * .15}L${x0 + W * .45} ${target}`;
-          arrowTri(x0 + W * .3, (yOf(lvl) + target) / 2, up ? 'up' : null);
+          // 官方 0m1/1m0 几何：过渡固定占第一个基准子格（36px）的 15%~45%，不随 hscale/period 缩放
+          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .15}L${x0 + CELLW * .45} ${target}`;
+          arrowTri(x0 + CELLW * .3, (yOf(lvl) + target) / 2, up ? 'up' : null);
         }
         Hline(x1); lvl = 'hi'; break;
       }
@@ -1284,24 +1285,24 @@ function laneSVG(lane, colCount, color) {
         const target = LO, down = g === 'L';
         if (lvl === null || lvl === target) { M(x0, target); }
         else {
-          M(x0, yOf(lvl)); d += `H${x0 + W * .15}L${x0 + W * .45} ${target}`;
-          arrowTri(x0 + W * .3, (yOf(lvl) + target) / 2, down ? 'down' : null);
+          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .15}L${x0 + CELLW * .45} ${target}`;
+          arrowTri(x0 + CELLW * .3, (yOf(lvl) + target) / 2, down ? 'down' : null);
         }
         Hline(x1); lvl = 'lo'; break;
       }
-      case 'p': case 'P': edgeInto(x0, LO); drawClock(x0, 'p', W, g === 'P'); prevClock = 'p'; prevClockArrowed = g === 'P'; break;
-      case 'n': case 'N': edgeInto(x0, HI); drawClock(x0, 'n', W, g === 'N'); prevClock = 'n'; prevClockArrowed = g === 'N'; break;
+      case 'p': case 'P': drawClock(x0, g, W, g === 'P'); prevClock = g; break;
+      case 'n': case 'N': drawClock(x0, g, W, g === 'N'); prevClock = g; break;
       case 'u': case 'U': {
         // 官方造型：平-平滑爬升-圆滑到顶的 S 曲线
         if (g === 'U' && lvl !== null && lvl !== 'lo') V(x0, yOf(lvl), LO);
         if (lvl === 'hi') { M(x0, HI); Hline(x1); }
-        else { M(x0, LO); d += `C${x0 + W * .4} ${LO},${x0 + W * .6} ${HI},${x1} ${HI}`; }
+        else { M(x0, LO); d += `H${x0 + CELLW * .15}C${x0 + CELLW * .4} ${LO},${x0 + CELLW * .62} ${HI},${x0 + CELLW} ${HI}`; Hline(x1); }
         lvl = 'hi'; break;
       }
       case 'd': case 'D': {
         if (g === 'D' && lvl !== null && lvl !== 'hi') V(x0, yOf(lvl), HI);
         if (lvl === 'lo') { M(x0, LO); Hline(x1); }
-        else { M(x0, HI); d += `C${x0 + W * .4} ${HI},${x0 + W * .6} ${LO},${x1} ${LO}`; }
+        else { M(x0, HI); d += `H${x0 + CELLW * .15}C${x0 + CELLW * .4} ${HI},${x0 + CELLW * .62} ${LO},${x0 + CELLW} ${LO}`; Hline(x1); }
         lvl = 'lo'; break;
       }
       case 'z': case 'Z':
@@ -1313,7 +1314,7 @@ function laneSVG(lane, colCount, color) {
         if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') { M(x0, yOf(lvl)); Hline(x1); }
         const gEl = document.createElementNS(NS, 'g');
         const baseY = (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') ? yOf(lvl) : MID;
-        gEl.setAttribute('transform', `translate(${x0 + W / 2}, ${baseY - 11}) scale(1.1)`);
+        gEl.setAttribute('transform', `translate(${x0 + CELLW / 2}, ${baseY - 11}) scale(1.1)`);
         const mk = (d, fill, stroke) => {
           const p = document.createElementNS(NS, 'path');
           p.setAttribute('d', d);
@@ -1338,7 +1339,8 @@ function laneSVG(lane, colCount, color) {
     const p = document.createElementNS(NS, 'path');
     p.setAttribute('d', d);
     p.setAttribute('fill', 'none'); p.setAttribute('stroke', color);
-    p.setAttribute('stroke-width', 1.7); p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-width', document.documentElement.dataset.trace === 'glow' ? 1.7 : 1.5);
+    p.setAttribute('stroke-linecap', 'round');
     p.setAttribute('stroke-linejoin', 'round');
     p.setAttribute('class', 'wtrace');
     p.style.color = color;
@@ -1534,56 +1536,74 @@ function renderMiniEdges() {
   for (const e of state.edges) {
     const pa = pos(e.from), pb = pos(e.to);
     if (!pa || !pb) continue;
-    const dx = pb.x - pa.x, dy = pb.y - pa.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const ux = dx / dist, uy = dy / dist, r = 9;
-    const ax = pa.x + ux * r, ay = pa.y + uy * r;
-    const bx = pb.x - ux * r, by = pb.y - uy * r;
-    const curved = e.spec.includes('~');
-    const ticksN = (e.spec.match(/\|/g) || []).length;
-    let d, cx = 0, cy = 0;
-    if (curved) {
-      cx = (ax + bx) / 2 - uy * Math.min(26, dist * .22);
-      cy = (ay + by) / 2 + ux * Math.min(26, dist * .22);
-      d = `M${ax} ${ay}Q${cx} ${cy} ${bx} ${by}`;
+    const spec = e.spec;
+    const segs = [];        // 正交/斜线路径段
+    const heads = [];       // [x, y, dx, dy] 箭头
+    const dots = [];
+    const r = 9;
+    if (spec === '+') {
+      dots.push(pa, pb);
+    } else if (spec.includes('|')) {
+      // 官方正交走线：| 靠近终点 → 水平后垂直进入；| 在开头 → 垂直后水平；-|- → Z 形
+      const lead = spec.startsWith('|');
+      const dx = pb.x - pa.x, sx = pa.x, ex = pb.x, sy = pa.y, ey = pb.y;
+      const dyv = ey > sy ? 1 : -1;
+      if (lead) {
+        segs.push([[sx, sy - r], [sx, ey]]);
+        segs.push([[sx, ey], [ex - dx > 0 ? ex : ex, ey]]);
+        if (spec.endsWith('>')) heads.push([ex - r, ey, 1, 0]);
+        if (spec.startsWith('<')) heads.push([sx, sy - r, 0, -dyv]);
+      } else if ((spec.match(/\|/g) || []).length >= 2 && !spec.endsWith('|')) {
+        const mx = (sx + ex) / 2;
+        segs.push([[sx, sy], [mx, sy]]);
+        segs.push([[mx, sy], [mx, ey]]);
+        segs.push([[mx, ey], [ex, ey]]);
+        if (spec.endsWith('>')) heads.push([ex - r, ey, 1, 0]);
+        if (spec.startsWith('<')) heads.push([sx + r, sy, -1, 0]);
+      } else {
+        segs.push([[sx, sy], [ex, sy]]);
+        segs.push([[ex, sy], [ex, ey]]);
+        const vdir = dyv;
+        if (spec.endsWith('>')) heads.push([ex, ey - vdir * r, 0, vdir]);
+        if (spec.startsWith('<')) heads.push([sx, sy + (sy < ey ? -r : r), 0, sy < ey ? -1 : 1]);
+      }
     } else {
-      d = `M${ax} ${ay}L${bx} ${by}`;
-    }
-    const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', col);
-    path.setAttribute('stroke-width', 1.4);
-    path.setAttribute('opacity', .8);
-    svg.appendChild(path);
-    let ex = ux, ey = uy, sx = -ux, sy = -uy;
-    if (curved) {
-      ex = bx - cx; ey = by - cy;
-      const el = Math.hypot(ex, ey) || 1; ex /= el; ey /= el;
-      sx = ax - cx; sy = ay - cy;
-      const sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
-    }
-    if (e.spec.endsWith('>')) arrow(bx, by, ex, ey);
-    if (e.spec.startsWith('<')) arrow(ax, ay, sx, sy);
-    if (e.spec === '+') {
-      for (const p of [pa, pb]) {
-        const c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 2.4);
-        c.setAttribute('fill', col); c.setAttribute('opacity', .9);
-        svg.appendChild(c);
+      const dx = pb.x - pa.x, dy = pb.y - pa.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const ux = dx / dist, uy = dy / dist;
+      const ax = pa.x + ux * r, ay = pa.y + uy * r;
+      const bx = pb.x - ux * r, by = pb.y - uy * r;
+      if (spec.includes('~')) {
+        const cx = (ax + bx) / 2 - uy * Math.min(26, dist * .22);
+        const cy = (ay + by) / 2 + ux * Math.min(26, dist * .22);
+        segs.push([['Q', ax, ay, cx, cy, bx, by]]);
+        let ex = bx - cx, ey2 = by - cy; const el = Math.hypot(ex, ey2) || 1;
+        if (spec.endsWith('>')) heads.push([bx, by, ex / el, ey2 / el]);
+        let sx2 = ax - cx, sy2 = ay - cy; const sl = Math.hypot(sx2, sy2) || 1;
+        if (spec.startsWith('<')) heads.push([ax, ay, sx2 / sl, sy2 / sl]);
+      } else {
+        segs.push([[ax, ay], [bx, by]]);
+        if (spec.endsWith('>')) heads.push([bx, by, ux, uy]);
+        if (spec.startsWith('<')) heads.push([ax, ay, -ux, -uy]);
       }
     }
-    for (let i = 1; i <= ticksN; i++) {
-      const t = i / (ticksN + 1);
-      let px, py;
-      if (curved) {
-        px = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * cx + t * t * bx;
-        py = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * cy + t * t * by;
-      } else { px = ax + (bx - ax) * t; py = ay + (by - ay) * t; }
-      const tk = document.createElementNS(NS, 'path');
-      tk.setAttribute('d', `M${px - uy * 4} ${py + ux * 4}L${px + uy * 4} ${py - ux * 4}`);
-      tk.setAttribute('stroke', col); tk.setAttribute('stroke-width', 1.4); tk.setAttribute('opacity', .9);
-      svg.appendChild(tk);
+    for (const sg of segs) {
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('d', sg[0][0] === 'Q'
+        ? `M${sg[0][1]} ${sg[0][2]}Q${sg[0][3]} ${sg[0][4]} ${sg[0][5]} ${sg[0][6]}`
+        : `M${sg[0][0]} ${sg[0][1]}L${sg[1][0]} ${sg[1][1]}`);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', col);
+      path.setAttribute('stroke-width', 1.4);
+      path.setAttribute('opacity', .8);
+      svg.appendChild(path);
+    }
+    for (const [hx, hy, dx2, dy2] of heads) arrow(hx, hy, dx2, dy2);
+    for (const p of dots) {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 2.4);
+      c.setAttribute('fill', col); c.setAttribute('opacity', .9);
+      svg.appendChild(c);
     }
   }
   inner.appendChild(svg);
@@ -1974,26 +1994,24 @@ function openPop(lane, t, anchor) {
     inp.addEventListener('input', () => { slot.label = inp.value; scheduleUpdate(); });
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
     pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '数据标签'), inp));
-    const SW = ['', '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899', '#94A3B8'];
-    const SWN = ['自动·跟随通道', '红', '橙', '绿', '青', '蓝', '紫', '粉', '灰'];
     const row = h('div', { class: 'pop-colors' });
-    SW.forEach((c, i) => {
+    const mkSw = (ch, label, bg) => {
       const b = h('button', {
-        class: 'swatch' + ((slot.color || '') === c ? ' active' : '') + (i === 0 ? ' auto' : ''),
-        title: SWN[i], 'aria-label': '框颜色：' + SWN[i], type: 'button',
+        class: 'swatch' + (slot.glyph === ch ? ' active' : '') + (ch === '=' ? ' auto' : ''),
+        title: label, 'aria-label': '填充：' + label, type: 'button',
       });
-      b.style.background = c || laneColor(lane);
-      if (i === 0) b.textContent = 'A';
+      b.style.background = bg;
+      if (ch === '=') b.textContent = 'A';
       b.addEventListener('click', () => {
-        slot.color = c || undefined;
-        if (!c) delete slot.color;
+        slot.glyph = ch;
         row.querySelectorAll('.swatch').forEach(x => x.classList.toggle('active', x === b));
         scheduleUpdate();
       });
-      row.appendChild(b);
-    });
-    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '框颜色'), row,
-      h('div', { style: 'font-size:10.5px;color:var(--faint);margin-top:4px' }, '仅编辑网格显示 —— 官方 WaveDrom 渲染为单色，颜色以自定义字段存入 JSON。')));
+      return b;
+    };
+    row.appendChild(mkSw('=', '自动·跟随通道', laneColor(lane)));
+    Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, '数据' + k + '（官方填充）', DIGIT_FILLS[k])));
+    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '官方填充色（写入 wave 数字槽位，官方完全识别）'), row));
     setTimeout(() => inp.focus(), 30);
   }
   const nodeRow = h('div', { class: 'pop-node' });
@@ -2155,7 +2173,7 @@ function moveNode(node, dir) {
 }
 function dupLane(lane) {
   const loc = findLoc(lane.id);
-  const copy = newLane(lane.name + '_copy', lane.slots.map(s => s ? { glyph: s.glyph, label: s.label, color: s.color } : null));
+  const copy = newLane(lane.name + '_copy', lane.slots.map(s => s ? { glyph: s.glyph, label: s.label } : null));
   copy.period = lane.period; copy.phase = lane.phase; copy.len = lane.len;
   loc.list.splice(loc.index + 1, 0, copy);
   animateLanes = new Set([copy.id]);
@@ -2500,6 +2518,14 @@ function init() {
     if (saved) { try { adoptState(parseDoc(JSON.parse(saved))); restored = true; } catch (e) { /* 忽略 */ } }
   }
   if (!restored) adoptState(parseDoc(JSON.parse(JSON.stringify(EXAMPLES[1].json))));
+
+  $('#traceBtn').addEventListener('click', () => {
+    const t = document.documentElement.dataset.trace === 'glow' ? 'slim' : 'glow';
+    document.documentElement.dataset.trace = t;
+    localStorage.setItem('wdgui-trace', t);
+    $('#traceBtn').title = t === 'glow' ? '轨迹样式：荧光辉光（点击切换为纤细）' : '轨迹样式：纤细（点击切换为荧光辉光）';
+    renderGrid();
+  });
 
   $('#viewBtn').addEventListener('click', () => {
     const v = document.documentElement.dataset.view === 'below' ? 'side' : 'below';
