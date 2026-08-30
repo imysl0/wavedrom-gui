@@ -1386,7 +1386,7 @@ function laneSVG(lane, colCount, color) {
       const label = s.label;
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
         const tx = document.createElementNS(NS, 'text');
-        tx.setAttribute('x', x0 + w / 2); tx.setAttribute('y', 27);
+        tx.setAttribute('x', x0 + w / 2); tx.setAttribute('y', 29);
         tx.setAttribute('text-anchor', 'middle');
         tx.setAttribute('font-size', '9.5'); tx.style.fontFamily = 'var(--font-mono)';
         tx.setAttribute('fill', isDigit ? '#1B2536' : color);
