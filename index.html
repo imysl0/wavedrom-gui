@@ -705,16 +705,20 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
       <div class="sec-body" id="cfgBody">
         <div class="cfg-group">标题区</div>
         <div class="field"><label for="headText">标题文字</label><input type="text" id="headText" placeholder="如：DDR 读时序"></div>
-        <div class="field"><label for="headTick">刻度（0 起）</label><input type="number" id="headTick" min="0" step="1" placeholder="—"></div>
-        <div class="field"><label for="headTock">刻度（倒数）</label><input type="number" id="headTock" min="0" step="1" placeholder="—"></div>
+        <div class="field"><label for="headTick">刻度（0 起）</label><input type="text" id="headTick" placeholder="0、5 2、a, b, c"></div>
+        <div class="field"><label for="headTock">刻度（倒标）</label><input type="text" id="headTock" placeholder="9、5 2、a, b, c"></div>
         <div class="field"><label for="headEvery">隔几拍标一次</label><input type="number" id="headEvery" min="1" step="1" placeholder="—"></div>
         <div class="cfg-group">底部区</div>
         <div class="field"><label for="footText">底部文字</label><input type="text" id="footText" placeholder="备注、说明"></div>
-        <div class="field"><label for="footTick">刻度（0 起）</label><input type="number" id="footTick" min="0" step="1" placeholder="—"></div>
-        <div class="field"><label for="footTock">刻度（倒数）</label><input type="number" id="footTock" min="0" step="1" placeholder="—"></div>
+        <div class="field"><label for="footTick">刻度（0 起）</label><input type="text" id="footTick" placeholder="0、5 2、a, b, c"></div>
+        <div class="field"><label for="footTock">刻度（倒标）</label><input type="text" id="footTock" placeholder="9、5 2、a, b, c"></div>
         <div class="cfg-group">波形</div>
         <div class="field"><label for="hscale">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
         <div class="field"><label for="skin">皮肤</label><select id="skin"><option value="default">default（标准）</option><option value="narrow">narrow（紧凑）</option></select></div>
+        <div class="cfg-group">裁剪</div>
+        <div class="field"><label for="hbMin">起始拍</label><input type="number" id="hbMin" min="0" step="1" placeholder="—（不裁剪）"></div>
+        <div class="field"><label for="hbMax">结束拍</label><input type="number" id="hbMax" min="0" step="1" placeholder="—（不裁剪）"></div>
+        <div class="field"><label></label><span style="font-size:11px;color:var(--faint)">仅裁剪预览渲染（官方语义），网格完整保留便于编辑。</span></div>
       </div>
     </details>
   </aside>
@@ -823,6 +827,24 @@ const DATA_CHARS = '=23456789';
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 let xclipSeq = 0;
 const gridCellW = () => CELLW * (state.hscale || 1);
+/* 每个槽位的定位（子周期 < > 内的字符按半砖宽渲染，官方 pos += 1 语义） */
+function laneCharPositions(lane) {
+  const base = gridCellW() * (lane.period || 1);
+  const ph = lane.phase || 0;
+  const positions = [];
+  let x = -ph * base, sub = false;
+  const n = laneLen(lane);
+  for (let i = 0; i < n; i++) {
+    const s = lane.slots[i];
+    const ch = s ? s.glyph : '.';
+    if (ch === '<') { positions.push(null); sub = true; continue; }
+    if (ch === '>') { positions.push(null); sub = false; continue; }
+    const w = sub ? CELLW / 2 : base;
+    positions.push({ x, w });
+    x += w;
+  }
+  return positions;
+}
 const chColors = () => [cssVar('--ch1'), cssVar('--ch2'), cssVar('--ch3'), cssVar('--ch4'), cssVar('--ch5'), cssVar('--ch6')];
 
 const DIGIT_FILLS = { 2: '#ffffff', 3: '#ffffb4', 4: '#ffe0b9', 5: '#b9e0ff', 6: '#ccfdfe', 7: '#cdfdc5', 8: '#f0c1fb', 9: '#f5c2c0' };
@@ -1202,7 +1224,7 @@ function parseDoc(j) {
   ['head', 'foot'].forEach(k => {
     const src = j[k]; if (!src || typeof src !== 'object') return;
     if (src.text !== undefined) st[k].text = String(src.text);
-    ['tick', 'tock', 'every'].forEach(f => { if (src[f] !== undefined && src[f] !== null && src[f] !== '') st[k][f] = +src[f]; });
+    ['tick', 'tock', 'every'].forEach(f => { if (src[f] !== undefined && src[f] !== null && src[f] !== '') st[k][f] = src[f]; });
   });
   const c = j.config || {};
   if (typeof c.hscale === 'number') st.hscale = Math.min(8, Math.max(1, Math.round(c.hscale)));
@@ -1222,6 +1244,7 @@ function adoptState(st) {
 const HI = 13, LO = 35, MID = 24;
 function laneSVG(lane, colCount, color) {
   const W = gridCellW() * (lane.period || 1), H = 48, len = Math.min(colCount, laneLen(lane));
+  const positions = laneCharPositions(lane);
   const ph = lane.phase || 0;
   const X = t => (t - ph) * W;
   const NS = 'http://www.w3.org/2000/svg';
@@ -1275,11 +1298,27 @@ function laneSVG(lane, colCount, color) {
     lvl = pos ? 'lo' : 'hi';
     if (arrowed) arrowTri(x0, (firstHalf + secondHalf) / 2, pos ? 'up' : 'down');
   };
+  let lastEnd = 0;
   while (t < len) {
     const s = slots[t];
-    const x0 = X(t), x1 = x0 + W;
+    const pp = positions[t];
+    if (!pp) {
+      const ch = s ? s.glyph : '';
+      if ((ch === '<' || ch === '>') && lastEnd > 0) {
+        const tr = document.createElementNS(NS, 'path');
+        tr.setAttribute('d', ch === '<'
+          ? `M${lastEnd + 6} ${MID - 5}L${lastEnd - 2} ${MID}L${lastEnd + 6} ${MID + 5}`
+          : `M${lastEnd - 6} ${MID - 5}L${lastEnd + 2} ${MID}L${lastEnd - 6} ${MID + 5}`);
+        tr.setAttribute('stroke', hexA(color, .35)); tr.setAttribute('stroke-width', 1.2);
+        tr.setAttribute('fill', 'none');
+        svg.appendChild(tr);
+      }
+      t++; continue;
+    }
+    const x0 = pp.x, cw = pp.w, x1 = x0 + cw;
+    lastEnd = x1;
     if (!s || s.glyph === '.') {
-      if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N');
+      if (prevClock) drawClock(x0, prevClock, cw, prevClock === 'P' || prevClock === 'N');
       else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') Hline(x1);
       t++; continue;
     }
@@ -1294,7 +1333,8 @@ function laneSVG(lane, colCount, color) {
         if (slots[e] && slots[e].glyph === '|') gapPts.push(e);
         e++;
       }
-      const w = (e - t) * W;
+      const lastP = positions[e - 1];
+      const w = lastP ? (lastP.x + lastP.w - x0) : 0;
       const box = document.createElementNS(NS, 'rect');
       box.setAttribute('x', x0 + 2); box.setAttribute('y', 13);
       box.setAttribute('width', Math.max(4, w - 4)); box.setAttribute('height', 22);
@@ -1322,7 +1362,7 @@ function laneSVG(lane, colCount, color) {
         hg.appendChild(ln);
       }
       svg.appendChild(hg);
-      gapPts.forEach(gt => gapMark(X(gt) + W / 2, MID - 11));
+      gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
       lvl = null; t = e; continue;
     }
     if (isData(g)) {
@@ -1332,7 +1372,8 @@ function laneSVG(lane, colCount, color) {
         if (slots[e] && slots[e].glyph === '|') gapPts.push(e);
         e++;
       }
-      const w = (e - t) * W;
+      const lastP = positions[e - 1];
+      const w = lastP ? (lastP.x + lastP.w - x0) : 0;
       const isDigit = g !== '=';
       const box = document.createElementNS(NS, 'rect');
       box.setAttribute('x', x0 + 1.5); box.setAttribute('y', 13);
@@ -1353,7 +1394,7 @@ function laneSVG(lane, colCount, color) {
         if (String(label).length * 6 > w - 8) { tx.setAttribute('textLength', w - 10); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
         svg.appendChild(tx);
       }
-      gapPts.forEach(gt => gapMark(X(gt) + W / 2, MID - 11));
+      gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
       lvl = null; t = e; continue;
     }
     switch (g) {
@@ -1376,11 +1417,11 @@ function laneSVG(lane, colCount, color) {
         }
         Hline(x1); lvl = 'lo'; break;
       }
-      case 'p': case 'P': drawClock(x0, g, W, g === 'P'); prevClock = g; break;
+      case 'p': case 'P': drawClock(x0, g, cw, g === 'P'); prevClock = g; break;
       case 'n': case 'N':
         // 官方 xclude 'ln'/'Ln'：低电平后的 n 上升沿被抑制，整拍保持低
         if (pg === 'l' || pg === 'L') { M(x0, LO); Hline(x1); lvl = 'lo'; break; }
-        drawClock(x0, g, W, g === 'N'); prevClock = g; break;
+        drawClock(x0, g, cw, g === 'N'); prevClock = g; break;
       case 'u': case 'U': {
         // 官方造型：平-平滑爬升-圆滑到顶的 S 曲线
         if (g === 'U' && lvl !== null && lvl !== 'lo') V(x0, yOf(lvl), LO);
@@ -1403,7 +1444,7 @@ function laneSVG(lane, colCount, color) {
         prevG = pg;
         if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N');
         else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') { M(x0, yOf(lvl)); Hline(x1); }
-        gapMark(x0 + W / 2, MID - 11);
+        gapMark(x0 + cw / 2, MID - 11);
         break;
       }
     }
@@ -1422,7 +1463,8 @@ function laneSVG(lane, colCount, color) {
   }
   if (gapOverlays) gapOverlays.forEach(o => svg.appendChild(o));
   Object.keys(lane.nodeByT).forEach(k => {
-    const x = X(+k) + W - 9;
+    const pk = positions[+k];
+    const x = pk ? pk.x + pk.w - 9 : X(+k) + W - 9;
     const c = document.createElementNS(NS, 'circle');
     c.setAttribute('cx', x); c.setAttribute('cy', 8); c.setAttribute('r', 6.5);
     c.setAttribute('fill', cssVar('--node-fill')); c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3);
@@ -1528,11 +1570,13 @@ function renderGrid() {
     h('div', { class: 'time-corner' }, '通道 \\ 拍'),
     (() => {
       const cells = h('div', { class: 'time-cells' });
+      const headTL = headNums ? tickLabels(H.tick, colCount) : { L: [], offset: 0 };
       for (let t = 0; t < colCount; t++) {
         let label = String(t);
         if (headNums) {
-          const val = H.tick + t;
-          label = ((val % headEvery) + headEvery) % headEvery === 0 ? String(val) : '';
+          const v = headTL.L[t];
+          const off = headTL.offset ?? 0;
+          label = (v === undefined || (headEvery > 1 && (((off + t) % headEvery) + headEvery) % headEvery !== 0)) ? '' : String(v);
         }
         cells.appendChild(h('div', { class: 'time-cell' + (headNums ? ' tick' : ''), 'data-t': t, style: `width:${gridCellW()}px` }, label));
       }
@@ -1557,10 +1601,12 @@ function renderGrid() {
   inner.appendChild(frag);
   if (footNums) {
     const nums = h('div', { class: 'strip-cells' }, h('div', { class: 'strip-corner' }));
-    const base = (F.tock !== null && F.tock !== '') ? F.tock : F.tick;
+    const base = (F.tock !== null && F.tock !== '' && F.tock !== undefined) ? F.tock : F.tick;
+    const footTL = tickLabels(base, colCount);
     for (let t = 0; t < colCount; t++) {
-      const val = base + t;
-      const label = ((val % footEvery) + footEvery) % footEvery === 0 ? String(val) : '';
+      const v = footTL.L[t];
+      const off = footTL.offset ?? 0;
+      const label = (v === undefined || (footEvery > 1 && (((off + t) % footEvery) + footEvery) % footEvery !== 0)) ? '' : String(v);
       nums.appendChild(h('div', { class: 'strip-num', style: `width:${gridCellW()}px` }, label));
     }
     inner.appendChild(h('div', { class: 'strip foot-nums' }, nums));
@@ -1597,7 +1643,8 @@ function renderMiniEdges() {
     const track = rowEl.querySelector('.lane-track');
     if (!track) return null;
     const lw = gridCellW() * (n.lane.period || 1);
-    return { x: track.offsetLeft + (n.t - (n.lane.phase || 0)) * lw + lw - 9, y: rowEl.offsetTop + 8 };
+    const lp = laneCharPositions(n.lane)[n.t];
+    return { x: track.offsetLeft + (lp ? lp.x + lp.w - 9 : (n.t - (n.lane.phase || 0)) * lw + lw - 9), y: rowEl.offsetTop + 8 };
   };
   const arrow = (x, y, dx, dy) => {
     const len = Math.hypot(dx, dy) || 1;
@@ -1778,12 +1825,19 @@ function buildLaneRow(lane, depth, colCount) {
     });
   }
   track.appendChild(svg);
-  const per = lane.period || 1, lph = lane.phase || 0, cw = gridCellW() * per;
+  const posMap = laneCharPositions(lane);
+  const per = lane.period || 1, lph = lane.phase || 0;
+  const base = gridCellW() * per;
   const laneCells = Math.ceil((colCount + Math.max(0, lph)) / per);
+  let lastX = 0;
   for (let t = 0; t < laneCells; t++) {
+    const p = posMap[t];
+    const left = p ? p.x : (t < posMap.length ? lastX : (t - lph) * base);
+    const wpx = p ? p.w : (t < posMap.length ? 14 : base);
+    if (p) lastX = p.x + p.w;
     track.appendChild(h('div', {
-      class: 'cell', 'data-t': t, 'data-lane': lane.id,
-      style: `left:${((t - lph) * cw).toFixed(1)}px;width:${cw}px`, role: 'button', tabindex: '-1',
+      class: 'cell' + (p ? '' : ' cell-mark'), 'data-t': t, 'data-lane': lane.id,
+      style: `left:${left.toFixed(1)}px;width:${wpx}px`, role: 'button', tabindex: '-1',
       'aria-label': `${lane.name || '未命名'} 第 ${t} 拍`,
     }));
   }
@@ -1917,14 +1971,46 @@ function renderEdges() {
 
 /* ---------- 渲染：设置 / 代码 / 预览 ---------- */
 function renderSettings() {
-  $('#headText').value = state.head.text; $('#headTick').value = state.head.tick ?? '';
-  $('#headTock').value = state.head.tock ?? '';
+  $('#headText').value = state.head.text; $('#headTick').value = fmtTick(state.head.tick);
+  $('#headTock').value = fmtTick(state.head.tock);
   $('#headEvery').value = state.head.every ?? '';
-  $('#footText').value = state.foot.text; $('#footTick').value = state.foot.tick ?? '';
-  $('#footTock').value = state.foot.tock ?? '';
+  $('#footText').value = state.foot.text; $('#footTick').value = fmtTick(state.foot.tick);
+  $('#footTock').value = fmtTick(state.foot.tock);
   $('#hscale').value = state.hscale; $('#hscaleVal').textContent = state.hscale;
   $('#skin').value = state.skin;
+  $('#hbMin').value = state.hb ? state.hb[0] : '';
+  $('#hbMax').value = state.hb ? state.hb[1] : '';
 }
+/* tick/tock 标签：数字 / "起点" / "起点 步长" / 自定义数组（官方 render-marks 公式复刻） */
+function tickLabels(val, len) {
+  let L = [];
+  let offset;
+  if (val === null || val === undefined || val === '') return { L, offset: 0 };
+  if (typeof val === 'number') {
+    offset = val;
+    for (let i = 0; i < len; i++) L.push(i + offset);
+    return { L, offset };
+  }
+  let arr = val;
+  if (typeof val === 'string') arr = val.trim().split(/\s+/);
+  if (!Array.isArray(arr) || arr.length === 0) return { L, offset: 0 };
+  if (arr.length === 1) {
+    const off = Number(arr[0]);
+    if (isNaN(off)) { L = arr; }
+    else { offset = off; for (let i = 0; i < len; i++) L.push(i + off); }
+  } else if (arr.length === 2) {
+    const s0 = Number(arr[0]), st = Number(arr[1]);
+    const dp = (String(arr[1]).split('.')[1] || '').length;
+    if (isNaN(s0) || isNaN(st)) { L = arr; }
+    else { offset = st * s0; for (let i = 0; i < len; i++) L.push((st * i + st * s0).toFixed(dp)); }
+  } else L = arr;
+  return { L, offset };
+}
+function fmtTick(v) {
+  if (v === null || v === undefined || v === '') return '';
+  return Array.isArray(v) ? v.join(', ') : String(v);
+}
+
 /* 智能格式化：短数组和全基本类型的短对象保持单行，其余展开 */
 function fmtJSON(v, ind = 0) {
   const pad = '  '.repeat(ind), pad2 = '  '.repeat(ind + 1);
@@ -2567,17 +2653,34 @@ function applyZoom() {
 }
 
 /* ---------- 设置绑定 ---------- */
+function tickVal(text) {
+  const s = (text || '').trim();
+  if (s === '') return null;
+  if (s.includes(',')) return s.split(',').map(x => x.trim()).filter(Boolean);
+  const toks = s.split(/\s+/);
+  if (toks.length === 1 && !isNaN(Number(toks[0]))) return Number(toks[0]);
+  return s;
+}
 function bindSettings() {
   const cfgTag = t => { commitTag = t; };
   $('#headText').addEventListener('input', e => { commitTag = 'cfg'; state.head.text = e.target.value; scheduleUpdate(); });
-  $('#headTick').addEventListener('input', e => { commitTag = 'cfg'; state.head.tick = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#headTock').addEventListener('input', e => { commitTag = 'cfg'; state.head.tock = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#headTick').addEventListener('input', e => { commitTag = 'cfg'; state.head.tick = tickVal(e.target.value); scheduleUpdate(); });
+  $('#headTock').addEventListener('input', e => { commitTag = 'cfg'; state.head.tock = tickVal(e.target.value); scheduleUpdate(); });
   $('#headEvery').addEventListener('input', e => { commitTag = 'cfg'; state.head.every = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
   $('#footText').addEventListener('input', e => { commitTag = 'cfg'; state.foot.text = e.target.value; scheduleUpdate(); });
-  $('#footTick').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tick = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
-  $('#footTock').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tock = e.target.value === '' ? null : +e.target.value; scheduleUpdate(); });
+  $('#footTick').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tick = tickVal(e.target.value); scheduleUpdate(); });
+  $('#footTock').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tock = tickVal(e.target.value); scheduleUpdate(); });
   $('#hscale').addEventListener('input', e => { commitTag = 'cfg'; state.hscale = +e.target.value; $('#hscaleVal').textContent = e.target.value; scheduleUpdate(); });
   $('#skin').addEventListener('change', e => { state.skin = e.target.value; update(); });
+  const hbSet = () => {
+    commitTag = 'cfg';
+    const a = $('#hbMin').value, b = $('#hbMax').value;
+    state.hb = (a !== '' || b !== '') ? [a === '' ? 0 : +a, b === '' ? 9999 : +b] : null;
+    if (state.hb && state.hb[1] <= state.hb[0]) state.hb = null;
+    scheduleUpdate();
+  };
+  $('#hbMin').addEventListener('input', hbSet);
+  $('#hbMax').addEventListener('input', hbSet);
 }
 
 /* ---------- 可拖拽分割条 ---------- */
