@@ -775,7 +775,7 @@ try { module.exports = WaveSkin; } catch(err) {}
 /* WaveDrom 可视化编辑器 —— 单文件应用逻辑 */
 
 /* ---------- 主题 ---------- */
-document.documentElement.dataset.theme = localStorage.getItem('wdgui-theme') === 'light' ? 'light' : 'dark';
+document.documentElement.dataset.theme = localStorage.getItem('wdgui-theme') === 'dark' ? 'dark' : 'light';
 document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === 'side' ? 'side' : 'below';
 
 /* ---------- 常量 ---------- */
@@ -1245,12 +1245,19 @@ function laneSVG(lane, colCount, color) {
       case 'l': M(x0, LO); Hline(x1); lvl = 'lo'; break;
       case 'p': case 'P': edgeInto(x0, LO); drawClock(x0, 'p', W); prevClock = 'p'; break;
       case 'n': case 'N': edgeInto(x0, HI); drawClock(x0, 'n', W); prevClock = 'n'; break;
-      case 'u': case 'U':
+      case 'u': case 'U': {
+        // 官方造型：平-平滑爬升-圆滑到顶的 S 曲线
         if (g === 'U' && lvl !== null && lvl !== 'lo') V(x0, yOf(lvl), LO);
-        M(x0, lvl === 'hi' ? HI : LO); L(x1, HI); lvl = 'hi'; break;
-      case 'd': case 'D':
+        if (lvl === 'hi') { M(x0, HI); Hline(x1); }
+        else { M(x0, LO); d += `C${x0 + W * .4} ${LO},${x0 + W * .6} ${HI},${x1} ${HI}`; }
+        lvl = 'hi'; break;
+      }
+      case 'd': case 'D': {
         if (g === 'D' && lvl !== null && lvl !== 'hi') V(x0, yOf(lvl), HI);
-        M(x0, lvl === 'lo' ? LO : HI); L(x1, LO); lvl = 'lo'; break;
+        if (lvl === 'lo') { M(x0, LO); Hline(x1); }
+        else { M(x0, HI); d += `C${x0 + W * .4} ${HI},${x0 + W * .6} ${LO},${x1} ${LO}`; }
+        lvl = 'lo'; break;
+      }
       case 'z': case 'Z':
         if (lvl !== null && lvl !== 'mid') M(x0, yOf(lvl)), L(x0 + W / 3, MID);
         else M(x0, MID);
