@@ -349,6 +349,12 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .foot-text { border-top: 1px solid var(--line-soft); }
 .head-strip { border-bottom: none; }
 
+.lane-row.row-active .lane-head { background: var(--head-hover); box-shadow: inset 3px 0 0 var(--acc); }
+.lane-row.row-active .lane-track { background: rgba(52, 211, 153, .06); }
+#wv0 svg .lane-dim { opacity: .12; }
+.pop-glyphs .pg.active { border-color: var(--acc); background: var(--acc-veil); box-shadow: inset 0 0 0 1px var(--acc); }
+.pop-glyphs .pg.active .tlabel { color: var(--acc-text); }
+
 .lane-row { display: flex; height: 48px; }
 .lane-row:nth-child(odd) .lane-track { background: var(--row-alt); }
 .lane-head {
@@ -1870,6 +1876,7 @@ function scheduleUpdate() { if (rafPending) return; rafPending = true; requestAn
 function update(structureChanged) {
   if (popCell && !getLaneById(popCell.lane.id)) closePop();
   renderGrid();
+  if (popCell) markEditingRow(popCell.lane);
   renderCode();
   clearTimeout(previewTimer);
   previewTimer = setTimeout(renderPreview, 50);
@@ -1966,6 +1973,15 @@ function nextNodeLetter() {
   return null;
 }
 
+function markEditingRow(lane) {
+  document.querySelectorAll('#gridInner .lane-row.row-active').forEach(r => r.classList.remove('row-active'));
+  const row = document.querySelector(`#gridInner .lane-row[data-lane="${lane.id}"]`);
+  if (row) row.classList.add('row-active');
+}
+function clearEditingRow() {
+  document.querySelectorAll('#gridInner .lane-row.row-active').forEach(r => r.classList.remove('row-active'));
+}
+
 /* 单元格弹窗 */
 let popCell = null; // {lane, t}
 function openPop(lane, t, anchor) {
@@ -1973,12 +1989,14 @@ function openPop(lane, t, anchor) {
   popCell = { lane, t };
   pop.textContent = '';
   const slot = lane.slots[t];
+  const glyphLabel = ch => ch === '.' ? '延续 (.)' : (GLYPH_MAP[ch] ? `${GLYPH_MAP[ch].name} (${ch})` : '');
+  const curLabel = slot ? glyphLabel(slot.glyph) : '';
   const title = h('div', { class: 'pop-title' },
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
-    (lane.name || '未命名') + ' · 第 ' + t + ' 拍');
+    (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空'));
   const glyphs = h('div', { class: 'pop-glyphs' });
   const mkG = (ch, name) => {
-    const b = h('button', { class: 'pg' + (slot && slot.glyph === ch ? '' : ''), title: name, 'aria-label': name });
+    const b = h('button', { class: 'pg' + (slot && slot.glyph === ch ? ' active' : ''), title: name, 'aria-label': name });
     const s = ch === '.' ? extendSample() : glyphSample(ch);
     b.appendChild(s);
     b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? '延续' : ch));
@@ -2004,8 +2022,8 @@ function openPop(lane, t, anchor) {
       if (ch === '=') b.textContent = 'A';
       b.addEventListener('click', () => {
         slot.glyph = ch;
-        row.querySelectorAll('.swatch').forEach(x => x.classList.toggle('active', x === b));
         scheduleUpdate();
+        openPop(lane, t, anchor);
       });
       return b;
     };
@@ -2047,6 +2065,7 @@ function openPop(lane, t, anchor) {
   if (y + ph > innerHeight - 8) y = r.top - ph - 6;
   pop.style.left = Math.max(8, x) + 'px';
   pop.style.top = Math.max(8, y) + 'px';
+  markEditingRow(lane);
 }
 function extendSample() {
   const fake = newLane('', []);
@@ -2057,7 +2076,11 @@ function extendSample() {
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   return svg;
 }
-function closePop() { $('#cellPop').classList.remove('open'); popCell = null; }
+function closePop() {
+  $('#cellPop').classList.remove('open');
+  popCell = null;
+  clearEditingRow();
+}
 
 /* 通道属性弹窗（period / phase） */
 function openLanePropPop(lane, anchor) {
