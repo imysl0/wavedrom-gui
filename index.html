@@ -1235,7 +1235,7 @@ function laneSVG(lane, colCount, color) {
   const yOf = lvl => lvl === 'hi' ? HI : lvl === 'lo' ? LO : MID;
   let lvl = null;
   const slots = lane.slots;
-  let t = 0, prevClock = null, prevClockArrowed = false, gapOverlays = null;
+  let t = 0, prevClock = null, prevClockArrowed = false, gapOverlays = null, prevG = null;
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
     const tri = document.createElementNS(NS, 'path');
@@ -1243,22 +1243,37 @@ function laneSVG(lane, colCount, color) {
     tri.setAttribute('fill', color);
     svg.appendChild(tri);
   };
+  const gapMark = (xr, yr) => {
+    const gEl = document.createElementNS(NS, 'g');
+    gEl.setAttribute('transform', `translate(${xr}, ${yr}) scale(1.1)`);
+    const mk = (d, fill, stroke) => {
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('fill', fill || 'none');
+      if (stroke) {
+        p.setAttribute('stroke', stroke);
+        p.setAttribute('stroke-width', 1.5);
+        p.setAttribute('stroke-linecap', 'round');
+      }
+      gEl.appendChild(p);
+    };
+    mk('m7,-2 -4,0 c -5,0 -5,24 -10,24 l 4,0 C 2,22 2,-2 7,-2 z', hexA(cssVar('--xbox'), .4), null);
+    mk('M-7,22 C -2,22 -2,-2 3,-2', null, color);
+    mk('M-3,22 C 2,22 2,-2 7,-2', null, color);
+    (gapOverlays ||= []).push(gEl);
+  };
   const edgeInto = (x, target) => { if (lvl !== null && lvl !== target) V(x, yOf(lvl), target); };
   const drawClock = (x0, kind, w, arrowed) => {
-    // 官方相位：p 低前高后（中点上升）；n 高前低后（中点下降）
-    //           P 高前低后（起点上升沿+箭头）；N 低前高后（起点下降沿+箭头）
+    // 官方几何（pclk/nclk/Pclk/Nclk 标记）：翻转沿在拍起点、从基准轨垂直出入
+    // p: 起点上升沿+高前低后；n: 起点下降沿+低前高后；P/N 同形带箭头
     const x1 = x0 + w;
-    if (kind === 'p') { edgeInto(x0, HI); M(x0, HI); d += `H${x0 + w / 2}V${LO}`; Hline(x1); lvl = 'lo'; }
-    else if (kind === 'n') { edgeInto(x0, LO); M(x0, LO); d += `H${x0 + w / 2}V${HI}`; Hline(x1); lvl = 'hi'; }
-    else if (kind === 'P') {
-      edgeInto(x0, HI);
-      M(x0, HI); d += `H${x0 + w / 2}V${LO}`; Hline(x1); lvl = 'lo';
-      if (arrowed) arrowTri(x0, (HI + LO) / 2, 'up');
-    } else {
-      edgeInto(x0, LO);
-      M(x0, LO); d += `H${x0 + w / 2}V${HI}`; Hline(x1); lvl = 'hi';
-      if (arrowed) arrowTri(x0, (HI + LO) / 2, 'down');
-    }
+    const pos = (kind === 'p' || kind === 'P');
+    const firstHalf = pos ? HI : LO, secondHalf = pos ? LO : HI;
+    if (lvl === null) { M(x0, pos ? LO : HI); d += `V${firstHalf}`; }
+    else edgeInto(x0, firstHalf);
+    M(x0, firstHalf); d += `H${x0 + w / 2}V${secondHalf}`; Hline(x1);
+    lvl = pos ? 'lo' : 'hi';
+    if (arrowed) arrowTri(x0, (firstHalf + secondHalf) / 2, pos ? 'up' : 'down');
   };
   while (t < len) {
     const s = slots[t];
@@ -1269,10 +1284,16 @@ function laneSVG(lane, colCount, color) {
       t++; continue;
     }
     const g = s.glyph;
-    prevClock = null;
+    const pg = prevG;
+    prevG = g;
+    if (g !== '|') prevClock = null;
     if (g === 'x' || g === 'X') {
       let e = t + 1;
-      while (e < len && (!slots[e] || slots[e].glyph === '.')) e++;
+      const gapPts = [];
+      while (e < len && (!slots[e] || slots[e].glyph === '.' || slots[e].glyph === '|')) {
+        if (slots[e] && slots[e].glyph === '|') gapPts.push(e);
+        e++;
+      }
       const w = (e - t) * W;
       const box = document.createElementNS(NS, 'rect');
       box.setAttribute('x', x0 + 2); box.setAttribute('y', 13);
@@ -1301,18 +1322,23 @@ function laneSVG(lane, colCount, color) {
         hg.appendChild(ln);
       }
       svg.appendChild(hg);
+      gapPts.forEach(gt => gapMark(X(gt) + W / 2, MID - 11));
       lvl = null; t = e; continue;
     }
     if (isData(g)) {
       let e = t + 1;
-      while (e < len && (!slots[e] || slots[e].glyph === '.')) e++;
+      const gapPts = [];
+      while (e < len && (!slots[e] || slots[e].glyph === '.' || slots[e].glyph === '|')) {
+        if (slots[e] && slots[e].glyph === '|') gapPts.push(e);
+        e++;
+      }
       const w = (e - t) * W;
       const isDigit = g !== '=';
       const box = document.createElementNS(NS, 'rect');
       box.setAttribute('x', x0 + 1.5); box.setAttribute('y', 13);
       box.setAttribute('width', Math.max(4, w - 3)); box.setAttribute('height', 22);
       box.setAttribute('rx', 2.5);
-      box.setAttribute('fill', isDigit ? DIGIT_FILLS[g] : hexA(color, .13));
+      box.setAttribute('fill', isDigit ? DIGIT_FILLS[g] : cssVar('--node-fill'));
       box.setAttribute('stroke', isDigit ? 'rgba(27,37,54,.55)' : hexA(color, .85));
       box.setAttribute('stroke-width', 1.4);
       svg.appendChild(box);
@@ -1327,6 +1353,7 @@ function laneSVG(lane, colCount, color) {
         if (String(label).length * 6 > w - 8) { tx.setAttribute('textLength', w - 10); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
         svg.appendChild(tx);
       }
+      gapPts.forEach(gt => gapMark(X(gt) + W / 2, MID - 11));
       lvl = null; t = e; continue;
     }
     switch (g) {
@@ -1335,8 +1362,8 @@ function laneSVG(lane, colCount, color) {
         if (lvl === null || lvl === target) { M(x0, target); }
         else {
           // 官方 0m1/1m0 几何：过渡固定占第一个基准子格（36px）的 15%~45%，不随 hscale/period 缩放
-          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .15}L${x0 + CELLW * .45} ${target}`;
-          arrowTri(x0 + CELLW * .3, (yOf(lvl) + target) / 2, up ? 'up' : null);
+          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`;
+          arrowTri(x0 + CELLW * .15, (yOf(lvl) + target) / 2, up ? 'up' : null);
         }
         Hline(x1); lvl = 'hi'; break;
       }
@@ -1344,51 +1371,39 @@ function laneSVG(lane, colCount, color) {
         const target = LO, down = g === 'L';
         if (lvl === null || lvl === target) { M(x0, target); }
         else {
-          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .15}L${x0 + CELLW * .45} ${target}`;
-          arrowTri(x0 + CELLW * .3, (yOf(lvl) + target) / 2, down ? 'down' : null);
+          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`;
+          arrowTri(x0 + CELLW * .15, (yOf(lvl) + target) / 2, down ? 'down' : null);
         }
         Hline(x1); lvl = 'lo'; break;
       }
       case 'p': case 'P': drawClock(x0, g, W, g === 'P'); prevClock = g; break;
-      case 'n': case 'N': drawClock(x0, g, W, g === 'N'); prevClock = g; break;
+      case 'n': case 'N':
+        // 官方 xclude 'ln'/'Ln'：低电平后的 n 上升沿被抑制，整拍保持低
+        if (pg === 'l' || pg === 'L') { M(x0, LO); Hline(x1); lvl = 'lo'; break; }
+        drawClock(x0, g, W, g === 'N'); prevClock = g; break;
       case 'u': case 'U': {
         // 官方造型：平-平滑爬升-圆滑到顶的 S 曲线
         if (g === 'U' && lvl !== null && lvl !== 'lo') V(x0, yOf(lvl), LO);
         if (lvl === 'hi') { M(x0, HI); Hline(x1); }
-        else { M(x0, LO); d += `H${x0 + CELLW * .15}C${x0 + CELLW * .4} ${LO},${x0 + CELLW * .62} ${HI},${x0 + CELLW} ${HI}`; Hline(x1); }
+        else { M(x0, LO); d += `H${x0 + CELLW * .075}C${x0 + CELLW * .175} ${LO},${x0 + CELLW * .25} ${HI},${x0 + CELLW * .5} ${HI}`; Hline(x1); }
         lvl = 'hi'; break;
       }
       case 'd': case 'D': {
         if (g === 'D' && lvl !== null && lvl !== 'hi') V(x0, yOf(lvl), HI);
         if (lvl === 'lo') { M(x0, LO); Hline(x1); }
-        else { M(x0, HI); d += `H${x0 + CELLW * .15}C${x0 + CELLW * .4} ${HI},${x0 + CELLW * .62} ${LO},${x0 + CELLW} ${LO}`; Hline(x1); }
+        else { M(x0, HI); d += `H${x0 + CELLW * .075}C${x0 + CELLW * .175} ${HI},${x0 + CELLW * .25} ${LO},${x0 + CELLW * .5} ${LO}`; Hline(x1); }
         lvl = 'lo'; break;
       }
       case 'z': case 'Z':
-        if (lvl !== null && lvl !== 'mid') M(x0, yOf(lvl)), L(x0 + W / 3, MID);
+        if (lvl !== null && lvl !== 'mid') M(x0, yOf(lvl)), d += `H${x0 + CELLW * .075}C${x0 + CELLW * .15} ${yOf(lvl)},${x0 + CELLW * .2} ${MID},${x0 + CELLW * .5} ${MID}`;
         else M(x0, MID);
         Hline(x1); lvl = 'mid'; break;
       case '|': {
-        // 先延续上一拍电平，再叠加官方间隙符号（编辑区视觉；官方预览仍为断开）
-        if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') { M(x0, yOf(lvl)); Hline(x1); }
-        const gEl = document.createElementNS(NS, 'g');
-        const baseY = (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') ? yOf(lvl) : MID;
-        gEl.setAttribute('transform', `translate(${x0 + CELLW / 2}, ${baseY - 11}) scale(1.1)`);
-        const mk = (d, fill, stroke) => {
-          const p = document.createElementNS(NS, 'path');
-          p.setAttribute('d', d);
-          p.setAttribute('fill', fill || 'none');
-          if (stroke) {
-            p.setAttribute('stroke', stroke);
-            p.setAttribute('stroke-width', 1.5);
-            p.setAttribute('stroke-linecap', 'round');
-          }
-          gEl.appendChild(p);
-        };
-        mk('m7,-2 -4,0 c -5,0 -5,24 -10,24 l 4,0 C 2,22 2,-2 7,-2 z', hexA(cssVar('--xbox'), .4), null);
-        mk('M-7,22 C -2,22 -2,-2 3,-2', null, color);
-        mk('M-3,22 C 2,22 2,-2 7,-2', null, color);
-        (gapOverlays ||= []).push(gEl);
+        // 官方语义：'.' 与 '|' 均为重复器 —— 信号（含时钟）延续过间隙拍，符号叠加其上
+        prevG = pg;
+        if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N');
+        else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') { M(x0, yOf(lvl)); Hline(x1); }
+        gapMark(x0 + W / 2, MID - 11);
         break;
       }
     }
