@@ -607,6 +607,8 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
 .modal textarea:focus { outline: none; border-color: var(--acc); }
 .modal .m-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .modal .m-err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 16px; }
+.modal a { color: var(--info); }
+.modal a:hover { text-decoration: underline; }
 
 /* Toast */
 .toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
@@ -669,6 +671,9 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
       <button data-act="open-tutorial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg>WaveDrom 语法教程</button>
     </div>
   </div>
+  <button class="btn ghost" data-act="open-about" title="关于本项目">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
+  </button>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -821,6 +826,19 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     <div class="m-foot">
       <button class="btn ghost" data-act="paste-cancel">取消</button>
       <button class="btn primary" data-act="paste-ok">解析并导入</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="aboutMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目">
+    <h3>WaveDrom 可视化编辑器</h3>
+    <p>单文件 HTML 应用，零构建、离线可用：鼠标点击 / 拖拽编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
+    <p>支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
+    <p>仓库地址：<a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
+    <div class="m-foot">
+      <button class="btn ghost" data-act="about-close">关闭</button>
+      <button class="btn primary" data-act="about-repo">打开仓库 ↗</button>
     </div>
   </div>
 </div>
@@ -2535,7 +2553,7 @@ function bindGrid() {
     const mp = $('#morePop');
     if (mp.classList.contains('open') && !mp.contains(ev.target) && !ev.target.closest('button[title="更多操作"]')) closeMoreMenu();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); $('#aboutMask').classList.remove('open'); } });
 }
 
 /* ---------- 交互：结构操作 ---------- */
@@ -2798,6 +2816,9 @@ function handleAct(act, btn) {
       break;
     }
     case 'open-tutorial': window.open('https://wavedrom.com/tutorial.html', '_blank'); break;
+    case 'open-about': $('#aboutMask').classList.add('open'); break;
+    case 'about-close': $('#aboutMask').classList.remove('open'); break;
+    case 'about-repo': window.open('https://cnb.cool/linshi-2026/wavedrom-gui', '_blank'); break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
       download('wavedrom.svg', new Blob([ex.str], { type: 'image/svg+xml' }));
@@ -3012,6 +3033,7 @@ function init() {
     ev.target.value = '';
   });
   $('#pasteMask').addEventListener('mousedown', ev => { if (ev.target === $('#pasteMask')) handleAct('paste-cancel'); });
+  $('#aboutMask').addEventListener('mousedown', ev => { if (ev.target === $('#aboutMask')) handleAct('about-close'); });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && $('#pasteMask').classList.contains('open') && (ev.ctrlKey || ev.metaKey)) handleAct('paste-ok');
   });
