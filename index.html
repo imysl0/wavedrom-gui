@@ -253,6 +253,12 @@ svg { display: block; }
 .tree-row .lane-actions { display: none; align-items: center; gap: 1px; flex: none; }
 .tree-row:hover .lane-actions, .tree-row:focus-within .lane-actions { display: inline-flex; }
 .tree-row .lane-actions .icon-btn { width: 22px; height: 22px; }
+html[data-tree-tools="always"] .tree-row .lane-actions { display: inline-flex; }
+#treeToolsBtn { margin-left: auto; }
+#treeToolsBtn + .chev { margin-left: 4px; }
+#treeToolsBtn .ic-always { display: none; }
+html[data-tree-tools="always"] #treeToolsBtn .ic-hover { display: none; }
+html[data-tree-tools="always"] #treeToolsBtn .ic-always { display: block; }
 .tree-empty { color: var(--faint); font-size: 12px; padding: 10px 6px; }
 .add-lane-btns {
   display: grid; gap: 6px; margin-top: 9px;
@@ -711,6 +717,10 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <aside class="side">
     <details class="side-section" open>
       <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>通道与分组
+        <button class="icon-btn" id="treeToolsBtn" title="行内小工具：总是显示（点击改为悬停显示）" aria-label="切换行内小工具显示方式">
+          <svg class="ic-hover" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="7.5" r="1.3" fill="currentColor"/><circle cx="8" cy="7.5" r="1.3" fill="currentColor"/><circle cx="13" cy="7.5" r="1.3" fill="currentColor"/><path d="M2.5 12.6h11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 2" opacity=".55"/></svg>
+          <svg class="ic-always" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="7" r="1.3" fill="currentColor"/><circle cx="8" cy="7" r="1.3" fill="currentColor"/><circle cx="13" cy="7" r="1.3" fill="currentColor"/><path d="M2.5 12.2h11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
         <svg class="chev" width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 2.5 6.5 5 3 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </summary>
       <div class="sec-body">
@@ -2970,6 +2980,21 @@ function init() {
     if (saved) { try { adoptState(parseDoc(JSON.parse(saved))); restored = true; } catch (e) { /* 忽略 */ } }
   }
   if (!restored) adoptState(parseDoc(JSON.parse(JSON.stringify(EXAMPLES[1].json))));
+
+  const applyTreeTools = () => {
+    const mode = localStorage.getItem('wdgui-tree-tools') === 'hover' ? 'hover' : 'always';
+    document.documentElement.dataset.treeTools = mode;
+    const b = $('#treeToolsBtn');
+    if (b) b.title = mode === 'always' ? '行内小工具：总是显示（点击改为悬停显示）' : '行内小工具：悬停显示（点击改为总是显示）';
+  };
+  applyTreeTools();
+  $('#treeToolsBtn').addEventListener('click', ev => {
+    ev.stopPropagation(); ev.preventDefault();
+    const next = document.documentElement.dataset.treeTools === 'always' ? 'hover' : 'always';
+    localStorage.setItem('wdgui-tree-tools', next);
+    applyTreeTools();
+    toast(next === 'always' ? '行内小工具：总是显示' : '行内小工具：悬停显示');
+  });
 
   $('#traceBtn').addEventListener('click', () => {
     const t = document.documentElement.dataset.trace === 'glow' ? 'slim' : 'glow';
