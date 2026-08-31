@@ -432,7 +432,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .lane-head .gname:focus { outline: none; border-color: var(--acc); background: var(--panel-2); }
 .lane-head .indent { display: inline-block; flex: none; }
 
-.lane-track { position: relative; flex: none; border-bottom: 1px solid var(--line-soft); }
+.lane-track { position: relative; flex: none; border-bottom: 1px solid var(--line-soft); overflow: hidden; }
 .lane-track svg.mini { position: absolute; left: 0; top: 0; pointer-events: none; }
 .cell {
   position: absolute; top: 0; height: 100%;
@@ -751,7 +751,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <div class="cfg-group">裁剪</div>
         <div class="field"><label for="hbMin">起始拍</label><input type="number" id="hbMin" min="0" step="1" placeholder="—（不裁剪）"></div>
         <div class="field"><label for="hbMax">结束拍</label><input type="number" id="hbMax" min="0" step="1" placeholder="—（不裁剪）"></div>
-        <div class="field"><label></label><span style="font-size:11px;color:var(--faint)">仅裁剪预览渲染（官方语义），网格完整保留便于编辑。</span></div>
+        <div class="field"><label></label><span style="font-size:11px;color:var(--faint)">预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。</span></div>
       </div>
     </details>
   </aside>
@@ -1084,6 +1084,7 @@ const state = {
   head: { text: '', tick: null, every: null, tock: null },
   foot: { text: '', tick: null, every: null, tock: null },
   hscale: 1, skin: 'default',
+  hb: null,            // 横向裁剪 [起始拍, 结束拍)，右端开区间（官方 hbounds 语义）
   extras: {}, cfgExtras: {},
   tool: { type: 'select' },
   zoom: 1,
@@ -1233,6 +1234,7 @@ function buildJSON() {
   const cfg = {};
   if (state.hscale > 1) cfg.hscale = state.hscale;
   if (state.skin !== 'default') cfg.skin = state.skin;
+  if (state.hb && state.hb[1] > state.hb[0]) cfg.hbounds = state.hb;
   Object.assign(cfg, state.cfgExtras);
   if (Object.keys(cfg).length) out.config = cfg;
   Object.assign(out, state.extras);
@@ -1285,7 +1287,7 @@ function parseDoc(j) {
     edges: [], rawEdges: [],
     head: { text: '', tick: null, every: null, tock: null },
     foot: { text: '', tick: null, every: null, tock: null },
-    hscale: 1, skin: 'default', extras: {}, cfgExtras: {},
+    hscale: 1, skin: 'default', hb: null, extras: {}, cfgExtras: {},
   };
   (Array.isArray(j.edge) ? j.edge : []).forEach(e => {
     if (typeof e !== 'string') { st.rawEdges.push(e); return; }
@@ -1299,7 +1301,11 @@ function parseDoc(j) {
   const c = j.config || {};
   if (typeof c.hscale === 'number') st.hscale = Math.min(8, Math.max(1, Math.round(c.hscale)));
   if (typeof c.skin === 'string' && c.skin) st.skin = c.skin;
-  Object.keys(c).forEach(k => { if (k !== 'hscale' && k !== 'skin') st.cfgExtras[k] = c[k]; });
+  if (Array.isArray(c.hbounds) && c.hbounds.length === 2) {
+    const a = Math.max(0, Math.floor(+c.hbounds[0] || 0)), b = Math.ceil(+c.hbounds[1] || 0);
+    if (b > a) st.hb = [a, b];
+  }
+  Object.keys(c).forEach(k => { if (!['hscale', 'skin', 'hbounds'].includes(k)) st.cfgExtras[k] = c[k]; });
   Object.keys(j).forEach(k => { if (!['signal', 'edge', 'head', 'foot', 'config'].includes(k)) st.extras[k] = j[k]; });
   return st;
 }
@@ -1307,21 +1313,23 @@ function adoptState(st) {
   state.tree = st.tree; state.edges = st.edges; state.rawEdges = st.rawEdges;
   state.head = st.head; state.foot = st.foot;
   state.hscale = st.hscale; state.skin = st.skin;
+  state.hb = st.hb || null;
   state.extras = st.extras; state.cfgExtras = st.cfgExtras;
 }
 
 /* ---------- 迷你波形渲染 ---------- */
 const HI = 13, LO = 35, MID = 24;
-function laneSVG(lane, colCount, color) {
-  const W = gridCellW() * (lane.period || 1), H = 48, len = Math.min(colCount, laneLen(lane));
+function laneSVG(lane, colCount, color, cropX) {
+  const W = gridCellW() * (lane.period || 1), H = 48, len = laneLen(lane);
+  const crop = +cropX || 0, vw = colCount * gridCellW();
   const positions = laneCharPositions(lane);
   const ph = lane.phase || 0;
   const X = t => (t - ph) * W;
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'mini');
-  svg.setAttribute('width', len * W); svg.setAttribute('height', H);
-  svg.setAttribute('viewBox', `0 0 ${len * W} ${H}`);
+  svg.setAttribute('width', vw); svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `${crop} 0 ${vw} ${H}`);
   let d = '';
   const M = (x, y) => { d += `M${x} ${y}`; }, L = (x, y) => { d += `L${x} ${y}`; };
   const Hline = x2 => { d += `H${x2}`; }, V = (x, y1, y2) => { d += `M${x} ${y1}V${y2}`; };
@@ -1613,6 +1621,15 @@ function computeCols() {
   if (max === 0) return Math.max(8, min);
   return Math.max(max, min);
 }
+/* 编辑区可见窗口：hbounds 裁剪时为 [a, b)；右端不超过内容列数（官方 xmax 只裁不扩） */
+function gridWindow() {
+  if (state.hb && state.hb[1] > state.hb[0]) {
+    const b = Math.min(state.hb[1], Math.max(computeCols(), state.hb[0] + 1));
+    return { a: state.hb[0], b: Math.max(b, state.hb[0] + 1) };
+  }
+  return { a: 0, b: computeCols() };
+}
+function gridWidth() { const w = gridWindow(); return (w.b - w.a) * gridCellW(); }
 function laneColor(lane) {
   const flats = allLanes();
   const i = flats.indexOf(lane);
@@ -1632,7 +1649,8 @@ function renderGrid() {
   });
   const namew = Math.max(120, Math.min(340, 64 + maxName.length * 8.5));
   document.documentElement.style.setProperty('--namew', namew + 'px');
-  const colCount = computeCols();
+  const win = gridWindow();
+  const colCount = win.b - win.a;
   if (!state.tree.length) {
     inner.appendChild(buildEmptyState());
     return;
@@ -1648,11 +1666,11 @@ function renderGrid() {
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, H.text)));
   }
   const timeRow = h('div', { class: 'time-row' },
-    h('div', { class: 'time-corner' }, '信号 \\ 拍'),
+    h('div', { class: 'time-corner' }, state.hb ? `信号 \\ 拍 ${win.a}–${win.b - 1}` : '信号 \\ 拍'),
     (() => {
       const cells = h('div', { class: 'time-cells' });
-      const headTL = headNums ? tickLabels(H.tick, colCount) : { L: [], offset: 0 };
-      for (let t = 0; t < colCount; t++) {
+      const headTL = headNums ? tickLabels(H.tick, win.b) : { L: [], offset: 0 };
+      for (let t = win.a; t < win.b; t++) {
         let label = String(t);
         if (headNums) {
           const v = headTL.L[t];
@@ -1674,7 +1692,7 @@ function renderGrid() {
       } else if (node.kind === 'spacer') {
         frag.appendChild(buildSpacerRow(node, depth));
       } else {
-        frag.appendChild(buildLaneRow(node, depth, colCount));
+        frag.appendChild(buildLaneRow(node, depth, colCount, win));
       }
     });
   };
@@ -1683,8 +1701,8 @@ function renderGrid() {
   if (footNums) {
     const nums = h('div', { class: 'strip-cells' }, h('div', { class: 'strip-corner' }));
     const base = (F.tock !== null && F.tock !== '' && F.tock !== undefined) ? F.tock : F.tick;
-    const footTL = tickLabels(base, colCount);
-    for (let t = 0; t < colCount; t++) {
+    const footTL = tickLabels(base, win.b);
+    for (let t = win.a; t < win.b; t++) {
       const v = footTL.L[t];
       const off = footTL.offset ?? 0;
       const label = (v === undefined || (footEvery > 1 && (((off + t) % footEvery) + footEvery) % footEvery !== 0)) ? '' : String(v);
@@ -1716,6 +1734,7 @@ function renderMiniEdges() {
   svg.setAttribute('width', W); svg.setAttribute('height', H);
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const col = cssVar('--info') || '#38BDF8';
+  const x0 = gridWindow().a * gridCellW();
   const pos = letter => {
     const n = byLetter[letter];
     if (!n) return null;
@@ -1725,7 +1744,7 @@ function renderMiniEdges() {
     if (!track) return null;
     const lw = gridCellW() * (n.lane.period || 1);
     const lp = laneCharPositions(n.lane)[n.t];
-    return { x: track.offsetLeft + (lp ? lp.x + lp.w - 9 : (n.t - (n.lane.phase || 0)) * lw + lw - 9), y: rowEl.offsetTop + 8 };
+    return { x: track.offsetLeft + (lp ? lp.x + lp.w - 9 : (n.t - (n.lane.phase || 0)) * lw + lw - 9) - x0, y: rowEl.offsetTop + 8 };
   };
   const arrow = (x, y, dx, dy) => {
     const len = Math.hypot(dx, dy) || 1;
@@ -1905,7 +1924,7 @@ function openMoreMenu(node, kind, anchor) {
   pop.style.top = y + 'px';
 }
 function closeMoreMenu() { $('#morePop').classList.remove('open'); }
-function buildLaneRow(lane, depth, colCount) {
+function buildLaneRow(lane, depth, colCount, win) {
   const color = laneColor(lane);
   const row = h('div', { class: 'lane-row', 'data-lane': lane.id });
   const head = h('div', { class: 'lane-head', style: '--ch:' + color },
@@ -1921,7 +1940,7 @@ function buildLaneRow(lane, depth, colCount) {
       ? h('span', { class: 'pp-badge' }, (lane.period && lane.period > 1 ? '×' + lane.period : '') + (lane.phase ? ' φ' + lane.phase : ''))
       : null);
   const track = h('div', { class: 'lane-track', style: 'width:' + colCount * gridCellW() + 'px' });
-  const svg = laneSVG(lane, colCount, color);
+  const svg = laneSVG(lane, colCount, color, win.a * gridCellW());
   if (animateLanes && animateLanes.has(lane.id)) {
     svg.querySelectorAll('path.wtrace').forEach(p => {
       const len = p.getTotalLength ? p.getTotalLength() : 0;
@@ -1937,11 +1956,12 @@ function buildLaneRow(lane, depth, colCount) {
   const posMap = laneCharPositions(lane);
   const per = lane.period || 1, lph = lane.phase || 0;
   const base = gridCellW() * per;
-  const laneCells = Math.ceil((colCount + Math.max(0, lph)) / per);
+  const x0 = win.a * gridCellW();
   let lastX = 0;
-  for (let t = 0; t < laneCells; t++) {
+  for (let t = 0; t < win.a && t < posMap.length; t++) { const p = posMap[t]; if (p) lastX = p.x + p.w; }
+  for (let t = win.a; t < win.b; t++) {
     const p = posMap[t];
-    const left = p ? p.x : (t < posMap.length ? lastX : (t - lph) * base);
+    const left = (p ? p.x : (t < posMap.length ? lastX : (t - lph) * base)) - x0;
     const wpx = p ? p.w : (t < posMap.length ? 14 : base);
     if (p) lastX = p.x + p.w;
     track.appendChild(h('div', {
@@ -1960,7 +1980,7 @@ function buildGroupRow(group, depth) {
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
     icon('<path d="M6 4l4 4-4 4"/>', 12), inp);
-  const track = h('div', { class: 'lane-track', style: 'width:' + computeCols() * gridCellW() + 'px' });
+  const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
   return row;
 }
@@ -1968,7 +1988,7 @@ function buildSpacerRow(sp, depth) {
   const row = h('div', { class: 'lane-row spacer-row', 'data-spacer': sp.id });
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
     h('span', { class: 'spacer-label' }, '空白占位'));
-  const track = h('div', { class: 'lane-track', style: 'width:' + computeCols() * gridCellW() + 'px' });
+  const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
   return row;
 }
@@ -2829,7 +2849,7 @@ function bindSettings() {
   const hbSet = () => {
     commitTag = 'cfg';
     const a = $('#hbMin').value, b = $('#hbMax').value;
-    state.hb = (a !== '' || b !== '') ? [a === '' ? 0 : +a, b === '' ? 9999 : +b] : null;
+    state.hb = (a !== '' || b !== '') ? [Math.max(0, Math.floor(+a || 0)), b === '' ? 9999 : Math.ceil(+b || 0)] : null;
     if (state.hb && state.hb[1] <= state.hb[0]) state.hb = null;
     scheduleUpdate();
   };
