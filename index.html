@@ -456,6 +456,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   background: transparent; border: 1px solid transparent; border-radius: 4px;
   font: 500 12.5px var(--font-mono); color: var(--text);
   padding: 2px 5px;
+  text-overflow: ellipsis;
 }
 .lane-head input.lane-name:hover { border-color: var(--line); }
 .lane-head input.lane-name:focus { outline: none; border-color: var(--acc); background: var(--panel-2); }
@@ -474,14 +475,33 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .lane-row.spacer-row { height: 34px; }
 .lane-row.spacer-row .lane-head { background: var(--panel-2); }
 .lane-row.spacer-row .lane-head .spacer-label { color: var(--faint); font-size: 11.5px; flex: 1; }
-.lane-row.group-row { height: 38px; }
+.lane-row.group-row { height: 24px; }
 .lane-row.group-row .lane-head { background: var(--panel-2); }
 .lane-row.group-row:hover .lane-head { background: var(--head-hover); }
+.lane-row.group-row .lane-track,
+.lane-row.group-row:nth-child(odd) .lane-track { background: color-mix(in srgb, var(--acc) 5%, transparent); }
+.lane-row.group-row.collapsed .lane-track,
+.lane-row.group-row.collapsed:nth-child(odd) .lane-track { background: var(--acc-veil); }
+.g-caret {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex: none;
+  border: none; border-radius: 4px;
+  background: transparent; color: var(--faint); cursor: pointer;
+}
+.g-caret svg { transition: transform .15s ease; transform: rotate(90deg); }
+.lane-row.group-row.collapsed .g-caret svg { transform: rotate(0deg); }
+.g-caret:hover { color: var(--text); background: rgba(120, 150, 200, .14); }
+.g-count {
+  flex: none; font: 600 9.5px var(--font-mono); color: var(--faint);
+  background: var(--panel); border: 1px solid var(--line-soft);
+  border-radius: 999px; padding: 0 6px; line-height: 14px;
+}
 .lane-head .gname {
   flex: 1; min-width: 0;
   background: transparent; border: 1px solid transparent; border-radius: 4px;
-  font-weight: 700; font-size: 12.5px; color: var(--acc-text);
-  padding: 2px 5px;
+  font-weight: 700; font-size: 12px; color: var(--acc-text);
+  padding: 1px 5px;
+  text-overflow: ellipsis;
 }
 .lane-head .gname:hover { border-color: var(--line); }
 .lane-head .gname:focus { outline: none; border-color: var(--acc); background: var(--panel-2); }
@@ -1444,6 +1464,7 @@ function adoptState(st) {
   state.hscale = st.hscale; state.skin = st.skin;
   state.hb = st.hb || null;
   state.extras = st.extras; state.cfgExtras = st.cfgExtras;
+  collapsedGroups.clear(); // 文档重建后旧分组 id 失效
 }
 
 /* ---------- 迷你波形渲染 ---------- */
@@ -1767,17 +1788,34 @@ function laneColor(lane) {
 }
 
 let animateLanes = null; // Set of lane ids to animate
+const collapsedGroups = new Set(); // 会话内折叠的分组 id（编辑区与左侧栏共享）
+function toggleGroupCollapse(id) {
+  if (collapsedGroups.has(id)) collapsedGroups.delete(id); else collapsedGroups.add(id);
+  renderGrid();
+  renderTree();
+}
 
 function renderGrid() {
   const inner = $('#gridInner');
   inner.textContent = '';
   // 信号名列宽自适应：整棵树最长名称（含分组名）+ 固定余量，带上限/下限
-  let maxName = '';
+  /* 名称列宽自适应：逐行累加缩进、组名/信号名（单行封顶，超长省略号）、折叠角标、φ 徽标 */
+  const textW = s => { let w = 0; for (const ch of s) w += ch.charCodeAt(0) > 0x2e7f ? 11.5 : 6.8; return w; };
+  let namew = 120;
   walkTree(state.tree, (n, d) => {
-    const nm = n.name || '';
-    if (nm.length > maxName.length) maxName = nm;
+    const indent = d * 14;
+    let extra = 0;
+    if (n.kind === 'group' && collapsedGroups.has(n.id)) {
+      extra = 18 + String(n.children.length).length * 6.5; // 子行数角标
+    } else if (n.kind === 'lane' && ((n.period && n.period > 1) || n.phase)) {
+      const label = (n.period && n.period > 1 ? '×' + n.period : '') + (n.phase ? ' φ' + n.phase : '');
+      extra = 14 + label.length * 6; // period/phase 徽标
+    }
+    const name = n.name || '';
+    const nameW = Math.min(textW(name), 96); // 超长名字省略号截断，不撑宽整列
+    namew = Math.max(namew, Math.min(340, 64 + indent + nameW + extra));
   });
-  const namew = Math.max(120, Math.min(340, 64 + maxName.length * 8.5));
+  namew = Math.min(340, namew);
   document.documentElement.style.setProperty('--namew', namew + 'px');
   const win = gridWindow();
   const colCount = win.b - win.a;
@@ -1818,7 +1856,7 @@ function renderGrid() {
     list.forEach(node => {
       if (node.kind === 'group') {
         frag.appendChild(buildGroupRow(node, depth));
-        renderNodeList(node.children, depth + 1);
+        if (!collapsedGroups.has(node.id)) renderNodeList(node.children, depth + 1);
       } else if (node.kind === 'spacer') {
         frag.appendChild(buildSpacerRow(node, depth));
       } else {
@@ -2123,12 +2161,19 @@ function buildLaneRow(lane, depth, colCount, win) {
   return row;
 }
 function buildGroupRow(group, depth) {
-  const row = h('div', { class: 'lane-row group-row', 'data-group': group.id });
+  const collapsed = collapsedGroups.has(group.id);
+  const row = h('div', { class: 'lane-row group-row' + (collapsed ? ' collapsed' : ''), 'data-group': group.id });
   const inp = h('input', { class: 'gname', value: group.name, 'aria-label': '分组名称' });
   inp.addEventListener('change', () => { group.name = inp.value.trim() || '分组'; update(true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
-  const head = h('div', { class: 'lane-head' }, indentEl(depth),
-    icon('<path d="M6 4l4 4-4 4"/>', 12), inp);
+  const caret = h('button', { class: 'g-caret', title: collapsed ? '展开分组' : '折叠分组', 'aria-label': (collapsed ? '展开分组：' : '折叠分组：') + (group.name || '分组') });
+  caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 12));
+  caret.addEventListener('click', ev => {
+    ev.stopPropagation();
+    toggleGroupCollapse(group.id);
+  });
+  const head = h('div', { class: 'lane-head' }, indentEl(depth), caret, inp,
+    collapsed ? h('span', { class: 'g-count' }, String(group.children.length)) : null);
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
   return row;
@@ -2160,7 +2205,11 @@ function renderTree() {
     list.forEach(node => {
       const row = h('div', { class: 'tree-row' + (node.kind === 'group' ? ' group' : ''), style: `padding-left:${6 + depth * 14}px` });
       if (node.kind === 'group') {
-        row.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 11));
+        const collapsed = collapsedGroups.has(node.id);
+        const caret = h('button', { class: 'g-caret', title: collapsed ? '展开分组' : '折叠分组', 'aria-label': (collapsed ? '展开分组：' : '折叠分组：') + (node.name || '分组') });
+        caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 11));
+        caret.addEventListener('click', ev => { ev.stopPropagation(); toggleGroupCollapse(node.id); });
+        row.appendChild(caret);
         row.appendChild(h('span', { class: 'tw-name' }, node.name));
         row.appendChild(h('span', { class: 'tw-kind' }, `组·${node.children.length}`));
         row.appendChild(rowActions(node, 'group', true));
@@ -2182,7 +2231,7 @@ function renderTree() {
         row.appendChild(rowActions(node, 'lane', true));
       }
       treeEl.appendChild(row);
-      if (node.kind === 'group') build(node.children, depth + 1);
+      if (node.kind === 'group' && !collapsedGroups.has(node.id)) build(node.children, depth + 1);
     });
   };
   build(state.tree, 0);
@@ -2910,7 +2959,9 @@ function buildEditorSvg() {
   const win = gridWindow();
   const winX = win.a * gw, winW = (win.b - win.a) * gw;
   let usedPx = 0;
+  const visibleLanes = new Set([...inner.querySelectorAll('.lane-row[data-lane]')].map(r => +r.dataset.lane));
   eachLane(l => {
+    if (!visibleLanes.has(l.id)) return; // 折叠的分组子泳道不计入
     let lastT = -1;
     l.slots.forEach((s, t) => { if (s) lastT = t; });
     Object.keys(l.nodeByT).forEach(t => { lastT = Math.max(lastT, +t); });
