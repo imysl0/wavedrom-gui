@@ -1947,7 +1947,7 @@ function buildLaneRow(lane, depth, colCount, win) {
     indentEl(depth),
     h('span', { class: 'dot' }),
     (() => {
-      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': '通道名称', placeholder: '未命名' });
+      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': '通道名称' });
       inp.addEventListener('change', () => { lane.name = inp.value.trim(); update(true); });
       inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
       return inp;
