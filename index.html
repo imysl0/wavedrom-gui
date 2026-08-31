@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WaveDrom 可视化编辑器</title>
+<title>WaveDrom-Gui</title>
 <meta name="description" content="用鼠标点击编辑 WaveDrom 时序图，实时预览，单文件离线可用">
 <style>
 @import url('https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkaimono-regular.css');
@@ -652,7 +652,13 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
   box-shadow: var(--shadow-pop);
   padding: 18px;
 }
-.modal h3 { margin: 0 0 6px; font-size: 14px; }
+.modal h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.ver-badge {
+  flex: none;
+  font: 600 10px var(--font-mono); color: var(--faint);
+  border: 1px solid var(--line-soft); border-radius: 999px;
+  padding: 1px 8px; user-select: none;
+}
 .modal p { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; }
 .modal textarea {
   width: 100%; height: 220px; resize: vertical;
@@ -748,6 +754,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <button class="btn ghost" data-act="open-about" title="关于本项目">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
   </button>
+  <span class="ver-badge" title="版本 v260901">v260901</span>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -913,7 +920,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 <div class="modal-mask" id="aboutMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目">
-    <h3>WaveDrom 可视化编辑器</h3>
+    <h3>WaveDrom-Gui <span class="ver-badge">v260901</span></h3>
     <p>单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
     <p>支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
     <p>仓库地址：<a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
