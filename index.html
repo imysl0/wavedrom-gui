@@ -719,6 +719,8 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     <div class="menu">
       <button data-act="export-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h6M8 3v10"/></svg>下载 SVG</button>
       <button data-act="export-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.5" cy="6.5" r="1"/><path d="m4 12 3.5-3.5 2 2L12 8l2 2"/></svg>下载 PNG（2×）</button>
+      <button data-act="export-editor-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V13"/></svg>下载编辑区 SVG</button>
+      <button data-act="export-editor-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V13M10.5 6.5V13"/><circle cx="4.4" cy="4.8" r=".2"/></svg>下载编辑区 PNG（2×）</button>
       <div class="sep"></div>
       <button data-act="export-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H4.5A1.5 1.5 0 0 0 3 4.5V6c0 1-1 2-2 2 1 0 2 1 2 2v1.5A1.5 1.5 0 0 0 4.5 13H6"/><path d="M10 3h1.5A1.5 1.5 0 0 1 13 4.5V6c0 1 1 2 2 2-1 0-2 1-2 2v1.5a1.5 1.5 0 0 1-1.5 1.5H10"/></svg>下载 JSON</button>
       <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>复制 JSON</button>
@@ -2765,6 +2767,119 @@ function getExportSvg() {
   clone.setAttribute('width', w); clone.setAttribute('height', hgt);
   return { str: new XMLSerializer().serializeToString(clone), w, h: hgt };
 }
+/* ---------- 编辑区导出：矢量重建网格（不含工具栏与空白行列） ---------- */
+function buildEditorSvg() {
+  const inner = $('#gridInner');
+  if (!state.tree.length) { toast('编辑区还没有内容', true); return null; }
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
+  const txt = (parent, x, y, str, attrs) => { const t = el('text', { x, y, ...attrs }, parent); t.textContent = str; return t; };
+  const mono = cssVar('--font-mono'), uiFont = cssVar('--font-ui');
+
+  /* 横向范围：可见窗口 ∩ 内容实际占用的最右像素 */
+  const gw = gridCellW();
+  const win = gridWindow();
+  const winX = win.a * gw, winW = (win.b - win.a) * gw;
+  let usedPx = 0;
+  eachLane(l => {
+    let lastT = -1;
+    l.slots.forEach((s, t) => { if (s) lastT = t; });
+    Object.keys(l.nodeByT).forEach(t => { lastT = Math.max(lastT, +t); });
+    if (lastT < 0) return;
+    /* 尾随 '.' 会把数据框/电平/时钟延续绘制到 wave 末端，视觉范围按整条长度计 */
+    const end = Math.max(laneLen(l), lastT + 1);
+    const p = laneCharPositions(l)[end - 1];
+    const right = p ? p.x + p.w : (end - 1 - (l.phase || 0)) * gw * (l.period || 1) + gw * (l.period || 1);
+    usedPx = Math.max(usedPx, right - winX);
+  });
+  const colsW = Math.max(gw, Math.min(winW, Math.ceil(usedPx)));
+
+  /* 纵向范围：网格实际内容行（time-row / lane-row / strip），天然不含内边距 */
+  const rows = [...inner.children].filter(c => c.classList.contains('lane-row') || c.classList.contains('time-row') || c.classList.contains('strip'));
+  if (!rows.length) { toast('编辑区还没有内容', true); return null; }
+  const last = rows[rows.length - 1];
+  const H = last.offsetTop + last.offsetHeight;
+  const headEl = rows.find(r => r.querySelector(':scope > .lane-head'));
+  const nameW = headEl ? headEl.querySelector(':scope > .lane-head').offsetWidth : 196;
+  const W = nameW + colsW;
+
+  const svg = el('svg', { xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}` });
+  el('rect', { x: 0, y: 0, width: W, height: H, fill: cssVar('--bg') }, svg);
+  const fixVars = clone => clone.querySelectorAll('[style]').forEach(e2 => {
+    e2.setAttribute('style', e2.getAttribute('style').replaceAll('var(--font-mono)', mono).replaceAll('var(--font-ui)', uiFont));
+  });
+
+  rows.forEach(r => {
+    const y = r.offsetTop, h = r.offsetHeight;
+    if (r.classList.contains('strip')) {
+      const st = r.querySelector('.strip-text');
+      el('rect', { x: nameW, y, width: colsW, height: h, fill: cssVar('--bg') }, svg);
+      if (st) txt(svg, nameW + colsW / 2, y + h / 2 + 4.5, st.textContent, { 'text-anchor': 'middle', 'font-size': 12.5, 'font-weight': 600, fill: cssVar('--muted'), 'font-family': uiFont });
+      else r.querySelectorAll('.strip-num').forEach((n, i) => {
+        if (n.textContent) txt(svg, nameW + i * gw + gw / 2, y + h / 2 + 3.5, n.textContent, { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 500, fill: cssVar('--acc-text'), 'font-family': mono });
+      });
+      return;
+    }
+    if (r.classList.contains('time-row')) {
+      el('rect', { x: 0, y, width: W, height: h, fill: cssVar('--bg') }, svg);
+      el('line', { x1: 0, y1: y + h, x2: W, y2: y + h, stroke: cssVar('--line') }, svg);
+      r.querySelectorAll('.time-cell').forEach((c, i) => {
+        const cx = nameW + i * gw;
+        if (i > 0) el('line', { x1: cx, y1: y + 4, x2: cx, y2: y + h - 4, stroke: cssVar('--line-soft') }, svg);
+        if (c.textContent) txt(svg, cx + gw / 2, y + h / 2 + 3.5, c.textContent, { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': c.classList.contains('tick') ? 600 : 500, fill: c.classList.contains('tick') ? cssVar('--acc-text') : cssVar('--faint'), 'font-family': mono });
+      });
+      return;
+    }
+    const tr = r.querySelector(':scope > .lane-track');
+    const bgc = getComputedStyle(tr).backgroundColor;
+    if (bgc && bgc !== 'rgba(0, 0, 0, 0)') el('rect', { x: nameW, y, width: colsW, height: h, fill: bgc }, svg);
+    el('line', { x1: 0, y1: y + h, x2: W, y2: y + h, stroke: cssVar('--line-soft') }, svg);
+    const mini = r.querySelector('svg.mini');
+    if (mini) {
+      const clone = mini.cloneNode(true);
+      fixVars(clone);
+      clone.setAttribute('x', tr.offsetLeft);
+      clone.setAttribute('y', y);
+      svg.appendChild(clone);
+    }
+  });
+
+  /* 边线叠加层 */
+  const ov = inner.querySelector('svg.mini-edges');
+  if (ov) {
+    const c = ov.cloneNode(true);
+    fixVars(c);
+    c.setAttribute('x', 0); c.setAttribute('y', 0);
+    svg.appendChild(c);
+  }
+
+  /* 名称列最后绘制，盖住穿过的边线（对齐屏幕上的 sticky 表现） */
+  el('rect', { x: 0, y: 0, width: nameW, height: H, fill: cssVar('--panel') }, svg);
+  el('line', { x1: nameW, y1: 0, x2: nameW, y2: H, stroke: cssVar('--line') }, svg);
+  rows.forEach(r => {
+    if (!r.classList.contains('lane-row')) return;
+    const y = r.offsetTop, h = r.offsetHeight, cy = y + h / 2;
+    const head = r.querySelector(':scope > .lane-head');
+    const indent = head.querySelector('.indent');
+    const ix = indent ? (parseFloat(getComputedStyle(indent).width) || 0) : 0;
+    if (r.dataset.lane) {
+      const dot = head.querySelector('.dot');
+      if (dot) el('circle', { cx: 12 + ix + 4, cy, r: 4.5, fill: getComputedStyle(dot).backgroundColor }, svg);
+      const inp = head.querySelector('input.lane-name');
+      const name = inp ? inp.value : '';
+      if (name) txt(svg, 12 + ix + 14, cy + 4.5, name, { 'font-size': 12.5, 'font-weight': 500, fill: cssVar('--text'), 'font-family': mono });
+      const badge = head.querySelector('.pp-badge');
+      if (badge) txt(svg, 12 + ix + 16 + name.length * 7.5, cy + 3.5, badge.textContent, { 'font-size': 9.5, 'font-weight': 600, fill: cssVar('--warn-ink'), 'font-family': mono });
+    } else if (r.dataset.group) {
+      const g = head.querySelector('.gname');
+      txt(svg, 12 + ix + 4, cy + 4.5, '▸ ' + (g ? g.value : ''), { 'font-size': 12.5, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
+    } else if (r.dataset.spacer) {
+      txt(svg, 12 + ix, cy + 4, '空白占位', { 'font-size': 11.5, fill: cssVar('--faint'), 'font-family': uiFont });
+    }
+  });
+  return svg;
+}
+
 function copyText(text, okMsg) {
   const done = () => toast(okMsg);
   const fail = () => {
@@ -2861,6 +2976,29 @@ function handleAct(act, btn) {
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
         cv.toBlob(b => { if (b) download('wavedrom.png', b); else toast('PNG 生成失败', true); }, 'image/png');
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
+      img.src = url;
+      break;
+    }
+    case 'export-editor-svg': {
+      const es = buildEditorSvg(); if (!es) return;
+      download('wavedrom-editor.svg', new Blob([new XMLSerializer().serializeToString(es)], { type: 'image/svg+xml' }));
+      break;
+    }
+    case 'export-editor-png': {
+      const es = buildEditorSvg(); if (!es) return;
+      const str = new XMLSerializer().serializeToString(es);
+      const img = new Image();
+      const url = URL.createObjectURL(new Blob([str], { type: 'image/svg+xml' }));
+      img.onload = () => {
+        const cv = document.createElement('canvas');
+        cv.width = (+es.getAttribute('width')) * 2; cv.height = (+es.getAttribute('height')) * 2;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = cssVar('--bg'); ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.drawImage(img, 0, 0, cv.width, cv.height);
+        cv.toBlob(b => { if (b) download('wavedrom-editor.png', b); else toast('PNG 生成失败', true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
