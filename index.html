@@ -365,8 +365,27 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .icon-btn:disabled { opacity: .32; pointer-events: none; }
 .col-stepper { display: flex; gap: 4px; margin-left: 4px; }
 .col-stepper .btn { padding: 0 9px; font-family: var(--font-mono); font-size: 12px; }
-.editor-toolbar .hint { color: var(--faint); font-size: 11.5px; margin-left: auto; }
+.editor-toolbar .hint {
+  color: var(--faint); font-size: 11.5px; margin-left: auto;
+  cursor: pointer; user-select: none;
+  position: relative;
+  border-bottom: 1px dotted var(--faint);
+}
+.editor-toolbar .hint:hover, .editor-toolbar .hint.pinned { color: var(--muted); border-bottom-color: var(--acc); }
+.editor-toolbar .hint.pinned { color: var(--acc-text); }
 .editor-toolbar .hint b { color: var(--muted); font-weight: 600; }
+.editor-toolbar .hint .hint-pop {
+  display: none;
+  position: absolute; right: 0; top: calc(100% + 8px);
+  z-index: 40;
+  background: var(--raise); border: 1px solid var(--line-hover); border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  padding: 8px 12px;
+  font-size: 11.5px; line-height: 1.7; color: var(--muted);
+  white-space: normal; width: max-content; max-width: min(560px, 92vw);
+  cursor: default;
+}
+.editor-toolbar .hint:hover .hint-pop, .editor-toolbar .hint.pinned .hint-pop { display: block; }
 
 .grid-scroll { flex: 1; overflow: auto; position: relative; }
 .grid-inner { min-width: max-content; padding-bottom: 40px; position: relative; }
@@ -838,7 +857,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <button class="btn ghost" data-act="add-col" data-n="1" title="网格增加 1 拍">＋</button>
         <button class="btn ghost" data-act="add-col" data-n="4" title="网格增加 4 拍">＋4</button>
       </div>
-      <span class="hint">左键<b>点选状态</b>或用笔刷<b>拖动涂抹</b> · 按住状态格<b>向右拖动延续</b> · <b>右键</b>清除单元格</span>
+      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键<b>点选状态</b>或用笔刷<b>拖动涂抹</b> · 按住状态格<b>向右拖动延续</b> · <b>右键</b>清除单元格</span></span>
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
     <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
@@ -2641,8 +2660,13 @@ function bindGrid() {
     if (pop.classList.contains('open') && !pop.contains(ev.target) && !ev.target.closest('.cell')) closePop();
     const mp = $('#morePop');
     if (mp.classList.contains('open') && !mp.contains(ev.target) && !ev.target.closest('button[title="更多操作"]')) closeMoreMenu();
+    const hb = $('#hintBox');
+    if (hb && hb.classList.contains('pinned') && !hb.contains(ev.target)) hb.classList.remove('pinned');
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); $('#aboutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); $('#aboutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  const hintBox = $('#hintBox');
+  hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
+  hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
 }
 
 /* ---------- 交互：结构操作 ---------- */
