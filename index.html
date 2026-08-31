@@ -857,7 +857,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <button class="btn ghost" data-act="add-col" data-n="1" title="网格增加 1 拍">＋</button>
         <button class="btn ghost" data-act="add-col" data-n="4" title="网格增加 4 拍">＋4</button>
       </div>
-      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键<b>点选状态</b>或用笔刷<b>拖动涂抹</b> · 按住状态格<b>向右拖动延续</b> · <b>右键</b>清除单元格</span></span>
+      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 先选笔刷，在网格上点击或按住拖过单元格涂抹 · 按住已有状态格向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
     <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
@@ -2419,7 +2419,7 @@ function buildPalette() {
     });
     pal.appendChild(b);
   });
-  pal.appendChild(h('span', { class: 'phint', html: '选一支笔刷，在网格上<b>点击或拖动涂抹</b>；「选择」工具点单元格可精细设置数据标签与节点。' }));
+  pal.appendChild(h('span', { class: 'phint', html: '选一支笔刷，在网格上<b>点击或按住拖过单元格</b>涂抹；「选择」工具点单元格可精细设置数据标签与节点。' }));
 }
 
 /* ---------- 交互：单元格 ---------- */
