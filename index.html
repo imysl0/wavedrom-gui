@@ -350,7 +350,7 @@ body.col-resizing, body.row-resizing { user-select: none; }
 body.col-resizing *, body.row-resizing * { cursor: inherit !important; }
 body.col-resizing { cursor: col-resize; }
 body.row-resizing { cursor: row-resize; }
-.editor-col { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.editor-col { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); position: relative; }
 html[data-view="below"] .main-col { flex-direction: column; }
 html[data-view="below"] .editor-col { flex: 1 1 58%; min-height: 0; }
 html[data-view="below"] .right-col { width: auto; flex: none; height: 42%; border-left: none; border-top: 1px solid var(--line); }
@@ -554,6 +554,49 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 .palette .psep { flex: none; width: 1px; height: 34px; background: var(--line); margin: 0 5px; }
 .palette .phint { flex: 1; min-width: 0; color: var(--faint); font-size: 11px; margin-left: 8px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette .phint b { color: var(--muted); font-weight: 600; }
+#palette { position: relative; }
+.tool.sm { width: 44px; height: 44px; }
+.tool.sm .tlabel { font-size: 8.5px; }
+.tool.edge { width: 40px; height: 40px; }
+.tool.edge .tlabel { font-size: 8.5px; }
+.tool.chip { width: auto; height: 44px; padding: 0 14px; }
+.tool.chip .chip-name { font-size: 11.5px; font-weight: 600; }
+#brushFly {
+  position: fixed; z-index: 80;
+  display: none; gap: 5px; padding: 7px;
+  background: var(--raise); border: 1px solid var(--line-hover); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+}
+#brushFly.on { display: flex; }
+#brushEdge {
+  position: absolute; right: 8px; top: 60px; bottom: 12px; width: 50px;
+  z-index: 30; display: none; flex-direction: column; align-items: center; gap: 5px;
+}
+#brushEdge.on { display: flex; }
+#brushEdge.wide { width: 286px; }
+.edge-panel { width: 100%; height: 100%; overflow-y: auto; box-sizing: border-box; background: var(--raise); border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); padding: 10px; }
+.edge-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.edge-panel-title { font: 600 12px var(--font-ui); color: var(--muted); }
+.tool.chip-v { width: 42px; height: 30px; padding: 0 2px; }
+.tool.chip-v .chip-name { font-size: 10.5px; }
+.be-cycle {
+  width: 42px; height: 22px; flex: none;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--panel-2); color: var(--muted);
+  font: 600 10px var(--font-ui); cursor: pointer;
+}
+.be-cycle:hover { border-color: var(--acc); color: var(--acc-text); }
+.be-items { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
+.be-fixed { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: none; }
+#brushFan { position: absolute; right: 16px; bottom: 16px; width: 0; height: 0; z-index: 35; }
+.fan-fab {
+  position: absolute; right: -24px; bottom: -24px;
+  width: 50px; height: 50px; border-radius: 50%;
+  border: 1px solid var(--line-hover); background: var(--raise); color: var(--acc-text);
+  font: 600 12.5px var(--font-ui); box-shadow: var(--shadow-pop); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.fan-fab:hover { color: var(--acc); border-color: var(--acc); }
 
 /* ---- 右侧 预览/代码 ---- */
 .right-col {
@@ -888,6 +931,8 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
     <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
+    <div id="brushEdge"></div>
+    <div id="brushFan"></div>
   </section>
 
 
@@ -1015,6 +1060,19 @@ function applyFonts() {
   document.documentElement.style.setProperty('--font-ui', FONT_STACKS[state_font.ui].ui);
   document.documentElement.style.setProperty('--font-mono', FONT_STACKS[state_font.data].mono);
 }
+
+/* 笔刷栏样式偏好（bar 横条 / groups 分组弹层 / edge 右缘竖列 / fan 右下角扇形） */
+const BRUSH_MODES = [['bar', '横条'], ['groups', '分组弹层'], ['edge', '右缘竖列'], ['fan', '右下角扇形']];
+const state_brush = { mode: localStorage.getItem('wdgui-brush-mode') || 'bar' };
+if (!BRUSH_MODES.some(m => m[0] === state_brush.mode)) state_brush.mode = 'bar';
+const BRUSH_GROUPS = [
+  { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L'] },
+  { name: '时钟', items: ['p', 'n', 'P', 'N'] },
+  { name: '沿', items: ['u', 'd', 'U', 'D'] },
+  { name: '数据', items: ['=', '2', '3', '4', '5', '6', '7', '8', '9'] },
+  { name: '不定', items: ['x', 'z'] },
+  { name: '间隙', items: ['|'] },
+];
 
 /* 节点圆标位置与比例（显示偏好，存 localStorage） */
 const NODE_POS_KEYS = {
@@ -2422,60 +2480,191 @@ function persist() {
   } catch (e) { /* 隐私模式等场景忽略 */ }
 }
 
-/* ---------- 交互：笔刷 ---------- */
-function buildPalette() {
+/* ---------- 交互：笔刷（多模式：横条 / 分组弹层 / 右缘竖列 / 右下角扇形） ---------- */
+const brushIdTool = id => (id === 'select' || id === 'erase') ? { type: id } : { type: 'glyph', char: id };
+const brushActive = id => id === 'select' ? state.tool.type === 'select'
+  : id === 'erase' ? state.tool.type === 'erase'
+  : state.tool.type === 'glyph' && state.tool.char === id;
+function setBrush(id) {
+  state.tool = brushIdTool(id);
+  document.querySelectorAll('[data-brush]').forEach(b => b.classList.toggle('active', b.dataset.brush === id));
+  closePop();
+  closeBrushFly();
+  closeBrushPanel();
+}
+function brushFace(id, w, hgt, iconSize) {
+  if (id === 'select') return icon('<path d="M4 2l8 6.5-3.4.8 1.9 4-1.8.8-1.9-4L4 13z"/>', iconSize);
+  if (id === 'erase') return icon('<path d="M6 12.5 2.8 9.3a1.4 1.4 0 0 1 0-2l4.5-4.5a1.4 1.4 0 0 1 2 0l3.9 3.9a1.4 1.4 0 0 1 0 2l-3.8 3.8zM5 13.5h8"/>', iconSize);
+  if (id === '.') {
+    const NS = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('viewBox', '0 0 30 18');
+    s.setAttribute('width', w); s.setAttribute('height', hgt);
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', 'M3 9h24');
+    p.setAttribute('stroke', '#8FA5C4'); p.setAttribute('stroke-width', '1.7'); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-dasharray', '2 4');
+    s.appendChild(p);
+    return s;
+  }
+  const s = glyphSample(id);
+  s.setAttribute('width', w); s.setAttribute('height', hgt);
+  return s;
+}
+function brushBtn(id, variant) {
+  const v = variant || 'bar';
+  const sizeCls = v === 'fly' ? ' sm' : v === 'edge' ? ' edge' : '';
+  const name = id === 'select' ? '选择' : id === 'erase' ? '清除' : id === '.' ? '延续' : GLYPH_MAP[id].name;
+  const b = h('button', {
+    class: 'tool' + sizeCls + (brushActive(id) ? ' active' : ''),
+    'data-brush': id, title: id === '.' ? '延续（.）—— 让上一拍的状态再延续一拍' : `${name}（${id}）`,
+    'aria-label': '笔刷：' + name,
+  });
+  const dims = v === 'bar' ? [30, 18, 18] : [26, 15, 15];
+  b.appendChild(brushFace(id, dims[0], dims[1], dims[2]));
+  b.appendChild(h('span', { class: 'tlabel' }, id === 'select' ? '选择' : id === 'erase' ? '清除' : id === '.' ? '延续' : id));
+  b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id); });
+  return b;
+}
+function renderBrushUI() {
   const pal = $('#palette');
   pal.textContent = '';
-  const mkTool = (key, label, svgBuilder, isIcon) => {
-    const b = h('button', { class: 'tool' + (state.tool.type === key ? ' active' : ''), 'data-tool': key, title: label, 'aria-label': '笔刷：' + label });
-    if (isIcon) b.appendChild(icon(svgBuilder, 18));
-    else b.appendChild(svgBuilder());
-    b.appendChild(h('span', { class: 'tlabel' }, label));
-    b.addEventListener('click', () => {
-      state.tool = { type: key };
-      pal.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
-      closePop();
-    });
-    return b;
-  };
-  pal.appendChild(mkTool('select', '选择', '<path d="M4 2l8 6.5-3.4.8 1.9 4-1.8.8-1.9-4L4 13z"/>', true));
-  pal.appendChild(mkTool('erase', '清除', '<path d="M6 12.5 2.8 9.3a1.4 1.4 0 0 1 0-2l4.5-4.5a1.4 1.4 0 0 1 2 0l3.9 3.9a1.4 1.4 0 0 1 0 2l-3.8 3.8zM5 13.5h8"/>', true));
-  {
-    const eb = h('button', {
-      class: 'tool' + (state.tool.type === 'glyph' && state.tool.char === '.' ? ' active' : ''),
-      'data-tool': '.', title: '延续（.）—— 让上一拍的状态再延续一拍', 'aria-label': '笔刷：延续',
-    });
-    eb.appendChild((() => {
-      const NS = 'http://www.w3.org/2000/svg';
-      const s = document.createElementNS(NS, 'svg');
-      s.setAttribute('width', 30); s.setAttribute('height', 18);
-      s.appendChild((() => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', 'M3 9h24'); p.setAttribute('stroke', '#8FA5C4'); p.setAttribute('stroke-width', 1.7); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-dasharray', '2 4'); return p; })());
-      return s;
-    })());
-    eb.appendChild(h('span', { class: 'tlabel' }, '.'));
-    eb.addEventListener('click', () => {
-      state.tool = { type: 'glyph', char: '.' };
-      pal.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === eb));
-      closePop();
-    });
-    pal.appendChild(eb);
-  }
+  pal.classList.toggle('compact', state_brush.mode === 'groups');
+  closeBrushPanel();
+  $('#brushEdge').textContent = '';
+  $('#brushEdge').classList.remove('on');
+  $('#brushFan').textContent = '';
+  pal.style.display = (state_brush.mode === 'bar' || state_brush.mode === 'groups') ? '' : 'none';
+  if (state_brush.mode === 'bar') buildBarPalette(pal);
+  else if (state_brush.mode === 'groups') buildGroupsPalette(pal);
+  else if (state_brush.mode === 'edge') buildEdgePalette();
+  else if (state_brush.mode === 'fan') buildFanPalette();
+}
+function buildBarPalette(pal) {
+  pal.appendChild(brushBtn('select'));
+  pal.appendChild(brushBtn('erase'));
+  pal.appendChild(brushBtn('.'));
   pal.appendChild(h('span', { class: 'psep' }));
-  GLYPHS.forEach(g => {
-    const b = h('button', {
-      class: 'tool' + (state.tool.type === 'glyph' && state.tool.char === g.c ? ' active' : ''),
-      'data-tool': g.c, title: `${g.name}（${g.c}）`, 'aria-label': '笔刷：' + g.name,
-    });
-    b.appendChild(glyphSample(g.c));
-    b.appendChild(h('span', { class: 'tlabel' }, g.c));
-    b.addEventListener('click', () => {
-      state.tool = { type: 'glyph', char: g.c };
-      pal.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
-      closePop();
-    });
-    pal.appendChild(b);
-  });
+  GLYPHS.forEach(g => pal.appendChild(brushBtn(g.c)));
   pal.appendChild(h('span', { class: 'phint', html: '选一支笔刷，在网格上<b>点击或按住拖过单元格</b>涂抹；「选择」工具点单元格可精细设置数据标签与节点。' }));
+}
+function buildGroupsPalette(pal) {
+  pal.appendChild(brushBtn('select', 'fly'));
+  pal.appendChild(brushBtn('erase', 'fly'));
+  pal.appendChild(brushBtn('.', 'fly'));
+  pal.appendChild(h('span', { class: 'psep' }));
+  BRUSH_GROUPS.forEach(g => {
+    const chip = h('button', { class: 'tool chip' + (g.items.some(brushActive) ? ' active' : ''), title: g.name + '笔刷', 'aria-label': g.name + '笔刷组' }, h('span', { class: 'chip-name' }, g.name));
+    chip.addEventListener('click', ev => { ev.stopPropagation(); openBrushFly(chip, g); });
+    pal.appendChild(chip);
+  });
+  pal.appendChild(h('span', { class: 'phint', html: '点分组图标展开对应笔刷；左起固定：<b>选择 / 清除 / 延续</b>。' }));
+  pal.appendChild(h('div', { id: 'brushFly' }));
+}
+function openBrushFly(chip, g) {
+  const fly = $('#brushFly');
+  if (fly.dataset.group === g.name && fly.classList.contains('on')) { closeBrushFly(); return; }
+  fly.textContent = '';
+  fly.dataset.group = g.name;
+  g.items.forEach(id => fly.appendChild(brushBtn(id, 'fly')));
+  fly.classList.add('on');
+  /* fixed 定位：锚在分组图标正上方，水平方向钳在视口内（调色板 overflow 会裁剪 absolute 子层） */
+  const cr = chip.getBoundingClientRect();
+  fly.style.top = 'auto';
+  fly.style.bottom = (window.innerHeight - cr.top + 8) + 'px';
+  fly.style.left = Math.max(8, Math.min(cr.left, window.innerWidth - fly.offsetWidth - 8)) + 'px';
+}
+function closeBrushFly() { const f = $('#brushFly'); if (f) { f.classList.remove('on'); f.dataset.group = ''; } }
+/* 右缘模式三态：panel 面板 ⇄ column 竖列 ⇄ fab 右下角按钮；FAB 悬停预览面板，点击固定 */
+let brushPanelPinned = false, brushPanelHideTimer = null;
+function createBrushPanel(onAfterPick) {
+  const panel = h('div', { class: 'popover open', role: 'dialog', 'aria-label': '笔刷面板' });
+  const cur = state.tool.type === 'glyph' ? state.tool.char : null;
+  buildGlyphGrid(panel, cur, ch => { setBrush(ch); onAfterPick && onAfterPick(); });
+  return panel;
+}
+function scheduleHideBrushPanel() {
+  clearTimeout(brushPanelHideTimer);
+  brushPanelHideTimer = setTimeout(() => {
+    if (brushPanelPinned) return;
+    const p = $('#brushPanel');
+    if (p && !p.matches(':hover')) closeBrushPanel();
+  }, 180);
+}
+function buildBrushFab(onFabClick) {
+  const root = $('#brushFan');
+  root.textContent = '';
+  const fab = h('button', { class: 'fan-fab', title: '笔刷（悬停预览面板，点击固定 / 收起）', 'aria-label': '笔刷面板' });
+  fab.textContent = '笔刷';
+  fab.addEventListener('mouseenter', () => { clearTimeout(brushPanelHideTimer); if (!document.querySelector('#brushPanel')) { brushPanelPinned = false; showBrushPanelNearFab(fab); } });
+  fab.addEventListener('mouseleave', () => scheduleHideBrushPanel());
+  fab.addEventListener('click', ev => { ev.stopPropagation(); onFabClick(); });
+  root.appendChild(fab);
+}
+function buildEdgePalette() {
+  const root = $('#brushEdge');
+  root.textContent = '';
+  root.classList.add('on');
+  if (state_brush.edge === 'fab') {
+    root.classList.remove('wide');
+    buildBrushFab(() => { state_brush.edge = 'column'; buildEdgePalette(); });
+    return;
+  }
+  if (state_brush.edge === 'column') {
+    root.classList.remove('wide');
+    const expand = h('button', { class: 'be-cycle', title: '展开为笔刷面板' }, '面板 ▴');
+    expand.addEventListener('click', () => { state_brush.edge = 'panel'; buildEdgePalette(); });
+    root.appendChild(expand);
+    const col = h('div', { class: 'be-items' });
+    ['select', 'erase', '.'].forEach(id => col.appendChild(brushBtn(id, 'edge')));
+    BRUSH_GROUPS.forEach(g => {
+      const chip = h('button', { class: 'tool edge chip-v', title: g.name + '笔刷组（点击展开面板）', 'aria-label': g.name + '笔刷组' }, h('span', { class: 'chip-name' }, g.name));
+      chip.addEventListener('click', () => { state_brush.edge = 'panel'; buildEdgePalette(); });
+      col.appendChild(chip);
+    });
+    root.appendChild(col);
+    const fold = h('button', { class: 'be-cycle', title: '折叠为右下角按钮' }, '»');
+    fold.addEventListener('click', () => { state_brush.edge = 'fab'; buildEdgePalette(); });
+    root.appendChild(fold);
+    return;
+  }
+  root.classList.add('wide');
+  const panel = h('div', { class: 'edge-panel' });
+  const foldBtn = h('button', { class: 'be-cycle', title: '折叠为竖列' }, '»');
+  foldBtn.addEventListener('click', () => { state_brush.edge = 'column'; buildEdgePalette(); });
+  panel.appendChild(h('div', { class: 'edge-panel-head' }, h('span', { class: 'edge-panel-title' }, '笔刷'), foldBtn));
+  buildGlyphGrid(panel, state.tool.type === 'glyph' ? state.tool.char : null, ch => { setBrush(ch); buildEdgePalette(); });
+  root.appendChild(panel);
+}
+function buildFanPalette() {
+  buildBrushFab(() => {
+    const p = $('#brushPanel');
+    if (p && brushPanelPinned) { closeBrushPanel(); brushPanelPinned = false; return; }
+    brushPanelPinned = true;
+    if (!p) showBrushPanelNearFab(document.querySelector('.fan-fab'));
+  });
+}
+function fanMidHandler(ev) {
+  if (state_brush.mode !== 'fan' || ev.button !== 1) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  brushPanelPinned = true;
+  showBrushPanelNearFab(null, ev.clientX, ev.clientY);
+}
+function closeBrushPanel() { const p = $('#brushPanel'); if (p) p.remove(); }
+function showBrushPanelNearFab(fab, atX, atY) {
+  closeBrushPanel();
+  const panel = createBrushPanel();
+  panel.id = 'brushPanel';
+  document.body.appendChild(panel);
+  const pr = panel.getBoundingClientRect();
+  if (atX !== undefined) {
+    panel.style.left = Math.max(8, Math.min(atX - pr.width / 2, window.innerWidth - pr.width - 8)) + 'px';
+    panel.style.top = Math.max(8, Math.min(atY - pr.height / 2, window.innerHeight - pr.height - 8)) + 'px';
+    return;
+  }
+  const fr = fab.getBoundingClientRect();
+  panel.style.left = Math.max(8, Math.min(fr.right - pr.width, window.innerWidth - pr.width - 8)) + 'px';
+  panel.style.top = fr.top - pr.height - 8 >= 8 ? (fr.top - pr.height - 8) + 'px' : (fr.bottom + 8) + 'px';
 }
 
 /* ---------- 交互：单元格 ---------- */
@@ -2513,6 +2702,22 @@ function clearEditingRow() {
   document.querySelectorAll('#gridInner .lane-row.row-active').forEach(r => r.classList.remove('row-active'));
 }
 
+/* 状态字符网格：单元格弹窗与笔刷面板共用（延续 + 26 字符，5 列） */
+function buildGlyphGrid(parent, currentGlyph, onPick) {
+  const glyphs = h('div', { class: 'pop-glyphs' });
+  const mkG = (ch, name) => {
+    const b = h('button', { class: 'pg' + (currentGlyph === ch ? ' active' : ''), title: name, 'aria-label': name });
+    const s = ch === '.' ? extendSample() : glyphSample(ch);
+    b.appendChild(s);
+    b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? '延续' : ch));
+    b.addEventListener('click', ev => { ev.stopPropagation(); onPick(ch); });
+    return b;
+  };
+  glyphs.appendChild(mkG('.', '延续上一状态'));
+  GLYPHS.forEach(g => glyphs.appendChild(mkG(g.c, g.name)));
+  parent.appendChild(glyphs);
+}
+
 /* 单元格弹窗 */
 let popCell = null; // {lane, t}
 function openPop(lane, t, anchor) {
@@ -2527,18 +2732,8 @@ function openPop(lane, t, anchor) {
   const title = h('div', { class: 'pop-title' },
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
     (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空'));
-  const glyphs = h('div', { class: 'pop-glyphs' });
-  const mkG = (ch, name) => {
-    const b = h('button', { class: 'pg' + (eff === ch ? ' active' : ''), title: name, 'aria-label': name });
-    const s = ch === '.' ? extendSample() : glyphSample(ch);
-    b.appendChild(s);
-    b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? '延续' : ch));
-    b.addEventListener('click', () => { paintCell(lane, t, ch === '.' ? '.' : ch); if (ch !== '.') closePop(); else { closePop(); } });
-    return b;
-  };
-  glyphs.appendChild(mkG('.', '延续上一状态'));
-  GLYPHS.forEach(g => glyphs.appendChild(mkG(g.c, g.name)));
-  pop.appendChild(title); pop.appendChild(glyphs);
+  pop.appendChild(title);
+  buildGlyphGrid(pop, eff, ch => { paintCell(lane, t, ch); closePop(); });
 
   if (slot && isData(slot.glyph)) {
     const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '如 0x1F、D0、NOP', 'aria-label': '数据标签' });
@@ -2718,11 +2913,25 @@ function bindGrid() {
     if (mp.classList.contains('open') && !mp.contains(ev.target) && !ev.target.closest('button[title="更多操作"]')) closeMoreMenu();
     const hb = $('#hintBox');
     if (hb && hb.classList.contains('pinned') && !hb.contains(ev.target)) hb.classList.remove('pinned');
+    const bp = $('#brushPanel');
+    if (bp && !ev.target.closest('.fan-fab') && !bp.contains(ev.target)) bp.remove();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); $('#aboutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
+
+  /* 笔刷键盘快捷键：字符直切，Esc 回选择（输入框内不生效） */
+  const BRUSH_KEYS = '0123456789pnPNudUDxzhlHL=|.';
+  document.addEventListener('keydown', ev => {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const t = ev.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (ev.key === 'Escape') { setBrush('select'); return; }
+    if (BRUSH_KEYS.includes(ev.key) && ev.key !== '') { setBrush(ev.key); ev.preventDefault(); }
+  });
+  /* 扇形模式：中键在光标处展开（拦截自动滚动） */
+  $('#gridScroll').addEventListener('mousedown', fanMidHandler);
 }
 
 /* ---------- 交互：结构操作 ---------- */
@@ -2865,6 +3074,25 @@ function buildSettingsMenu(menu) {
   srow.appendChild(slider);
   srow.appendChild(val);
   menu.appendChild(srow);
+  sec('笔刷栏样式');
+  BRUSH_MODES.forEach(([v, label]) => {
+    const active = state_brush.mode === v;
+    const b = h('button', { class: active ? 'active' : '', 'aria-label': '笔刷栏：' + label });
+    b.appendChild(h('span', null, label));
+    if (active) {
+      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
+      ck.style.marginLeft = 'auto'; ck.style.color = 'var(--acc)';
+      b.appendChild(ck);
+    }
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      state_brush.mode = v;
+      localStorage.setItem('wdgui-brush-mode', v);
+      renderBrushUI();
+      buildSettingsMenu(menu);
+    });
+    menu.appendChild(b);
+  });
 }
 function bindMenus() {
   [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-font', buildFontMenu], ['#m-settings', buildSettingsMenu]].forEach(([sel, builder]) => {
@@ -3300,7 +3528,7 @@ function bindSplitters() {
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   localStorage.setItem('wdgui-theme', t);
-  renderGrid(); renderTree(); renderEdges(); buildPalette(); renderPreview();
+  renderGrid(); renderTree(); renderEdges(); renderBrushUI(); renderPreview();
 }
 
 /* ---------- 启动 ---------- */
@@ -3378,7 +3606,7 @@ function init() {
     applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
   });
 
-  buildPalette();
+  renderBrushUI();
   bindMenus();
   bindGrid();
   bindSettings();
