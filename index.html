@@ -3491,10 +3491,10 @@ function handleAct(act, btn) {
       img.src = url;
       break;
     }
-    case 'export-json': download('wavedrom.json', new Blob([fmtJSON(buildJSON())], { type: 'application/json' })); break;
-    case 'copy-json': copyText(fmtJSON(buildJSON()), 'JSON 已复制到剪贴板'); break;
+    case 'export-json': download('wavedrom.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
+    case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), 'JSON 已复制到剪贴板'); break;
     case 'copy-kroki': {
-      const block = '```kroki\n' + JSON.stringify(buildJSON()) + '\n```';
+      const block = '```kroki\nwavedrom\n' + fmtJSON(buildJSON(), 0, codeCompact) + '\n```';
       copyText(block, 'kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染');
       break;
     }
