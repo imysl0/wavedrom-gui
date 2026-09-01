@@ -6,10 +6,6 @@
 ![整体截图](./images/wavedrom-gui.png)
 
 
-## 验收
-
-官方教程 https://wavedrom.com/tutorial.html **Step 1–8 全部实例已通过纯鼠标操作复现验收**（13/13 项，含 hscale 1/2/3、narrow 皮肤、head/foot 刻度、两组箭头示例）：验收脚本只通过图形界面点击完成绘制，将生成的 WaveJSON 交给官方 WaveDrom 渲染器，与教程参考定义的渲染结果做 SVG 逐字节对比，全部一致。
-
 ## 使用
 
 直接用浏览器打开 `index.html` 即可（file:// 协议可用，无需服务器）。也可直接使用 [demo站点](https://wave.rtlyes.cn/) , demo站点不保证可用(因为用的是免费服务)
