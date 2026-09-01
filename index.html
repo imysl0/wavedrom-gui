@@ -654,6 +654,10 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
 }
 .code-wrap textarea:focus { outline: none; border-color: var(--acc); }
 .code-foot { display: flex; align-items: center; gap: 10px; }
+.seg { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }
+.seg button { border: none; background: transparent; color: var(--muted); font: 600 11px var(--font-ui); padding: 4px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.active { background: var(--acc-veil); color: var(--acc-text); }
 .code-err { color: var(--danger); font-size: 12px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .code-ok { color: var(--faint); font-size: 11.5px; flex: 1; }
 
@@ -968,6 +972,10 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
       <div class="code-wrap">
         <textarea id="codeArea" spellcheck="false" aria-label="WaveJSON 代码"></textarea>
         <div class="code-foot">
+          <div class="seg" id="codeModeSeg" role="group" aria-label="代码显示模式">
+            <button data-mode="relax" title="舒缓：短对象单行、复杂对象展开">舒缓</button>
+            <button data-mode="compact" title="紧凑：每个对象/数组都写成单行">紧凑</button>
+          </div>
           <span class="code-ok" id="codeStatus">改动会自动同步到左侧网格</span>
           <button class="btn primary" data-act="apply-code">应用到图表</button>
         </div>
@@ -2417,28 +2425,32 @@ function fmtTick(v) {
   return Array.isArray(v) ? v.join(', ') : String(v);
 }
 
-/* 智能格式化：短数组和全基本类型的短对象保持单行，其余展开 */
-function fmtJSON(v, ind = 0) {
+/* 智能格式化：短数组和全基本类型的短对象保持单行（预算 128 列），其余展开；
+   compact：根对象与含容器的数组（signal/分组）保持逐行骨架，其余对象（通道/head 等）连同内部数组拍平成单行 */
+let codeCompact = localStorage.getItem('wdgui-code-compact') === '1';
+function fmtJSON(v, ind = 0, compact = false, depth = 0) {
   const pad = '  '.repeat(ind), pad2 = '  '.repeat(ind + 1);
-  const budget = 88 - pad.length;
+  const budget = 128 - pad.length;
   const flatArr = arr => '[' + arr.map(x => JSON.stringify(x)).join(', ') + ']';
   const flatObj = o => '{ ' + Object.keys(o).map(k => JSON.stringify(k) + ': ' + JSON.stringify(o[k])).join(', ') + ' }';
   const allFlat = o => Array.isArray(o) ? o.every(x => x === null || typeof x !== 'object' || (Array.isArray(x) && x.every(y => y === null || typeof y !== 'object'))) : Object.values(o).every(x => x === null || typeof x !== 'object');
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
   if (Array.isArray(v)) {
     if (!v.length) return '[]';
-    if (allFlat(v)) { const s = flatArr(v); if (s.length <= budget) return s; }
-    return '[\n' + v.map(x => pad2 + fmtJSON(x, ind + 1)).join(',\n') + '\n' + pad + ']';
+    if (compact && v.every(x => x === null || typeof x !== 'object')) return '[' + v.map(x => JSON.stringify(x)).join(', ') + ']';
+    if (!compact && allFlat(v)) { const s = flatArr(v); if (s.length <= budget) return s; }
+    return '[\n' + v.map(x => pad2 + fmtJSON(x, ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + ']';
   }
   const keys = Object.keys(v);
   if (!keys.length) return '{}';
-  if (allFlat(v)) { const s = flatObj(v); if (s.length <= budget) return s; }
-  return '{\n' + keys.map(k => pad2 + JSON.stringify(k) + ': ' + fmtJSON(v[k], ind + 1)).join(',\n') + '\n' + pad + '}';
+  if (compact && depth > 0) return '{ ' + keys.map(k => JSON.stringify(k) + ': ' + fmtJSON(v[k], 0, true, depth + 1)).join(', ') + ' }';
+  if (!compact && allFlat(v)) { const s = flatObj(v); if (s.length <= budget) return s; }
+  return '{\n' + keys.map(k => pad2 + JSON.stringify(k) + ': ' + fmtJSON(v[k], ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + '}';
 }
 function renderCode() {
   const ta = $('#codeArea');
   if (document.activeElement !== ta) {
-    ta.value = fmtJSON(buildJSON());
+    ta.value = fmtJSON(buildJSON(), 0, codeCompact);
     const st = $('#codeStatus');
     st.className = 'code-ok'; st.textContent = '改动会自动同步到左侧网格';
   }
@@ -2568,7 +2580,9 @@ function groupChip(g, vertical) {
     class: 'tool ' + (vertical ? 'edge chip-v' : 'chip') + (g.items.some(brushActive) ? ' active' : ''),
     title: g.name + '笔刷', 'aria-label': g.name + '笔刷组',
   }, h('span', { class: 'chip-name' }, g.name));
-  chip.addEventListener('click', ev => { ev.stopPropagation(); openBrushFly(chip, g); });
+  chip.addEventListener('mouseenter', () => { clearTimeout(brushFlyHideTimer); openBrushFly(chip, g); });
+  chip.addEventListener('mouseleave', () => scheduleHideBrushFly());
+  chip.addEventListener('click', ev => { ev.stopPropagation(); clearTimeout(brushFlyHideTimer); openBrushFly(chip, g); });
   return chip;
 }
 function renderBrushUI() {
@@ -2619,10 +2633,23 @@ function buildVGroupPalette() {
   BRUSH_GROUPS.forEach(g => col.appendChild(groupChip(g, true)));
   root.appendChild(col);
 }
+/* 分组弹层：悬停 / 点击分组展示，离开分组与弹层区域或选择笔刷后自动隐藏 */
+let brushFlyHideTimer = null;
+function scheduleHideBrushFly() {
+  clearTimeout(brushFlyHideTimer);
+  brushFlyHideTimer = setTimeout(() => {
+    const f = $('#brushFly');
+    if (f && f.classList.contains('on') && !f.matches(':hover') && !document.querySelector('.tool.chip:hover, .tool.chip-v:hover')) closeBrushFly();
+  }, 180);
+}
 function openBrushFly(chip, g) {
   let fly = $('#brushFly');
   if (!fly) { fly = h('div', { id: 'brushFly' }); document.body.appendChild(fly); }
-  if (fly.dataset.group === g.name && fly.classList.contains('on')) { closeBrushFly(); return; }
+  if (!fly.dataset.bound) {
+    fly.dataset.bound = '1';
+    fly.addEventListener('mouseenter', () => clearTimeout(brushFlyHideTimer));
+    fly.addEventListener('mouseleave', () => scheduleHideBrushFly());
+  }
   fly.textContent = '';
   fly.dataset.group = g.name;
   g.items.forEach(id => fly.appendChild(brushBtn(id, 'fly')));
@@ -3688,6 +3715,20 @@ function init() {
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && $('#pasteMask').classList.contains('open') && (ev.ctrlKey || ev.metaKey)) handleAct('paste-ok');
   });
+
+  const codeModeSeg = $('#codeModeSeg');
+  const syncCodeMode = () => codeModeSeg.querySelectorAll('button').forEach(b => b.classList.toggle('active', (b.dataset.mode === 'compact') === codeCompact));
+  codeModeSeg.addEventListener('click', ev => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    const c = b.dataset.mode === 'compact';
+    if (c === codeCompact) return;
+    codeCompact = c;
+    localStorage.setItem('wdgui-code-compact', c ? '1' : '0');
+    syncCodeMode();
+    renderCode();
+  });
+  syncCodeMode();
 
   syncSettings();
   renderTree();
