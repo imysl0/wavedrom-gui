@@ -538,7 +538,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   border-top: 1px solid var(--line);
   overflow-x: auto;
 }
-.palette .tool, #brushEdge .tool, #brushCol .tool {
+.palette .tool, #brushCol .tool {
   flex: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   width: 46px; height: 46px;
@@ -546,11 +546,11 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   background: var(--panel-2); color: var(--muted);
   transition: border-color .12s ease, background .12s ease;
 }
-.palette .tool:hover, #brushEdge .tool:hover, #brushCol .tool:hover { border-color: var(--line-hover); background: var(--raise); }
-.palette .tool.active, #brushEdge .tool.active, #brushCol .tool.active { border-color: var(--acc); background: var(--acc-veil); color: var(--text); }
-.palette .tool svg, #brushEdge .tool svg, #brushCol .tool svg { pointer-events: none; }
-.palette .tool .tlabel, #brushEdge .tool .tlabel, #brushCol .tool .tlabel { font-size: 9px; color: var(--faint); pointer-events: none; white-space: nowrap; }
-.palette .tool.active .tlabel, #brushEdge .tool.active .tlabel, #brushCol .tool.active .tlabel { color: var(--acc-text); }
+.palette .tool:hover, #brushCol .tool:hover { border-color: var(--line-hover); background: var(--raise); }
+.palette .tool.active, #brushCol .tool.active { border-color: var(--acc); background: var(--acc-veil); color: var(--text); }
+.palette .tool svg, #brushCol .tool svg { pointer-events: none; }
+.palette .tool .tlabel, #brushCol .tool .tlabel { font-size: 9px; color: var(--faint); pointer-events: none; white-space: nowrap; }
+.palette .tool.active .tlabel, #brushCol .tool.active .tlabel { color: var(--acc-text); }
 .palette .psep { flex: none; width: 1px; height: 34px; background: var(--line); margin: 0 5px; }
 .palette.compact { padding: 5px 10px; }
 .palette.compact .tool.chip { height: 26px; padding: 0 12px; }
@@ -583,14 +583,9 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   box-shadow: var(--shadow-pop);
 }
 #brushFly.on { display: flex; }
-#brushEdge {
-  position: absolute; right: 8px; top: 60px; bottom: 12px; width: 50px;
-  z-index: 30; display: none; flex-direction: column; align-items: center; gap: 5px;
-}
-#brushEdge.on { display: flex; }
 .tool.chip-v { width: 42px; height: 30px; padding: 0 2px; }
 .tool.chip-v .chip-name { font-size: 10.5px; }
-.be-items { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
+.vgroup-col { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
 #brushFan { position: absolute; right: 16px; bottom: 16px; width: 0; height: 0; z-index: 35; }
 .fan-box {
   position: absolute; right: 0; bottom: 0;
@@ -613,6 +608,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   padding: 10px; overflow: hidden;
 }
 #brushCol.on { display: flex; }
+#brushCol.narrow { width: 70px; }
 .brush-grid { display: grid; grid-auto-flow: column; grid-auto-columns: 46px; gap: 4px; align-content: start; }
 
 /* ---- 右侧 预览/代码 ---- */
@@ -949,7 +945,6 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
     <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
-    <div id="brushEdge"></div>
     <div id="brushFan"></div>
   </section>
 
@@ -2584,11 +2579,12 @@ function renderBrushUI() {
   pal.classList.toggle('compact', state_brush.mode === 'compact');
   closeBrushPanel();
   closeBrushFly();
-  $('#brushEdge').textContent = '';
-  $('#brushEdge').classList.toggle('on', state_brush.mode === 'vgroup');
   $('#brushFan').textContent = '';
-  $('#brushCol').textContent = '';
-  $('#brushCol').classList.toggle('on', state_brush.mode === 'panel');
+  const col = $('#brushCol');
+  col.textContent = '';
+  col.classList.toggle('on', state_brush.mode === 'panel' || state_brush.mode === 'vgroup');
+  col.classList.toggle('narrow', state_brush.mode === 'vgroup');
+  if (state_brush.mode === 'vgroup') col.style.width = '';
   pal.style.display = (state_brush.mode === 'bar' || state_brush.mode === 'compact') ? '' : 'none';
   if (state_brush.mode === 'bar') buildBarPalette(pal);
   else if (state_brush.mode === 'compact') buildCompactPalette(pal);
@@ -2616,13 +2612,13 @@ function buildCompactPalette(pal) {
   pal.appendChild(h('span', { class: 'phint', html: '点分组图标展开对应笔刷；左起固定：<b>选择 / 清除 / 延续</b>。' }));
   pal.appendChild(h('div', { id: 'brushFly' }));
 }
-/* D 右纵条：B 的纵向排列；↓ 折叠成 C，→ 展开为 E */
+/* D 右纵条：B 的纵向排列，右侧窄分栏；↓ 折叠成 C，→ 展开为 E */
 function buildVGroupPalette() {
-  const root = $('#brushEdge');
+  const root = $('#brushCol');
   root.appendChild(h('div', { class: 'be-top' },
     foldBtn('折叠为右下角按钮', 'down', () => setBrushMode('fab')),
     foldBtn('展开为右侧面板', 'right', () => setBrushMode('panel'))));
-  const col = h('div', { class: 'be-items' });
+  const col = h('div', { class: 'vgroup-col' });
   ['select', 'erase', '.'].forEach(id => col.appendChild(brushTxtBtn(id)));
   BRUSH_GROUPS.forEach(g => col.appendChild(groupChip(g, true)));
   root.appendChild(col);
@@ -2637,7 +2633,7 @@ function openBrushFly(chip, g) {
   fly.classList.add('on');
   /* fixed 定位：横条锚在分组图标正上方，竖列锚在其左侧，均钳在视口内 */
   const cr = chip.getBoundingClientRect();
-  if (chip.closest('#brushEdge')) {
+  if (chip.closest('#brushCol')) {
     fly.style.bottom = 'auto';
     fly.style.top = Math.max(8, Math.min(cr.top, window.innerHeight - fly.offsetHeight - 8)) + 'px';
     fly.style.left = Math.max(8, cr.left - fly.offsetWidth - 8) + 'px';
