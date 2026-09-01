@@ -3,7 +3,7 @@
 单文件 HTML 应用（约 300+ KB，零构建、离线可用）：用鼠标点击/拖拽编辑 WaveDrom 时序图，右侧官方引擎实时渲染，左侧同步生成 WaveJSON 代码，兼容大部分WaveDrom常用语法。代码完全由GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro
 完成。工作之余写的，欢迎大家使用，提issue、PR、关注！
 
-![整体截图](.\images\wavedrom-gui.png)
+![整体截图](./images/wavedrom-gui.png)
 
 
 ## 验收
@@ -53,8 +53,8 @@
 
 ## 联系
 欢迎关注我的小红书：
-![小红书](.\images\xhs.png)
+![小红书](./images/xhs.png)
 
 如果觉得有用，也欢迎微信赞赏，无论是否赞赏，工具都是开源免费的，愉快的用起来！
 
-![微信赞赏](.\images\wxzsm.png)
+![微信赞赏](./images/wxzsm.png)
