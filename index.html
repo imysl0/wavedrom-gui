@@ -538,7 +538,7 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   border-top: 1px solid var(--line);
   overflow-x: auto;
 }
-.palette .tool, #brushCol .tool {
+.palette .tool, #brushCol .tool, #brushFly .tool {
   flex: none;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   width: 46px; height: 46px;
@@ -546,11 +546,11 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
   background: var(--panel-2); color: var(--muted);
   transition: border-color .12s ease, background .12s ease;
 }
-.palette .tool:hover, #brushCol .tool:hover { border-color: var(--line-hover); background: var(--raise); }
-.palette .tool.active, #brushCol .tool.active { border-color: var(--acc); background: var(--acc-veil); color: var(--text); }
-.palette .tool svg, #brushCol .tool svg { pointer-events: none; }
-.palette .tool .tlabel, #brushCol .tool .tlabel { font-size: 9px; color: var(--faint); pointer-events: none; white-space: nowrap; }
-.palette .tool.active .tlabel, #brushCol .tool.active .tlabel { color: var(--acc-text); }
+.palette .tool:hover, #brushCol .tool:hover, #brushFly .tool:hover { border-color: var(--line-hover); background: var(--raise); }
+.palette .tool.active, #brushCol .tool.active, #brushFly .tool.active { border-color: var(--acc); background: var(--acc-veil); color: var(--text); }
+.palette .tool svg, #brushCol .tool svg, #brushFly .tool svg { pointer-events: none; }
+.palette .tool .tlabel, #brushCol .tool .tlabel, #brushFly .tool .tlabel { font-size: 9px; color: var(--faint); pointer-events: none; white-space: nowrap; }
+.palette .tool.active .tlabel, #brushCol .tool.active .tlabel, #brushFly .tool.active .tlabel { color: var(--acc-text); }
 .palette .psep { flex: none; width: 1px; height: 34px; background: var(--line); margin: 0 5px; }
 .palette.compact { padding: 5px 10px; }
 .palette.compact .tool.chip { height: 26px; padding: 0 12px; }
@@ -567,8 +567,6 @@ html[data-view="below"] #viewBtn .ic-side { display: block; }
 }
 .b-fold:hover { border-color: var(--acc); color: var(--acc-text); }
 .be-top { display: flex; gap: 4px; flex: none; }
-.palette .phint { flex: 1; min-width: 0; color: var(--faint); font-size: 11px; margin-left: 8px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette .phint b { color: var(--muted); font-weight: 600; }
 #palette { position: relative; }
 .tool.sm { width: 44px; height: 44px; }
 .tool.sm .tlabel { font-size: 8.5px; }
@@ -831,7 +829,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <button class="btn ghost" data-act="open-about" title="关于本项目">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
   </button>
-  <span class="ver-badge" title="版本 v260901">v260901</span>
+  <span class="ver-badge" title="版本 v260901.3">v260901.3</span>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -999,7 +997,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 <div class="modal-mask" id="aboutMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目">
-    <h3>WaveDrom-Gui <span class="ver-badge">v260901</span></h3>
+    <h3>WaveDrom-Gui <span class="ver-badge">v260901.3</span></h3>
     <p>单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
     <p>支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
     <p>仓库地址：<a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
@@ -2600,7 +2598,6 @@ function buildBarPalette(pal) {
   pal.appendChild(brushBtn('.'));
   pal.appendChild(h('span', { class: 'psep' }));
   GLYPHS.forEach(g => pal.appendChild(brushBtn(g.c)));
-  pal.appendChild(h('span', { class: 'phint', html: '选一支笔刷，在网格上<b>点击或按住拖过单元格</b>涂抹；「选择」工具点单元格可精细设置数据标签与节点。' }));
 }
 /* B 横向弹窗条：紧凑纯文本，分组点击弹层；↑ 恢复 A，→ 折叠成 C */
 function buildCompactPalette(pal) {
@@ -2609,7 +2606,6 @@ function buildCompactPalette(pal) {
   ['select', 'erase', '.'].forEach(id => pal.appendChild(brushTxtBtn(id)));
   pal.appendChild(h('span', { class: 'psep' }));
   BRUSH_GROUPS.forEach(g => pal.appendChild(groupChip(g, false)));
-  pal.appendChild(h('span', { class: 'phint', html: '点分组图标展开对应笔刷；左起固定：<b>选择 / 清除 / 延续</b>。' }));
   pal.appendChild(h('div', { id: 'brushFly' }));
 }
 /* D 右纵条：B 的纵向排列，右侧窄分栏；↓ 折叠成 C，→ 展开为 E */
@@ -2617,7 +2613,7 @@ function buildVGroupPalette() {
   const root = $('#brushCol');
   root.appendChild(h('div', { class: 'be-top' },
     foldBtn('折叠为右下角按钮', 'down', () => setBrushMode('fab')),
-    foldBtn('展开为右侧面板', 'right', () => setBrushMode('panel'))));
+    foldBtn('展开为右侧面板', 'left', () => setBrushMode('panel'))));
   const col = h('div', { class: 'vgroup-col' });
   ['select', 'erase', '.'].forEach(id => col.appendChild(brushTxtBtn(id)));
   BRUSH_GROUPS.forEach(g => col.appendChild(groupChip(g, true)));
@@ -2648,6 +2644,15 @@ function closeBrushFly() { const f = $('#brushFly'); if (f) { f.classList.remove
 let brushPanelHideTimer = null;
 function createBrushPanel() {
   const panel = h('div', { class: 'popover open', role: 'dialog', 'aria-label': '笔刷面板' });
+  const tools = h('div', { class: 'pop-glyphs', style: 'margin-bottom:4px' });
+  [['select', '选择'], ['erase', '清除']].forEach(([id, name]) => {
+    const b = h('button', { class: 'pg' + (brushActive(id) ? ' active' : ''), title: name, 'aria-label': name });
+    b.appendChild(brushFace(id, 26, 15, 15));
+    b.appendChild(h('span', { class: 'tlabel' }, name));
+    b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id); });
+    tools.appendChild(b);
+  });
+  panel.appendChild(tools);
   const cur = state.tool.type === 'glyph' ? state.tool.char : null;
   buildGlyphGrid(panel, cur, ch => setBrush(ch));
   return panel;
@@ -2678,7 +2683,7 @@ function buildFabCluster() {
 /* E 右侧完整面板：列数自适应（1–5 列），先纵向排满再换列，宽度按列数收紧 */
 function buildPanelCol() {
   const root = $('#brushCol');
-  root.appendChild(h('div', { class: 'be-top' }, foldBtn('折叠为右纵条', 'left', () => setBrushMode('vgroup'))));
+  root.appendChild(h('div', { class: 'be-top' }, foldBtn('折叠为右纵条', 'right', () => setBrushMode('vgroup'))));
   const grid = h('div', { class: 'brush-grid' });
   ['select', 'erase', '.'].forEach(id => grid.appendChild(brushBtn(id, 'panel')));
   GLYPHS.forEach(g => grid.appendChild(brushBtn(g.c, 'panel')));
