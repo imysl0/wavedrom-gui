@@ -9,6 +9,9 @@ description: >
   waveform picture, timing diagram, 波形图, or to render/preview a signal as SVG/PNG,
   use this skill. Fully self-contained: needs only Node.js (+ a PNG rasterizer such as
   Python cairosvg). Does NOT need index.html or a browser.
+  Also use it whenever you are asked to write / fix WaveJSON code: the skill contains a
+  「WaveJSON 生成指南」(authoring rules — repeated states must use continuation dots,
+  single-bit signals must not use data-bus chars) that generated code must follow.
 ---
 
 # WaveDrom Render
@@ -19,6 +22,82 @@ description: >
 
 - 用户给出一段 WaveDrom / WaveJSON（如 `{ "signal": [ { "name": "clk", "wave": "p..." } ] }`），想看成波形图 / 时序图 / 导出 SVG 或 PNG。
 - 需要把 AI 生成的时序描述可视化检视。
+
+## WaveJSON 生成指南
+
+AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
+
+### 规则 1：连续相同状态 → 状态字符 + 延续符 `.`
+
+`.` 表示「延续上一拍状态」。连续多拍相同的电平 / 时钟 / 数据值，只在第一拍写状态字符，其后全部用 `.`：
+
+- 高电平 4 拍写 `"1..."`，**不要**写 `"1111"`；低电平同理 `"0..."`。
+- 时钟 8 拍写 `"p......."`，**不要**写 `"pppppppp"`（`n`/`P`/`N` 同理）。
+- 同一数据值占 3 拍写 `"=.."`（一个数据框横跨 3 拍）；值变化时再写一个 `=` 或 `2`–`9`。
+- `|`（间隙）之后不要用 `.` 延续，要重新写状态字符，如 `"0.1..0|1.0"`。
+
+### 规则 2：单 bit 信号不用多 bit 专用字符
+
+`=` 与 `2`–`9` 是**多 bit 数据总线**专用字符：绘制带边框的数据框、从 `data` 数组依次取标签、按官方八色着色。单 bit 信号（clk、req、ack、en、valid 等控制 / 状态线）只用电平、跳变与时钟字符（`0` `1` `u` `d` `x` `z` `p` `n` 等）。
+
+```jsonc
+{ "name": "req",  "wave": "=...." }                                   // ❌ 单 bit 用了数据框字符
+{ "name": "req",  "wave": "0.1.....0." }                              // ✅ 电平 + 延续符
+{ "name": "data", "wave": "x.==..=x.", "data": ["D0", "D1", "D2"] }   // ✅ 多 bit 总线才用 = / 2–9
+```
+
+### 基础常用语法速查
+
+**`wave` 状态字符**（一个字符 = 一拍）：
+
+| 字符 | 含义 |
+|---|---|
+| `0` / `1` | 低电平 / 高电平（与前一拍电平不同时自动画过渡） |
+| `p` / `n` | 时钟（上升沿起）/ 反相时钟（下降沿起），之后自动振荡 |
+| `P` / `N` | 同 `p` / `n`，另带边沿箭头标记 |
+| `u` / `d` | 上升沿（0→1）/ 下降沿（1→0），单次 S 曲线跳变 |
+| `U` / `D` | 同 `u` / `d`，另带竖线标记 |
+| `h` / `l` | 高 / 低电平段（过渡处无箭头），可与 `H`/`L` 混搭手工拼时钟，如 `xhlhLHl.` |
+| `H` / `L` | 高 / 低电平段，过渡处带箭头标记 |
+| `x` | 不确定 / 无关态（交叉阴影框） |
+| `z` | 高阻态 |
+| `=` | 多 bit 数据框，标签依次取 `data` 数组， 但颜色固定为默认前景色 |
+| `2`–`9` | 多 bit 数据框，各用一种官方配色（白 黄 橙 蓝 青 绿 紫 粉），标签同 `=` ，推荐使用不同配色表示不同的数据|
+| `.` | 延续上一拍状态（见规则 1） |
+| `\|` | 间隙标记：占一拍、画断口，常用于省略无关时段 |
+| `<` `>` | 子周期区段起止：两者之间的字符按半拍宽渲染（亚拍级毛刺 / 跳变） |
+| 空格 | 空白拍（该拍不绘制） |
+
+**信号对象字段：**
+
+| 字段 | 含义 |
+|---|---|
+| `name` | 信号名 |
+| `wave` | 波形串（上表字符组成） |
+| `data` | 数据标签数组，供 `=` / `2`–`9` 数据框按出现顺序取用 |
+| `node` | 与 `wave` 等长的节点字母串（如 `".a....."`），供 `edge` 连线引用 |
+| `period` | 周期倍数：该信号每个字符占 `period` 格宽（时钟一个完整周期占 `period` 格，如 DDR 的 CK 用 `2`） |
+| `phase` | 相位偏移：波形整体右移，`0.5` = 半个本信号周期 |
+
+**文档骨架（其余顶层字段）：**
+
+```jsonc
+{
+  "signal": [                          // 必需；数组元素 = 信号 / 分组 / 占位
+    { "name": "clk",  "wave": "p.........", "node": ".a........" },
+    { "name": "req",  "wave": "0.1.....0.", "node": "..b......." },
+    { "name": "data", "wave": "x.==..x...", "data": ["D0", "D1"] },
+    {},                                // 空白占位行
+    ["分组名",                          // 数组 = 分组，可嵌套子分组
+      { "name": "ack", "wave": "1.....01.." }],
+  ],
+  "edge":   ["a~>b 请求锁存"],         // 节点连线：字母 + 连线符 + 字母 + 标注；
+                                       // 常用连线符：-> 直线箭头、~> 曲线箭头、<-> 双向、-| 直角折下、+ 两端圆点
+  "head":   { "text": "标题", "tick": 0, "every": 2 },   // 顶部标题 / 刻度
+  "foot":   { "text": "图注", "tock": 9 },               // 底部图注 / 刻度
+  "config": { "hscale": 1, "skin": "default", "hbounds": [0, 10] },
+}
+```
 
 ## 前置条件
 
