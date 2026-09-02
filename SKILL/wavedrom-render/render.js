@@ -14,7 +14,12 @@
  *   --skin <default|narrow>       traditional mode only (default: from config/default)
  *   --node-pos <lt|tm|rt|lm|c|rm|lb|bm|rb>   modern node marker position (default lm)
  *   --node-scale <n>              modern node marker scale (default 1)
+ *   --no-meta                     skip embedding WaveJSON metadata into SVG/PNG
  *   -h, --help
+ *
+ * SVG/PNG outputs embed the source WaveJSON by default (SVG <metadata> / PNG
+ * iTXt chunk — same format as wavedrom-gui, invisible), so the image can be
+ * re-imported by the app's "open file" dialog.
  *
  * WaveJSON input may be strict JSON or loose (JS-style: unquoted keys, trailing
  * commas, single quotes) — the same leniency the app's editor accepts.
@@ -24,9 +29,10 @@ const path = require('path');
 const { renderModern } = require('./lib/render-modern.js');
 const { renderTraditional } = require('./lib/render-traditional.js');
 const { svgToPng } = require('./lib/svg-to-png.js');
+const { svgWithMeta, pngInsertITXt, WD_PNG_KEYWORD } = require('./lib/meta-embed.js');
 
 function parseArgs(argv) {
-  const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1 };
+  const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, noMeta: false };
   const pos = [];
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -38,6 +44,7 @@ function parseArgs(argv) {
     else if (a === '--skin') o.skin = argv[++i];
     else if (a === '--node-pos') o.nodePos = argv[++i];
     else if (a === '--node-scale') o.nodeScale = parseFloat(argv[++i]);
+    else if (a === '--no-meta') o.noMeta = true;
     else pos.push(a);
   }
   o.input = pos[0];
@@ -49,7 +56,7 @@ const HELP = `WaveDrom render — WaveJSON -> waveform image
 Usage:
   node render.js <input.json> [--mode modern|traditional] [--format svg|png|both]
                  [--out PATH] [--scale N] [--skin default|narrow]
-                 [--node-pos lm|c|...] [--node-scale N]
+                 [--node-pos lm|c|...] [--node-scale N] [--no-meta]
   node render.js -   (read WaveJSON from stdin)
 
 Modes:
@@ -80,6 +87,7 @@ function main() {
   if (o.input === '-') text = fs.readFileSync(0, 'utf8');
   else text = fs.readFileSync(o.input, 'utf8');
   const source = parseWaveJSON(text);
+  const jsonText = JSON.stringify(source, null, 2);
 
   if (!['modern', 'traditional'].includes(o.mode)) { console.error('unknown --mode: ' + o.mode); process.exit(1); }
   if (!['svg', 'png', 'both'].includes(o.format)) { console.error('unknown --format: ' + o.format); process.exit(1); }
@@ -97,12 +105,16 @@ function main() {
   const wrote = [];
   if (o.format === 'svg' || o.format === 'both') {
     const p = base + '.svg';
-    fs.writeFileSync(p, res.svg);
+    fs.writeFileSync(p, o.noMeta ? res.svg : svgWithMeta(res.svg, jsonText));
     wrote.push(p);
   }
   if (o.format === 'png' || o.format === 'both') {
     const p = base + '.png';
     const conv = svgToPng(res.svg, p, { scale: o.scale });
+    if (!o.noMeta) {
+      const png = pngInsertITXt(fs.readFileSync(p), WD_PNG_KEYWORD, jsonText);
+      fs.writeFileSync(p, png);
+    }
     wrote.push(p + `  (${conv.tool}, ${o.scale}x)`);
   }
 

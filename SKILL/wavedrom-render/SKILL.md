@@ -150,6 +150,7 @@ node render.js -              # 从 stdin 读取 WaveJSON
 | `--skin` | `default` \| `narrow` | `default` | **仅传统模式**：官方皮肤 |
 | `--node-pos` | `lt tm rt lm c rm lb bm rb` | `lm` | **仅现代模式**：节点圆标位置 |
 | `--node-scale` | 数字 | `1` | **仅现代模式**：节点圆标缩放 |
+| `--no-meta` | — | 默认内嵌 | 关闭 WaveJSON 元数据内嵌 |
 
 ### 示例
 
@@ -166,6 +167,10 @@ node render.js wave.json --mode traditional --skin narrow --format svg
 # 从 stdin 读入，写到指定 PNG，3× 清晰度
 cat wave.json | node render.js - --out out/w.png --scale 3
 ```
+
+### WaveJSON 元数据内嵌（默认开启）
+
+导出的 SVG / PNG 都会把本次 WaveJSON 写进图片：SVG 用 `<metadata data-wavedrom>`、PNG 用 `iTXt` 文本块（关键字 `WaveJSON`），与 wavedrom-gui 的导出同规格。**显示完全不受影响**；把图片在 wavedrom-gui 里「打开文件」即可直接还原图表，`--no-meta` 可关闭。
 
 ## 两种模式的区别
 
@@ -231,6 +236,7 @@ wavedrom-render/
     render-traditional.js   # 传统模式渲染器（驱动官方引擎，无需浏览器）
     svg-to-png.js           # SVG→PNG（cairosvg / rsvg-convert / ImageMagick 自动探测）
     font-embed.js           # 把子集化后的霞鹜文楷以 @font-face base64 内嵌进 SVG
+    meta-embed.js           # SVG <metadata> / PNG iTXt 的 WaveJSON 元数据内嵌与回读
   scripts/
     svg2png.py              # cairosvg 光栅化辅助脚本
     subset_font.py          # fontTools 字体子集化辅助脚本
