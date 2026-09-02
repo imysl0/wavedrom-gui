@@ -962,7 +962,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <button class="btn ghost" data-act="add-col" data-n="1" title="网格增加 1 拍">＋</button>
         <button class="btn ghost" data-act="add-col" data-n="4" title="网格增加 4 拍">＋4</button>
       </div>
-      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 先选笔刷，在网格上点击或按住拖过单元格涂抹 · 按住已有状态格向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
+      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
     <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
@@ -2993,7 +2993,7 @@ function bindGrid() {
     } else if (state.tool.type === 'select') {
       const lane = getLaneById(+cell.dataset.lane);
       const s = lane && lane.slots[+cell.dataset.t];
-      if (lane && s && s.glyph !== '.') {
+      if (lane && s) { // 延续格也能启动：向右拖动 = 延长当前延续段
         painting = true; paintLane = lane.id; dragLastT = +cell.dataset.t; extendMode = true;
       }
     }
@@ -3014,17 +3014,34 @@ function bindGrid() {
             if (!cur || cur.glyph !== '.') paintCell(lane, t, '.');
           }
         } else if (state.tool.type === 'glyph') {
-          let g = state.tool.char;
-          if (g === '=' && t === dragLastT + 1) g = '.';
+          const g = state.tool.char;
           const cur = lane.slots[t];
-          const same = g === '.' ? (cur && cur.glyph === '.') : (cur && cur.glyph === g);
-          dragLastT = t;
-          if (!same) paintCell(lane, t, g);
+          if (t === dragLastT + 1) {
+            // 向右连续拖动 = 延续：后续格只落延续点，不重复涂首格字符
+            dragLastT = t;
+            if (!cur || cur.glyph !== '.') paintCell(lane, t, '.');
+          } else {
+            const same = g === '.' ? (cur && cur.glyph === '.') : (cur && cur.glyph === g);
+            dragLastT = t;
+            if (!same) paintCell(lane, t, g);
+          }
         }
       }
     }
   });
   window.addEventListener('mouseup', () => { painting = false; paintLane = null; extendMode = false; });
+  // 拖到波形末尾之外：向右越界拖动时逐拍生长延续（每次事件加一拍，跟随光标）
+  inner.addEventListener('mousemove', ev => {
+    if (!painting || (ev.buttons & 1) !== 1) return;
+    if (!(extendMode || state.tool.type === 'glyph')) return;
+    const lane = getLaneById(paintLane);
+    const track = lane && document.querySelector(`#gridInner .lane-row[data-lane="${paintLane}"] .lane-track`);
+    if (!track) return;
+    const r = track.getBoundingClientRect();
+    if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX <= r.right) return;
+    dragLastT += 1;
+    paintCell(lane, dragLastT, '.');
+  });
   inner.addEventListener('mouseleave', () => document.querySelectorAll('.col-hl').forEach(x => x.classList.remove('col-hl')));
   inner.addEventListener('click', ev => {
     const cell = ev.target.closest('.cell');
@@ -3455,6 +3472,32 @@ function handleAct(act, btn) {
     case 'add-col': {
       const n = +(btn && btn.dataset ? btn.dataset.n : 4) || 4;
       const cur = computeCols();
+      if (n < 0) {
+        let content = 0;
+        eachLane(l => { content = Math.max(content, laneUnits(l)); });
+        const newMin = Math.max(0, cur + n);
+        const after = content === 0 ? Math.max(8, newMin) : Math.max(content, newMin);
+        if (after >= cur) {
+          // 右侧空白已减无可减（内容占满）：删除最后一列——该列上有波形的通道各删那一拍，可撤销
+          let removed = 0;
+          for (let k = 0; k < -n; k++) {
+            let content = 0;
+            eachLane(l => { content = Math.max(content, laneUnits(l)); });
+            if (content <= 0) break;
+            let deleted = false;
+            eachLane(l => {
+              const t = Math.floor((content - 1) / (l.period || 1) + (l.phase || 0)); // 覆盖目标列的拍
+              if (t >= 0 && t < laneLen(l)) { clearCell(l, t); deleted = true; }
+            });
+            if (!deleted) break;
+            removed++;
+          }
+          toast(removed === 1 ? '已删除末尾一拍（Ctrl+Z 可撤销）'
+            : removed > 1 ? `已删除末尾 ${removed} 拍（Ctrl+Z 可撤销）`
+            : '没有可删除的拍');
+          break;
+        }
+      }
       localStorage.setItem('wdgui-cols-min', String(Math.max(0, cur + n)));
       renderGrid();
       break;
