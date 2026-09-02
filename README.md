@@ -1,6 +1,6 @@
 # WaveDrom-Gui
 
-WaveDrom 时序图工具集，目前包含两个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，和一个无浏览器的 **命令行渲染 Skill**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
+WaveDrom 时序图工具集，目前包含两个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，和一个无浏览器的 **命令行渲染 Skill**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
 
 ![整体截图](./images/wavedrom-gui.png)
 
@@ -47,7 +47,7 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 - [WaveDrom](https://wavedrom.com/) —— 官方渲染引擎与皮肤
 - [霞鹜文楷 LXGW WenKai](https://github.com/lxgw/LxgwWenKai) —— 默认界面与代码字体
 - [npmmirror](https://npmmirror.com/) —— 字体 CDN 分片直连
-- 本仓库代码完全由 AI 协作完成：GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro
+- 本仓库代码完全由 AI 协作完成：GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8
 
 ## 联系与赞赏
 
