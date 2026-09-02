@@ -27,11 +27,12 @@ description: >
   1. Python + `cairosvg`（推荐）：`pip install cairosvg`
   2. `rsvg-convert`（librsvg）
   3. ImageMagick（`magick` / `convert`）
-- **Python `fontTools`**（可选，仅用于「把霞鹜文楷内嵌进 SVG」）：`pip install fonttools`。见下方「字体」。
+- **Python `fontTools`**（可选，用于「把字体内嵌进 SVG」）：`pip install fonttools`。见下方「字体」。
+- **霞鹜文楷字体下载**（**推荐**，可选）：`node setup.js` 一次性下载到 `vendor/fonts/`（两套 TTF 各约 24MB），现代模式获得与 App 一致的字体外观、SVG 可内嵌自包含；**不下载也能正常渲染**（回退系统字体）。见下方「安装 / 初始化」。
 
 只输出 SVG 且不内嵌字体时，只需 Node.js。
 
-## 安装 / 初始化（可选，一次性）
+## 安装 / 初始化（推荐，可选，一次性）
 
 现代模式默认想用**霞鹜文楷**（与原 App 一致）。首次使用可联网下载一次字体到本地：
 
@@ -129,8 +130,8 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 - 字号单位为 SVG 用户单位（≈1× 时的 px）；PNG 里最终像素 = 字号 × `--scale`（默认 2×）；字号不随 `hscale` 变化（`hscale` 只放大横向格宽）。
 - 名称列宽度、pp 徽标位置、数据标签换行判定都会随 `signalName`/`dataLabel` 自动缩放，改大字号不会截断。
 - 分组行前的折叠三角（▸）是**画出来的 SVG 路径**，不依赖字体，任何渲染器都不会字形错乱。
-- **字体内嵌（自包含 SVG）**：`node setup.js` 下载霞鹜文楷后，若装了 Python `fontTools`（`pip install fonttools`），渲染会把**用到的字符子集化**后内嵌进 SVG —— SVG 自包含（任何机器打开都是霞鹜文楷），体积仅几百 KB。**内嵌恒为子集化**：没装 fontTools 或子集化失败时**自动不内嵌**（回退字体名），绝不内嵌整份 TTF、不会产生几十 MB 的巨型 SVG。开关在 `fonts.config.json`（`enabled` / `embed` / `mirror` / `dir`）。
-- 不内嵌时：SVG 只写字体名，**最终字形由渲染器（浏览器 / cairosvg）能否找到该字体决定**。字体栈末尾附带各平台常见中文字体（Windows 的 Microsoft YaHei、macOS 的 PingFang/Hiragino、Linux 的 Noto/文泉驿），中文一般都能正确回退；若本地已 `setup.js` 下载过霞鹜文楷，cairosvg 生成 PNG 时通常也能直接用上。要固定某字体，改 `FONTS.mono` / `FONTS.ui` 首项为本机已装字体即可。
+- **字体内嵌（自包含 SVG）**：若装了 Python `fontTools`（`pip install fonttools`），渲染会把 `fonts.config.json` 中 `fonts` 列表里每个已就位的 TTF **按用到的字符子集化**后内嵌进 SVG —— SVG 自包含（任何机器打开都是同一字体外观），体积仅几百 KB。`fonts` 列表**不限字体**：默认是 `node setup.js` 下载的霞鹜文楷，换用/新增字体只需在 `fonts` 里加一条（`family` + `file`，可选 `github`/`ghproxy` 下载 URL 供 setup.js 下载）并把 TTF 放入 `dir`，同时把 `appearance.fontFamily` 首项改为该 `family`。**内嵌恒为子集化**：没装 fontTools 或子集化失败时**自动不内嵌**（回退字体名），绝不内嵌整份 TTF、不会产生几十 MB 的巨型 SVG。开关在 `fonts.config.json`（`enabled` / `embed` / `mirror` / `dir`）。
+- 不内嵌时：SVG 只写字体名，**最终字形由渲染器（浏览器 / cairosvg）能否找到该字体决定**。字体栈末尾附带各平台常见中文字体（Windows 的 Microsoft YaHei、macOS 的 PingFang/Hiragino、Linux 的 Noto/文泉驿），中文一般都能正确回退；若本地已 `setup.js` 下载过霞鹜文楷，cairosvg 生成 PNG 时通常也能直接用上。要固定某字体，改 `appearance.fontFamily.mono` / `appearance.fontFamily.ui` 首项为本机已装字体即可。
 - ⚠️ 已知：cairosvg 会静默丢弃**带 `stroke` 的 `<text>`**，故本渲染器所有文字均为纯 `fill`，需要衬底时用背景矩形而非描边光晕。
 
 ## 目录结构

@@ -5,7 +5,7 @@
   "_enabled": "总开关。false = 完全不下载/不内嵌，只用系统字体名回退。",
 
   "embed": true,
-  "_embed": "true = 渲染时把霞鹜文楷内嵌进 SVG，使其自包含（任何机器打开都是霞鹜文楷）。内嵌总是先按该图用到的字符做子集化，因此需要 Python fontTools（选装：pip install fonttools）。未装 fontTools 或子集化失败时，自动不内嵌（回退到字体名 + 系统中文字体），绝不内嵌整份 TTF、不产生超大 SVG。false = 从不内嵌；PNG 仍由 cairosvg 用本地已下载的 TTF 渲染，SVG 直接打开则依赖本机字体。",
+  "_embed": "true = 渲染时把 fonts 列表里已就位的字体（不限字体；默认霞鹜文楷）内嵌进 SVG，使其自包含（任何机器打开都是同一外观）。内嵌总是先按该图用到的字符做子集化，因此需要 Python fontTools（选装：pip install fonttools）。未装 fontTools 或子集化失败时，自动不内嵌（回退到字体名 + 系统中文字体），绝不内嵌整份 TTF、不产生超大 SVG。false = 从不内嵌；PNG 仍由 cairosvg 用本地已下载的 TTF 渲染，SVG 直接打开则依赖本机字体。",
 
   "dir": "vendor/fonts",
   "_dir": "字体文件存放目录（相对 skill 根）。",
