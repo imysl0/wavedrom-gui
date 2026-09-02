@@ -46,6 +46,11 @@ AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
 { "name": "data", "wave": "x.==..=x.", "data": ["D0", "D1", "D2"] }   // ✅ 多 bit 总线才用 = / 2–9
 ```
 
+### 规则 3：使用默认的现代模式渲染时，不使用空白占位行
+
+多利用分组标签，而非空白占位行，因为空白占位行占用高度过高，而分组的所产生的隔离效果要更好。
+
+
 ### 基础常用语法速查
 
 **`wave` 状态字符**（一个字符 = 一拍）：
@@ -87,7 +92,6 @@ AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
     { "name": "clk",  "wave": "p.........", "node": ".a........" },
     { "name": "req",  "wave": "0.1.....0.", "node": "..b......." },
     { "name": "data", "wave": "x.==..x...", "data": ["D0", "D1"] },
-    {},                                // 空白占位行
     ["分组名",                          // 数组 = 分组，可嵌套子分组
       { "name": "ack", "wave": "1.....01.." }],
   ],
@@ -98,6 +102,8 @@ AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
   "config": { "hscale": 1, "skin": "default", "hbounds": [0, 10] },
 }
 ```
+
+> 骨架里的 `//` 注释仅供讲解。粘贴到 wavedrom-gui 代码页、本 skill 的 CLI、官方 wavedrom.com 编辑器都能直接渲染（三者均支持注释与宽松写法）；交给严格 JSON 解析器（如 kroki API）时请删除注释。
 
 ## 前置条件
 
@@ -166,7 +172,7 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 - **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按调色板着色、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
 - **传统模式（traditional）**：直接调用内嵌的**官方 WaveDrom v3.5.0** 渲染引擎（`vendor/` 内），产出官方黑白样式，支持 `default` / `narrow` 两套皮肤。
 
-两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松的 JS 对象写法（不带引号的键、尾逗号、单引号——与 App 编辑器的容错一致）。
+两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页、官方 wavedrom.com 编辑器的宽松解析行为一致）。
 
 ## 支持的 WaveJSON 语法
 
