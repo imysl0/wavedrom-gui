@@ -1,0 +1,8 @@
+# Downloaded fonts (fetched by `node setup.js`, ~24MB each — do not commit)
+vendor/fonts/*.ttf
+vendor/fonts/*.otf
+vendor/fonts/*.woff2
+
+# temp / test scratch
+_t/
+.tmp/
