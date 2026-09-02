@@ -839,7 +839,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <div class="menu-wrap" id="m-import">
     <button class="btn ghost" aria-haspopup="true">导入 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu">
-      <button data-act="import-file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg>打开 JSON 文件…</button>
+      <button data-act="import-file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg>打开文件（JSON / SVG / PNG）…</button>
       <button data-act="import-paste"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="9" height="10" rx="1.5"/><path d="M11 4V3a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 3 3v8A1.5 1.5 0 0 0 4.5 12.5H5"/></svg>粘贴 WaveJSON…</button>
       <div class="sep"></div>
       <button data-act="open-tutorial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg>WaveDrom 语法教程</button>
@@ -852,7 +852,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <button class="btn ghost" data-act="open-about" title="关于本项目">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
   </button>
-  <span class="ver-badge" title="版本 v260903.0">v260903.0</span>
+  <span class="ver-badge" title="版本 v260903.1">v260903.1</span>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -1024,7 +1024,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 <div class="modal-mask" id="aboutMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目">
-    <h3>WaveDrom-Gui <span class="ver-badge">v260903.0</span></h3>
+    <h3>WaveDrom-Gui <span class="ver-badge">v260903.1</span></h3>
     <p>单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
     <p>支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
     <p>仓库地址：<a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
@@ -1035,7 +1035,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   </div>
 </div>
 
-<input type="file" id="fileInput" accept=".json,.txt,application/json" hidden>
+<input type="file" id="fileInput" accept=".json,.txt,.svg,.png,application/json,image/svg+xml,image/png" hidden>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
@@ -3314,6 +3314,118 @@ function applyDocJSON(json) {
 }
 function syncSettings() { renderSettings(); $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%'; applyZoom(); }
 
+/* ---------- WaveJSON 元数据嵌入/回读（SVG <metadata> + PNG iTXt 文本块，均不影响图片显示） ---------- */
+const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const WD_PNG_KEYWORD = 'WaveJSON';
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+function b64FromUTF8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function utf8FromB64(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+/* SVG：把 base64(JSON) 写进根元素紧后的 <metadata data-wavedrom>；渲染器一律忽略该元素 */
+function svgWithMeta(svgStr, json) {
+  try {
+    const i = svgStr.indexOf('<svg');
+    if (i < 0) return svgStr;
+    let j = i + 4, q = null;
+    while (j < svgStr.length) { /* 找开标签真正的 '>'（跳过属性值里的引号） */
+      const ch = svgStr[j];
+      if (q) { if (ch === q) q = null; }
+      else if (ch === '"' || ch === "'") q = ch;
+      else if (ch === '>') break;
+      j++;
+    }
+    const meta = '<metadata data-wavedrom="1">' + b64FromUTF8(json) + '</metadata>';
+    return svgStr.slice(0, j + 1) + meta + svgStr.slice(j + 1);
+  } catch (e) { return svgStr; }
+}
+function svgExtractWaveJSON(text) {
+  const m = /<metadata[^>]*data-wavedrom[^>]*>([\s\S]*?)<\/metadata>/.exec(text);
+  if (!m) return null;
+  try { return utf8FromB64(m[1].replace(/\s+/g, '')); } catch (e) { return null; }
+}
+/* PNG：在 IEND 块前插入 iTXt(未压缩) 块；关键字 WaveJSON，文本为 UTF-8 JSON */
+function pngInsertITXt(bytes, keyword, text) {
+  if (bytes.length < 8 || !PNG_SIG.every((b, i) => bytes[i] === b)) throw new Error('不是 PNG 文件');
+  const kw = new TextEncoder().encode(keyword);
+  const tx = new TextEncoder().encode(text);
+  const data = new Uint8Array(kw.length + 5 + tx.length);
+  data.set(kw, 0);
+  /* iTXt 布局：关键字 \0 压缩标志0(未压缩) 压缩方法0 空语言标签\0 空翻译关键字\0 文本（Uint8Array 默认全 0） */
+  data.set(tx, kw.length + 5);
+  const chunk = new Uint8Array(12 + data.length);
+  const cdv = new DataView(chunk.buffer);
+  cdv.setUint32(0, data.length);
+  chunk.set([0x69, 0x54, 0x58, 0x74], 4); /* 'iTXt' */
+  chunk.set(data, 8);
+  cdv.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)));
+  let off = 8, insertAt = -1;
+  while (off + 8 <= bytes.length) {
+    const len = (bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3];
+    if (bytes[off + 4] === 0x49 && bytes[off + 5] === 0x45 && bytes[off + 6] === 0x4e && bytes[off + 7] === 0x44) { insertAt = off; break; } /* 'IEND' */
+    off += 12 + len;
+  }
+  if (insertAt < 0) throw new Error('PNG 结构不完整（缺少 IEND）');
+  const out = new Uint8Array(bytes.length + chunk.length);
+  out.set(bytes.subarray(0, insertAt), 0);
+  out.set(chunk, insertAt);
+  out.set(bytes.subarray(insertAt), insertAt + chunk.length);
+  return out;
+}
+function pngExtractWaveJSON(bytes) {
+  if (bytes.length < 8 || !PNG_SIG.every((b, i) => bytes[i] === b)) return null;
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let off = 8;
+  while (off + 8 <= bytes.length) {
+    const len = dv.getUint32(off);
+    const type = String.fromCharCode(bytes[off + 4], bytes[off + 5], bytes[off + 6], bytes[off + 7]);
+    if (type === 'IEND') break;
+    if ((type === 'iTXt' || type === 'tEXt') && len > 0) {
+      const body = bytes.subarray(off + 8, off + 8 + len);
+      const z = body.indexOf(0);
+      if (z >= 0 && new TextDecoder('latin1').decode(body.subarray(0, z)) === WD_PNG_KEYWORD) {
+        try {
+          if (type === 'tEXt') return new TextDecoder().decode(body.subarray(z + 1));
+          if (body[z + 1] !== 0) return null; /* 本应用只写未压缩块 */
+          let p = z + 3;
+          while (p < body.length && body[p] !== 0) p++; p++; /* 跳过语言标签 */
+          while (p < body.length && body[p] !== 0) p++; p++; /* 跳过翻译关键字 */
+          return new TextDecoder().decode(body.subarray(p));
+        } catch (e) { return null; }
+      }
+    }
+    off += 12 + len;
+  }
+  return null;
+}
+async function pngWithMeta(blob, json) {
+  try {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    return new Blob([pngInsertITXt(bytes, WD_PNG_KEYWORD, json)], { type: 'image/png' });
+  } catch (e) { return blob; } /* 嵌入失败不阻断下载 */
+}
+
 function download(name, blob) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -3557,11 +3669,12 @@ function handleAct(act, btn) {
     case 'about-repo': window.open('https://cnb.cool/linshi-2026/wavedrom-gui', '_blank'); break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
-      download('wavedrom.svg', new Blob([ex.str], { type: 'image/svg+xml' }));
+      download('wavedrom.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
       break;
     }
     case 'export-png': {
       const ex = getExportSvg(); if (!ex) return;
+      const json = fmtJSON(buildJSON(), 0, codeCompact);
       const img = new Image();
       const url = URL.createObjectURL(new Blob([ex.str], { type: 'image/svg+xml' }));
       img.onload = () => {
@@ -3570,7 +3683,7 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(b => { if (b) download('wavedrom.png', b); else toast('PNG 生成失败', true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download('wavedrom.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
@@ -3579,11 +3692,12 @@ function handleAct(act, btn) {
     }
     case 'export-editor-svg': {
       const es = buildEditorSvg(); if (!es) return;
-      download('wavedrom-editor.svg', new Blob([new XMLSerializer().serializeToString(es)], { type: 'image/svg+xml' }));
+      download('wavedrom-editor.svg', new Blob([svgWithMeta(new XMLSerializer().serializeToString(es), fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
       break;
     }
     case 'export-editor-png': {
       const es = buildEditorSvg(); if (!es) return;
+      const json = fmtJSON(buildJSON(), 0, codeCompact);
       const str = new XMLSerializer().serializeToString(es);
       const img = new Image();
       const url = URL.createObjectURL(new Blob([str], { type: 'image/svg+xml' }));
@@ -3593,7 +3707,7 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = cssVar('--bg'); ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(b => { if (b) download('wavedrom-editor.png', b); else toast('PNG 生成失败', true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download('wavedrom-editor.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
@@ -3813,10 +3927,24 @@ function init() {
     if (!f) return;
     const rd = new FileReader();
     rd.onload = () => {
-      try { applyDocJSON(parseWaveJSON(rd.result)); toast('已导入 ' + f.name); }
-      catch (e) { toast('文件解析失败：' + e.message, true); }
+      try {
+        const bytes = new Uint8Array(rd.result);
+        let jsonText;
+        if (bytes.length > 8 && PNG_SIG.every((b, i) => bytes[i] === b)) {
+          jsonText = pngExtractWaveJSON(bytes);
+          if (!jsonText) throw new Error('PNG 里没有内嵌 WaveJSON（可能已被转存剥离）');
+        } else {
+          const text = new TextDecoder().decode(bytes);
+          if (/^\s*(<\?xml|<!DOCTYPE|<svg[\s>])/i.test(text)) {
+            jsonText = svgExtractWaveJSON(text);
+            if (!jsonText) throw new Error('SVG 里没有内嵌 WaveJSON');
+          } else jsonText = text;
+        }
+        applyDocJSON(parseWaveJSON(jsonText));
+        toast('已导入 ' + f.name);
+      } catch (e) { toast('文件解析失败：' + e.message, true); }
     };
-    rd.readAsText(f);
+    rd.readAsArrayBuffer(f);
     ev.target.value = '';
   });
   $('#pasteMask').addEventListener('mousedown', ev => { if (ev.target === $('#pasteMask')) handleAct('paste-cancel'); });
