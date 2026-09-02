@@ -1,0 +1,49 @@
+{
+  "_comment": "字体配置 —— 用户可直接改本文件。setup.js 用它下载字体；render-modern.js 用它决定是否内嵌。",
+
+  "enabled": true,
+  "_enabled": "总开关。false = 完全不下载/不内嵌，只用系统字体名回退。",
+
+  "embed": true,
+  "_embed": "true = 渲染时把霞鹜文楷内嵌进 SVG，使其自包含（任何机器打开都是霞鹜文楷）。内嵌总是先按该图用到的字符做子集化，因此需要 Python fontTools（选装：pip install fonttools）。未装 fontTools 或子集化失败时，自动不内嵌（回退到字体名 + 系统中文字体），绝不内嵌整份 TTF、不产生超大 SVG。false = 从不内嵌；PNG 仍由 cairosvg 用本地已下载的 TTF 渲染，SVG 直接打开则依赖本机字体。",
+
+  "dir": "vendor/fonts",
+  "_dir": "字体文件存放目录（相对 skill 根）。",
+
+  "mirror": "auto",
+  "_mirror": "下载渠道：auto = 先试直连 GitHub，失败再试 gh-proxy；github = 只用直连；ghproxy = 只用国内代理。",
+
+  "fonts": [
+    {
+      "family": "LXGW WenKai Mono",
+      "file": "LXGWWenKaiMono-Regular.ttf",
+      "github": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKaiMono-Regular.ttf",
+      "ghproxy": "https://gh-proxy.org/https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKaiMono-Regular.ttf"
+    },
+    {
+      "family": "LXGW WenKai",
+      "file": "LXGWWenKai-Regular.ttf",
+      "github": "https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf",
+      "ghproxy": "https://gh-proxy.org/https://github.com/lxgw/LxgwWenKai/releases/download/v1.522/LXGWWenKai-Regular.ttf"
+    }
+  ],
+
+  "_appearance": "现代模式的字体栈与各处字号。改这里即可，无需动代码。字号单位为 SVG 用户单位（≈1× 时的 px），PNG 里最终像素 = 字号 × --scale。fontFamily.mono/ui 是 CSS font-family 栈：首选霞鹜文楷（内嵌时用），其后为各平台常见中文字体兜底。",
+  "appearance": {
+    "fontFamily": {
+      "mono": "\"LXGW WenKai Mono\",\"Cascadia Code\",Consolas,\"Noto Sans Mono CJK SC\",\"Microsoft YaHei\",\"PingFang SC\",\"Noto Sans CJK SC\",\"WenQuanYi Micro Hei\",monospace",
+      "ui": "\"LXGW WenKai Mono\",\"PingFang SC\",\"Noto Sans CJK SC\",\"Microsoft YaHei\",\"Hiragino Sans GB\",\"WenQuanYi Micro Hei\",system-ui,sans-serif"
+    },
+    "size": {
+      "dataLabel": 14,
+      "signalName": 16,
+      "groupName": 16,
+      "title": 16,
+      "tick": 12,
+      "spacer": 11.5,
+      "ppBadge": 11,
+      "node": 10,
+      "edgeLabel": 11
+    }
+  }
+}
