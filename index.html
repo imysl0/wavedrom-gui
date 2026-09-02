@@ -852,7 +852,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <button class="btn ghost" data-act="open-about" title="关于本项目">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
   </button>
-  <span class="ver-badge" title="版本 v260903.1">v260903.1</span>
+  <span class="ver-badge" title="版本 v260903.2">v260903.2</span>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -1024,7 +1024,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 <div class="modal-mask" id="aboutMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目">
-    <h3>WaveDrom-Gui <span class="ver-badge">v260903.1</span></h3>
+    <h3>WaveDrom-Gui <span class="ver-badge">v260903.2</span></h3>
     <p>单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
     <p>支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
     <p>仓库地址：<a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
@@ -1887,6 +1887,27 @@ function cellTip(msg, lane, t) {
   clearTimeout(cellTipTimer);
   cellTipTimer = setTimeout(() => tip.classList.remove('show'), 1800);
 }
+/* 清除笔刷的引导提示：左键清除与右键清除重复，该笔刷不再激活，只作引导 */
+const ERASE_HINT = '使用鼠标右键点击对应单元格即可清除';
+/* 锚定到任意元素的提示气泡（复用 #cellTip 与其箭头样式），el 不在文档时退化为 toast */
+function brushTip(msg, el) {
+  if (!el || !el.isConnected) { toast(msg); return; }
+  let tip = $('#cellTip');
+  if (!tip) { tip = h('div', { id: 'cellTip', role: 'status' }); document.body.appendChild(tip); }
+  tip.textContent = msg;
+  tip.classList.add('show');
+  tip.style.left = '-9999px'; tip.style.top = '-9999px';
+  const r = el.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  /* 水平居中于锚点并钳制在视口内——笔刷栏可能在屏幕右缘（右纵条 / 右侧面板） */
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - tw / 2, innerWidth - tw - 8));
+  const below = r.top - th - 10 < 8;
+  tip.style.left = x + 'px';
+  tip.style.top = (below ? r.bottom + 10 : r.top - th - 10) + 'px';
+  tip.classList.toggle('below', below);
+  clearTimeout(cellTipTimer);
+  cellTipTimer = setTimeout(() => tip.classList.remove('show'), 2600);
+}
 
 /* ---------- 渲染：网格 ---------- */
 function laneUnits(lane) {
@@ -2558,7 +2579,13 @@ const brushIdTool = id => (id === 'select' || id === 'erase') ? { type: id } : {
 const brushActive = id => id === 'select' ? state.tool.type === 'select'
   : id === 'erase' ? state.tool.type === 'erase'
   : state.tool.type === 'glyph' && state.tool.char === id;
-function setBrush(id) {
+function setBrush(id, anchor) {
+  if (id === 'erase') {
+    /* 清除与右键清除重复：不再作为左键笔刷激活，点击只弹引导提示 */
+    brushTip(ERASE_HINT, anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
+    closePop(); closeBrushFly(); closeBrushPanel();
+    return;
+  }
   state.tool = brushIdTool(id);
   document.querySelectorAll('[data-brush]').forEach(b => b.classList.toggle('active', b.dataset.brush === id));
   closePop();
@@ -2589,13 +2616,13 @@ function brushBtn(id, variant) {
   const name = id === 'select' ? '选择' : id === 'erase' ? '清除' : id === '.' ? '延续' : GLYPH_MAP[id].name;
   const b = h('button', {
     class: 'tool' + sizeCls + (brushActive(id) ? ' active' : ''),
-    'data-brush': id, title: id === '.' ? '延续（.）—— 让上一拍的状态再延续一拍' : `${name}（${id}）`,
+    'data-brush': id, title: id === '.' ? '延续（.）—— 让上一拍的状态再延续一拍' : id === 'erase' ? '清除（右键单击单元格即可）' : `${name}（${id}）`,
     'aria-label': '笔刷：' + name,
   });
   const dims = (v === 'bar' || v === 'panel') ? [30, 18, 18] : [26, 15, 15];
   b.appendChild(brushFace(id, dims[0], dims[1], dims[2]));
   b.appendChild(h('span', { class: 'tlabel' }, id === 'select' ? '选择' : id === 'erase' ? '清除' : id === '.' ? '延续' : id));
-  b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id); });
+  b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
   return b;
 }
 function setBrushMode(m) { state_brush.mode = m; renderBrushUI(); }
@@ -2616,9 +2643,9 @@ function brushTxtBtn(id) {
   const name = id === 'select' ? '选择' : id === 'erase' ? '清除' : '延续';
   const b = h('button', {
     class: 'tool txt' + (brushActive(id) ? ' active' : ''),
-    'data-brush': id, title: `${name}（${id}）`, 'aria-label': '笔刷：' + name,
+    'data-brush': id, title: id === 'erase' ? '清除（右键单击单元格即可）' : `${name}（${id}）`, 'aria-label': '笔刷：' + name,
   }, h('span', { class: 'tlabel' }, name));
-  b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id); });
+  b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
   return b;
 }
 function groupChip(g, vertical) {
@@ -2722,7 +2749,7 @@ function createBrushPanel() {
     const b = h('button', { class: 'pg' + (brushActive(id) ? ' active' : ''), title: name, 'aria-label': name });
     b.appendChild(brushFace(id, 26, 15, 15));
     b.appendChild(h('span', { class: 'tlabel' }, name));
-    b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id); });
+    b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
     tools.appendChild(b);
   });
   panel.appendChild(tools);
