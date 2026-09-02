@@ -761,6 +761,25 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
 .toast.err { border-color: var(--danger); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
+/* 单元格锚定提示气泡：无效清除等就地反馈，带指向小箭头 */
+#cellTip {
+  position: fixed; z-index: 210; pointer-events: none; max-width: 340px;
+  background: var(--raise); border: 1px solid var(--line-hover); border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  color: var(--text); font-size: 12.5px;
+  padding: 8px 13px;
+  opacity: 0; transform: translateY(3px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+#cellTip.show { opacity: 1; transform: none; }
+#cellTip::after {
+  content: ''; position: absolute; left: 50%; bottom: -5.5px; width: 9px; height: 9px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--raise); border-right: 1px solid var(--line-hover); border-bottom: 1px solid var(--line-hover);
+}
+#cellTip.below::after { bottom: auto; top: -5.5px; border-right: none; border-bottom: none; border-left: 1px solid var(--line-hover); border-top: 1px solid var(--line-hover); }
+
+
 /* 迷你波形描边辉光（示波器荧光） */
 .wtrace { filter: drop-shadow(0 0 1.2px currentColor); }
 html[data-trace="glow"] .wtrace { filter: drop-shadow(0 0 2.5px currentColor); }
@@ -1491,7 +1510,7 @@ function parseEntry(e) {
   let runIdx = -1;
   for (let t = 0; t < wave.length; t++) {
     const ch = wave[t];
-    if (ch === '.') { if (!lane.slots[t]) lane.slots[t] = null; continue; }
+    if (ch === '.') { if (!lane.slots[t]) lane.slots[t] = { glyph: '.' }; continue; }
     if (ch === ' ' || ch === '#') continue;
     const slot = { glyph: ch };
     if (isData(ch)) {
@@ -1840,6 +1859,27 @@ function toast(msg, err) {
   const t = h('div', { class: 'toast' + (err ? ' err' : '') }, msg);
   $('#toasts').appendChild(t);
   setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 320); }, 2200);
+}
+
+/* 就地单元格提示：锚在被点格上方（顶部空间不足时翻到下方），1.8s 后淡出，复用同一元素 */
+let cellTipTimer = null;
+function cellTip(msg, lane, t) {
+  const cell = document.querySelector(`#gridInner .cell[data-lane="${lane.id}"][data-t="${t}"]`);
+  if (!cell) { toast(msg); return; }
+  let tip = $('#cellTip');
+  if (!tip) { tip = h('div', { id: 'cellTip', role: 'status' }); document.body.appendChild(tip); }
+  tip.textContent = msg;
+  tip.classList.add('show');
+  tip.style.left = '-9999px'; tip.style.top = '-9999px';
+  const r = cell.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - tw / 2, innerWidth - tw - 8));
+  const below = r.top - th - 10 < 8;
+  tip.style.left = x + 'px';
+  tip.style.top = (below ? r.bottom + 10 : r.top - th - 10) + 'px';
+  tip.classList.toggle('below', below);
+  clearTimeout(cellTipTimer);
+  cellTipTimer = setTimeout(() => tip.classList.remove('show'), 1800);
 }
 
 /* ---------- 渲染：网格 ---------- */
@@ -2757,12 +2797,32 @@ function paintCell(lane, t, glyph) {
   paintedSinceDown = true;
   update();
 }
+/* 从 t-1 往前找最近的真实字符格：延续格延续的就是那一拍；-1 表示前面没有真实字符 */
+function extendSource(lane, t) {
+  for (let i = t - 1; i >= 0; i--) {
+    const s = lane.slots[i];
+    if (s && s.glyph !== '.') return i;
+  }
+  return -1;
+}
 function clearCell(lane, t) {
   commitTag = 'paint';
+  const wave0 = laneWaveStr(lane), len0 = laneLen(lane), hadNode = !!lane.nodeByT[t];
+  const wasReal = !!(lane.slots[t] && lane.slots[t].glyph !== '.');
   if (lane.slots[t]) { lane.slots[t] = null; delete lane.nodeByT[t]; }
   while (lane.slots.length && !lane.slots[lane.slots.length - 1]) lane.slots.pop();
   lane.len = null;
   update();
+  if (t >= len0 || hadNode) return; // 通道外空区或删了节点标记：不提示
+  if (laneWaveStr(lane) === wave0 && laneLen(lane) === len0) {
+    // 点了延续格且无任何可见变化
+    const src = extendSource(lane, t);
+    cellTip((src >= 0 ? '延续第 ' + src + ' 拍 · ' : '') + '非波形末尾的延续格无内容可清除', lane, t);
+  } else if (wasReal && laneLen(lane) === len0) {
+    // 删的是真实字符且它不是最后一拍：该格变成延续格，前一个状态顺延流过来
+    const src = extendSource(lane, t);
+    cellTip('已清除第 ' + t + ' 拍 · ' + (src >= 0 ? '该拍现延续第 ' + src + ' 拍' : '该拍变为延续'), lane, t);
+  }
 }
 function nextNodeLetter() {
   const used = new Set();
