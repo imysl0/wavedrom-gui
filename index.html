@@ -3021,6 +3021,26 @@ function paintChainCell(char) {
   paintCell(lane, chainSel.t, char); // 内部会 update() → renderGrid()（restoreChainSelHighlight 会重贴当前格）
   advanceChain();
 }
+/* 方向键移动选中格（不上色、不换色、到边界停住不退出）：左右在可见窗口内移动拍，上下换可见信号行、拍不变 */
+function moveChainSel(dx, dy) {
+  if (!chainSel) return;
+  const win = gridWindow();
+  const ids = visibleChainLaneIds();
+  const li = ids.indexOf(chainSel.laneId);
+  if (li < 0) { exitAutoChain(); return; }
+  if (dx) {
+    const t = Math.min(win.b - 1, Math.max(win.a, chainSel.t + dx));
+    const lane = getLaneById(chainSel.laneId);
+    if (lane) setChainSel(lane, t);
+    return;
+  }
+  if (dy) {
+    const ni = li + dy;
+    if (ni < 0 || ni >= ids.length) return; // 到首/末行不绕行
+    const lane = getLaneById(ids[ni]);
+    if (lane) setChainSel(lane, Math.min(win.b - 1, Math.max(win.a, chainSel.t)));
+  }
+}
 
 /* 状态字符网格：单元格弹窗与笔刷面板共用（延续 + 26 字符，5 列） */
 function buildGlyphGrid(parent, currentGlyph, onPick) {
@@ -3283,6 +3303,13 @@ function bindGrid() {
     const t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (ev.key === 'Escape') { if (autoChain) exitAutoChain(); else setBrush('select'); return; }
+    if (autoChain && chainSel && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) {
+      // 自动连续模式：方向键调整选中格（不上色、到边界停住）
+      moveChainSel(ev.key === 'ArrowLeft' ? -1 : ev.key === 'ArrowRight' ? 1 : 0,
+                   ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0);
+      ev.preventDefault();
+      return;
+    }
     if (BRUSH_KEYS.includes(ev.key) && ev.key !== '') {
       if (autoChain) { // 模式内：有选中格则给该格上色并右移；无选中格则忽略（等待中键点选）
         if (chainSel) paintChainCell(ev.key);
