@@ -1,0 +1,68 @@
+/* WaveDrom-Gui — markdown 预览工具栏样式（跟随 VS Code 主题变量） */
+.wavedrom-block {
+  display: block;
+  margin: 10px 0;
+}
+
+.wd-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 6px;
+}
+
+.wd-bar button.wd-btn {
+  font-size: 11.5px;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+  background: transparent;
+  color: var(--vscode-foreground, inherit);
+  cursor: pointer;
+}
+
+.wd-bar button.wd-btn:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.wd-bar button.wd-btn.on {
+  background: var(--vscode-button-background, #0e639c);
+  border-color: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
+}
+
+.wd-bar button.wd-edit {
+  margin-left: auto;
+}
+
+.wd-body .wd-svg svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.wd-body .wd-code {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.1));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 4px;
+}
+
+.wd-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 999;
+  background: var(--vscode-editorWidget-background, #252526);
+  color: var(--vscode-editorWidget-foreground, #cccccc);
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
