@@ -1,13 +1,61 @@
 .publish-eo: &publish-eo
-  - name: 部署正式环境
-    imports:
-      - https://cnb.cool/linshi-2026/env/-/blob/main/tencent_edgeone.yml
-    image: tencentcom/deploy-eopages:latest
-    script: edgeone makers deploy ./index.html -n wavedrom-gui -t $EO_SECRET
-# tag 触发：多环境部署流程（staging / production）
-# 仓库级事件 tag_push 需挂在 $ 兜底分支下
-$:
+  name: 部署正式环境
+  imports:
+    - https://cnb.cool/linshi-2026/env/-/blob/main/tencent_edgeone.yml
+  image: tencentcom/deploy-eopages:latest
+  script: |
+    set -eu
+    edgeone makers deploy ./index.html -n wavedrom-gui -t "$EO_SECRET"
+
+# 仓库级 tag_push 事件必须放在 $ 兜底分支下。
+"$":
   tag_push:
-    production:
+    - name: 发布并部署
+      lock:
+        key: wavedrom-gui-production-deploy
+        wait: true
+        cancel-in-wait: true
       stages:
+        - name: 写入版本号
+          image: node:20
+          script: |
+            set -eu
+            node <<'NODE'
+            const fs = require('fs');
+
+            const tag = process.env.CNB_BRANCH;
+            if (!/^v[0-9][0-9A-Za-z]*(?:[._-][0-9A-Za-z]+)*$/.test(tag || '')) {
+              throw new Error(`Tag 格式无效：${tag || '(空)'}`);
+            }
+
+            const file = 'index.html';
+            const marker = '<meta name="app-version" content="dev">';
+            const html = fs.readFileSync(file, 'utf8');
+            const matches = html.split(marker).length - 1;
+            if (matches !== 1) {
+              throw new Error(`预期找到 1 个开发版版本源，实际找到 ${matches} 个`);
+            }
+
+            const versionMeta = `<meta name="app-version" content="${tag}">`;
+            const next = html.replace(marker, versionMeta);
+            fs.writeFileSync(file, next, 'utf8');
+
+            const saved = fs.readFileSync(file, 'utf8');
+            if (!saved.includes(versionMeta) || saved.includes(marker)) {
+              throw new Error('版本号写入后校验失败');
+            }
+            console.log(`已将应用版本号写入为 ${tag}`);
+            NODE
+
         - <<: *publish-eo
+
+        - name: 创建 Release
+          type: git:release
+          options:
+            tag: "$CNB_BRANCH"
+            title: "$CNB_BRANCH"
+            description: |
+              WaveDrom-Gui $CNB_BRANCH
+
+              Web 可视化编辑器与 wavedrom-render Skill 的版本发布。
+            latest: true
