@@ -5,7 +5,10 @@
   image: tencentcom/deploy-eopages:latest
   script: |
     set -eu
-    edgeone makers deploy ./index.html -n wavedrom-gui -t "$EO_SECRET"
+    rm -rf edgeone-deploy
+    mkdir -p edgeone-deploy
+    cp index.html edgeone-deploy/index.html
+    edgeone makers deploy ./edgeone-deploy -n wavedrom-gui -t "$EO_SECRET"
 
 # 仓库级 tag_push 事件必须放在 $ 兜底分支下。
 "$":
