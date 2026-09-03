@@ -2992,7 +2992,7 @@ function setChainSel(lane, t) {
   if (cell) { cell.classList.add('chain-sel'); cell.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
   const tip = CHAIN_TIPS[chainSelCount]; // 前 3 次选中的分步引导；之后为 undefined 不提示
   chainSelCount++;
-  if (tip) cellTip(tip, lane, t);
+  if (tip) toast(tip);
 }
 function enterAutoChain(withCell) {
   autoChain = true;
