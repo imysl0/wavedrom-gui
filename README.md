@@ -1,6 +1,6 @@
 # WaveDrom-Gui
 
-WaveDrom 时序图工具集，目前包含两个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，和一个无浏览器的 **命令行渲染 Skill**。两者通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
+WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，一个无浏览器的 **命令行渲染 Skill**，以及一个 **VSCode 插件**（开发中）。它们通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
 
 ![整体截图](./images/wavedrom-gui.png)
 
@@ -35,6 +35,18 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 ```
 
 👉 完整用法与「WaveJSON 生成指南」见 [SKILL/wavedrom-render/SKILL.md](./SKILL/wavedrom-render/SKILL.md)。
+
+## 产品三：VSCode 插件（开发中）
+
+> ⚠️ 尚在开发中，功能与体验可能变动，暂未上架插件市场，欢迎试用反馈。
+
+把 wavedrom-gui 的能力带进 VS Code：在内置 Markdown 预览里直接渲染 ```` ```wavedrom ```` 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。
+
+- **预览内渲染**：Markdown 预览中把 wavedrom 代码块和内嵌 WaveJSON 的 SVG/PNG 图片渲染为波形图，附源码切换与工具栏
+- **可视化编辑写回**：点「✏ 编辑」复用 `index.html` 编辑器进行可视化编辑，保存后写回——代码块回写围栏内容、图片则像素不动只更新内嵌的 WaveJSON 元数据
+- **与前两者互通**：同一套 WaveJSON 元数据规格，Skill/编辑器导出的图片在插件里可直接识别与编辑
+
+👉 详见 [vscode/README.md](./vscode/README.md)。
 
 ## 技术说明
 
