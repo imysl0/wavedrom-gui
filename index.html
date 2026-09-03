@@ -3336,6 +3336,7 @@ function setPaneVisibility(pane, visible) {
   if (document.documentElement.dataset.showPreview !== '0') renderPreview();
 }
 function buildSettingsMenu(menu) {
+  menu.textContent = '';
   const sec = t => menu.appendChild(h('div', { class: 'menu-sec' }, t));
   const POS_NAMES = { lt: '左上', tm: '上中', rt: '右上', lm: '左中', c: '正中', rm: '右中', lb: '左下', bm: '下中', rb: '右下' };
   const POS_GLYPH = { lt: '↖', tm: '↑', rt: '↗', lm: '←', c: '●', rm: '→', lb: '↙', bm: '↓', rb: '↘' };
