@@ -3310,6 +3310,18 @@ function bindGrid() {
       ev.preventDefault();
       return;
     }
+    if (ev.key === '+' || ev.key === 'Add') {
+      // 全局：+ 加 1 拍（不论自动连续模式是否启动；= 键仍作数据笔刷）
+      $('.col-stepper [data-act="add-col"][data-n="1"]').click();
+      ev.preventDefault();
+      return;
+    }
+    if (ev.key === '-' || ev.key === 'Subtract') {
+      // 全局：- 减 1 拍
+      $('.col-stepper [data-act="add-col"][data-n="-1"]').click();
+      ev.preventDefault();
+      return;
+    }
     if (BRUSH_KEYS.includes(ev.key) && ev.key !== '') {
       if (autoChain) { // 模式内：有选中格则给该格上色并右移；无选中格则忽略（等待中键点选）
         if (chainSel) paintChainCell(ev.key);
