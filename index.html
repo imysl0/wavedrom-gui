@@ -1181,9 +1181,34 @@ const NODE_POS_KEYS = {
 const state_node = {
   pos: localStorage.getItem('wdgui-node-pos') || 'lm',
   scale: Math.max(0.4, Math.min(2, parseFloat(localStorage.getItem('wdgui-node-scale')) || 1)),
+  mode: localStorage.getItem('wdgui-node-mode') || 'letter', // letter=圆圈+字母序号（默认）；dot=只画小圆点
 };
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
+if (state_node.mode !== 'dot') state_node.mode = 'letter';
 const nodeR = () => 6.5 * state_node.scale;
+/* 在 svg 上画一个节点标记：letter 模式画圆圈+字母；dot 模式画一个实心小圆点（不画字母） */
+function drawNodeMarker(svg, x, y, letter) {
+  const NS = 'http://www.w3.org/2000/svg';
+  if (state_node.mode === 'dot') {
+    const d = document.createElementNS(NS, 'circle');
+    d.setAttribute('cx', x); d.setAttribute('cy', y); d.setAttribute('r', 3 * state_node.scale);
+    d.setAttribute('fill', cssVar('--node-line')); d.setAttribute('stroke', cssVar('--node-fill')); d.setAttribute('stroke-width', 1);
+    svg.appendChild(d);
+    return;
+  }
+  const c = document.createElementNS(NS, 'circle');
+  c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', nodeR());
+  c.setAttribute('fill', cssVar('--node-fill')); c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3);
+  svg.appendChild(c);
+  const tx = document.createElementNS(NS, 'text');
+  tx.setAttribute('x', 0); tx.setAttribute('y', 3.5);
+  tx.setAttribute('text-anchor', 'middle');
+  tx.setAttribute('font-size', '9'); tx.setAttribute('font-weight', '600');
+  tx.setAttribute('transform', `translate(${x} ${y}) scale(${state_node.scale})`);
+  tx.style.fontFamily = 'var(--font-mono)'; tx.setAttribute('fill', cssVar('--node-line'));
+  tx.textContent = letter;
+  svg.appendChild(tx);
+}
 /* 圆心在槽位矩形 (bx … bx+bw) × (0 … 48) 内的锚点 */
 function nodeAnchorXY(bx, bw) {
   const [fx, fy] = NODE_POS_KEYS[state_node.pos] || NODE_POS_KEYS.lm;
@@ -1855,18 +1880,7 @@ function laneSVG(lane, colCount, color, cropX) {
   Object.keys(lane.nodeByT).forEach(k => {
     const pk = positions[+k];
     const [nx, ny] = nodeAnchorXY(pk ? pk.x : X(+k), pk ? pk.w : W);
-    const c = document.createElementNS(NS, 'circle');
-    c.setAttribute('cx', nx); c.setAttribute('cy', ny); c.setAttribute('r', nodeR());
-    c.setAttribute('fill', cssVar('--node-fill')); c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3);
-    svg.appendChild(c);
-    const tx = document.createElementNS(NS, 'text');
-    tx.setAttribute('x', 0); tx.setAttribute('y', 3.5);
-    tx.setAttribute('text-anchor', 'middle');
-    tx.setAttribute('font-size', '9'); tx.setAttribute('font-weight', '600');
-    tx.setAttribute('transform', `translate(${nx} ${ny}) scale(${state_node.scale})`);
-    tx.style.fontFamily = 'var(--font-mono)'; tx.setAttribute('fill', cssVar('--node-line'));
-    tx.textContent = lane.nodeByT[k];
-    svg.appendChild(tx);
+    drawNodeMarker(svg, nx, ny, lane.nodeByT[k]);
   });
   return svg;
 }
@@ -2246,18 +2260,7 @@ function renderMiniEdges() {
   for (const n of nodes) {
     const p = pos(n.letter);
     if (!p) continue;
-    const c = document.createElementNS(NS, 'circle');
-    c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', nodeR());
-    c.setAttribute('fill', cssVar('--node-fill')); c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3);
-    svg.appendChild(c);
-    const tx = document.createElementNS(NS, 'text');
-    tx.setAttribute('x', 0); tx.setAttribute('y', 3.5);
-    tx.setAttribute('text-anchor', 'middle');
-    tx.setAttribute('font-size', '9'); tx.setAttribute('font-weight', '600');
-    tx.setAttribute('transform', `translate(${p.x} ${p.y}) scale(${state_node.scale})`);
-    tx.style.fontFamily = 'var(--font-mono)'; tx.setAttribute('fill', cssVar('--node-line'));
-    tx.textContent = n.letter;
-    svg.appendChild(tx);
+    drawNodeMarker(svg, p.x, p.y, n.letter);
   }
   inner.appendChild(svg);
 }
@@ -3563,6 +3566,25 @@ function buildSettingsMenu(menu) {
     grid.appendChild(b);
   });
   menu.appendChild(grid);
+  sec('节点显示模式');
+  [['letter', '字母序号'], ['dot', '点']].forEach(([v, label]) => {
+    const active = state_node.mode === v;
+    const b = h('button', { class: active ? 'active' : '', 'aria-label': '节点显示模式：' + label });
+    b.appendChild(h('span', null, label));
+    if (active) {
+      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
+      ck.style.marginLeft = 'auto'; ck.style.color = 'var(--acc)';
+      b.appendChild(ck);
+    }
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      state_node.mode = v;
+      localStorage.setItem('wdgui-node-mode', v);
+      buildSettingsMenu(menu);
+      renderGrid();
+    });
+    menu.appendChild(b);
+  });
   sec('节点比例');
   const srow = h('div', { class: 'scale-row' });
   const slider = h('input', { type: 'range', min: '50', max: '150', step: '5', value: String(Math.round(state_node.scale * 100)), 'aria-label': '节点显示比例' });
