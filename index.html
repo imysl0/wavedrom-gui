@@ -3218,6 +3218,15 @@ function bindGrid() {
       else exitAutoChain();                                      // 第二次：退出模式
       return;
     }
+    if (ev.key === 'Enter' && chainSel) {
+      const t = ev.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return; // 输入框内保留原行为（确认标签并关面板）
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      if ($('#cellPop').classList.contains('open')) closePop(); // 切换：开 → 关
+      else reopenPopAtChainSel();                               // 切换：关 → 在选中格打开
+      return;
+    }
     if (chainSel && ARROW_DELTA[ev.key]) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
