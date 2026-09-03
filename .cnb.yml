@@ -62,3 +62,18 @@
 
               Web 可视化编辑器与 wavedrom-render Skill 的版本发布。
             latest: true
+
+        - name: 准备 Release 附件
+          image: node:20
+          script: |
+            set -eu
+            test -f index.html
+            mv index.html wavedrom-gui.html
+            test -f wavedrom-gui.html
+            test ! -e index.html
+
+        - name: 上传 Release 附件
+          image: cnbcool/attachments:latest
+          settings:
+            attachments:
+              - "./wavedrom-gui.html"

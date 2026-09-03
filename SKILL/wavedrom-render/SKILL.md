@@ -1,9 +1,11 @@
 ---
 name: wavedrom-render
 description: >
-  把 WaveDrom WaveJSON（AI 生成的或手写的）渲染成时序波形图，输出 SVG / PNG。
-  默认「现代模式」——与 wavedrom-gui 编辑区完全一致的自绘风格（浅色主题、彩色分信号轨迹）；
-  也支持「传统模式」——官方 WaveDrom v3.5.0 渲染库（黑白官方样式，支持 default / narrow 皮肤）。
+  当用户需要将时序、周期行为或信号波形可视化，
+  或需要渲染、预览、编写、修复 WaveDrom / WaveJSON 时使用。
+  支持 AI 生成或用户手写的 WaveJSON，输出 SVG / PNG。
+  默认使用与 wavedrom-gui 一致的现代浅色风格，
+  也支持官方 WaveDrom v3.5.0 的传统风格。
 
   When the user gives WaveDrom / WaveJSON code (e.g. `{ "signal": [...] }`) and wants a
   waveform picture, timing diagram, 波形图, or to render/preview a signal as SVG/PNG,
@@ -20,8 +22,11 @@ description: >
 
 ## 何时使用
 
-- 用户给出一段 WaveDrom / WaveJSON（如 `{ "signal": [ { "name": "clk", "wave": "p..." } ] }`），想看成波形图 / 时序图 / 导出 SVG 或 PNG。
-- 需要把 AI 生成的时序描述可视化检视。
+- 用户提供 WaveDrom / WaveJSON，想预览为波形图、时序图，或导出 SVG / PNG。
+- 需要把 AI 生成的时序描述可视化检视，并检查周期、边沿、数据框、节点和连线是否符合预期。
+- 需要编写或修复 WaveJSON，包括补全 `wave`、`data`、`node`、`edge`、`period`、`phase` 等字段。
+- 需要在现代模式和传统 WaveDrom 模式之间选择渲染风格，或调整传统皮肤、节点位置、节点缩放和 PNG 清晰度。
+- 需要在没有浏览器或 `index.html` 的环境中，通过本目录 CLI 独立渲染波形。
 
 ## WaveJSON 生成指南
 
@@ -34,7 +39,7 @@ AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
 - 高电平 4 拍写 `"1..."`，**不要**写 `"1111"`；低电平同理 `"0..."`。
 - 时钟 8 拍写 `"p......."`，**不要**写 `"pppppppp"`（`n`/`P`/`N` 同理）。
 - 同一数据值占 3 拍写 `"=.."`（一个数据框横跨 3 拍）；值变化时再写一个 `=` 或 `2`–`9`。
-- `|`（间隙）之后不要用 `.` 延续，要重新写状态字符，如 `"0.1..0|1.0"`。
+- `|`（间隙）表示显式断口。为避免跨间隙产生歧义，`|` 之后建议重新写状态字符，不要直接使用 `.` 延续，如 `"0.1..0|1.0"`。
 
 ### 规则 2：单 bit 信号不用多 bit 专用字符
 
@@ -103,7 +108,7 @@ AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
 }
 ```
 
-> 骨架里的 `//` 注释仅供讲解。粘贴到 wavedrom-gui 代码页、本 skill 的 CLI、官方 wavedrom.com 编辑器都能直接渲染（三者均支持注释与宽松写法）；交给严格 JSON 解析器（如 kroki API）时请删除注释。
+> 骨架里的 `//` 注释仅供讲解。粘贴到 wavedrom-gui 代码页和本 skill 的 CLI 可直接渲染；官方 wavedrom.com 编辑器通常也支持这类宽松写法。交给严格 JSON 解析器（如 kroki API）时，请删除注释、未加引号的键、单引号和尾逗号。
 
 ## 前置条件
 
@@ -177,7 +182,9 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 - **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按调色板着色、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
 - **传统模式（traditional）**：直接调用内嵌的**官方 WaveDrom v3.5.0** 渲染引擎（`vendor/` 内），产出官方黑白样式，支持 `default` / `narrow` 两套皮肤。
 
-两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页、官方 wavedrom.com 编辑器的宽松解析行为一致）。
+两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页的宽松解析行为一致）。
+
+> 安全提示：宽松 WaveJSON 解析会使用 JavaScript 表达式求值，以兼容未加引号的键、单引号和尾逗号。仅处理可信输入；不要对来源不明的文件或网络内容直接运行 CLI。
 
 ## 支持的 WaveJSON 语法
 
