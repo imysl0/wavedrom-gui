@@ -9,7 +9,9 @@ const {
   pngReplaceITXt, pngExtractWaveJSON,
 } = require('./lib/meta-embed.js');
 
-const FENCE_RE = /```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)```/g;
+/* 围栏必须锚定行首（0-3 空格缩进，与 markdown-it 一致）——否则正文里出现
+   的 ```wavedrom 字样（如小标题）会被误认成围栏开头，导致定位/写回错位 */
+const FENCE_RE = /^(?: {0,3})```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}```/gm;
 const bridgeRegistry = new Map(); // k -> { kind:'fence'|'image', docPath, fenceRaw, imgPath }
 
 /* ---------------- 回环桥：预览 webview 的「编辑」按钮经图片信标到达扩展主进程 ----------------
@@ -55,7 +57,7 @@ function registerKey(info) {
 }
 
 /* ---------------- markdown-it 插件 ---------------- */
-function makePlugin(defaultTheme) {
+function makePlugin() {
   const b64 = s => Buffer.from(s, 'utf8').toString('base64');
   const isWaveFence = info => /^wave(?:drom|json)\b/i.test((info || '').trim());
 
@@ -73,7 +75,7 @@ function makePlugin(defaultTheme) {
         const k = registerKey({ kind: 'fence', docPath: docFs, fenceRaw: raw });
         editAttr = ` data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}"`;
       }
-      return `<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}" data-theme="${escapeAttr(defaultTheme)}"${editAttr}></div>\n`;
+      return `<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}"${editAttr}></div>\n`;
     };
 
     const prevImage = md.renderer.rules.image;
@@ -87,7 +89,7 @@ function makePlugin(defaultTheme) {
       const probe = probeImagePath(docFs, token.attrGet('src'));
       if (!probe) return imgHtml;
       const k = registerKey({ kind: 'image', docPath: docFs, imgPath: probe.absPath });
-      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-theme="${escapeAttr(defaultTheme)}" data-img="${escapeAttr(probe.relSrc)}" data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}">${imgHtml}</span>\n`;
+      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-img="${escapeAttr(probe.relSrc)}" data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}">${imgHtml}</span>\n`;
     };
   };
 }
@@ -193,6 +195,13 @@ function findFence(text, wanted) {
   while ((m = FENCE_RE.exec(text))) {
     if (list.some(w => m[1].trim() === w.trim())) return m;
   }
+  /* 兜底：忽略全部空白差异再比（CRLF / 缩进 / 空格风格漂移都会命中） */
+  const norm = s => String(s).replace(/\s+/g, '');
+  const wantNorm = list.map(norm);
+  FENCE_RE.lastIndex = 0;
+  while ((m = FENCE_RE.exec(text))) {
+    if (wantNorm.includes(norm(m[1]))) return m;
+  }
   return null;
 }
 
@@ -204,8 +213,28 @@ async function saveBack(target, json) {
   if (target.kind === 'fence') {
     try {
       const doc = await vscode.workspace.openTextDocument(target.docPath);
-      const hit = findFence(doc.getText(), [target.fenceRaw, target.lastSaved]);
-      if (!hit) { vscode.window.showErrorMessage('WaveDrom: 找不到原代码块（文件已变更？）'); return; }
+      let hit = findFence(doc.getText(), [target.fenceRaw, target.lastSaved]);
+      if (!hit) {
+        /* 兜底：精确与规范化都匹配不到（文件被大改）时，列出全部 wavedrom
+           代码块让用户指定写回目标，避免直接报错卡死 */
+        const text = doc.getText();
+        FENCE_RE.lastIndex = 0;
+        const cands = [];
+        let m;
+        while ((m = FENCE_RE.exec(text))) {
+          cands.push({
+            label: '``` 代码块 ' + (cands.length + 1),
+            description: (m[1].trim().split('\n')[0] || '').slice(0, 60),
+            match: m,
+          });
+        }
+        if (!cands.length) { vscode.window.showErrorMessage('WaveDrom: 文件中已没有 wavedrom 代码块'); return; }
+        const pick = cands.length === 1
+          ? cands[0]
+          : await vscode.window.showQuickPick(cands, { placeHolder: '找不到原代码块——请选择要写回的代码块' });
+        if (!pick) return;
+        hit = pick.match;
+      }
       const startOff = hit.index + hit[0].indexOf('\n') + 1;
       const endOff = hit.index + hit[0].lastIndexOf('```');
       const we = new vscode.WorkspaceEdit();
@@ -264,10 +293,9 @@ async function activate(ctx) {
   _ctx = ctx;
   await ensureBridge();
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editActive', editActiveCommand));
-  const defaultTheme = () => vscode.workspace.getConfiguration('wavedromGui').get('defaultTheme', 'modern');
   return {
     extendMarkdownIt(md) {
-      md.use(makePlugin(defaultTheme()));
+      md.use(makePlugin());
       return md;
     },
   };

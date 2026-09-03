@@ -7,23 +7,12 @@
     dec: function (b) { return decodeURIComponent(escape(atob(b))); },
   };
 
-  let lastTheme = null; // 用户最近一次点选的主题，新块默认跟随
-
   function stripXml(s) { return s.replace(/^<\?xml[^>]*\?>\s*/, '').replace(/<!DOCTYPE[^>]*>\s*/i, ''); }
 
   function renderModern(jsonText) {
     const src = JSON.parse(jsonText);
     const r = window.WaveDromModern.renderModern(src, {});
     return { svg: stripXml(r.svg) };
-  }
-
-  function renderTraditional(jsonText) {
-    const src = JSON.parse(JSON.stringify(JSON.parse(jsonText)));
-    let skinName = (src.config && src.config.skin) || 'default';
-    if (!window.WaveSkin[skinName]) skinName = 'default';
-    if (skinName !== 'default') src.config = Object.assign({}, src.config, { skin: skinName });
-    const tree = window.WaveDrom.renderAny(0, src, window.WaveSkin);
-    return { svg: stripXml(window.WaveDrom.stringify(tree)) };
   }
 
   function errSvg(msg) {
@@ -56,37 +45,18 @@
     let jsonText = '';
     try { jsonText = B64.dec(div.dataset.json || ''); } catch (e) { /* 保持为空 */ }
     const kind = div.dataset.wd; // fence | image
-    if (div.dataset.theme && !lastTheme) lastTheme = div.dataset.theme;
-    let theme = (lastTheme && lastTheme !== 'source') ? lastTheme : (div.dataset.theme || 'modern');
-    let showSource = false;
-
-    const originalImg = kind === 'image' ? div.querySelector('img') : null;
 
     const bar = el('div', 'wd-bar');
     const body = el('div', 'wd-body');
-
-    const themes = [['modern', '现代'], ['traditional', '传统']];
     const btns = {};
-    themes.forEach(function (p) {
-      const b = el('button', 'wd-btn', p[1]);
-      b.type = 'button';
-      b.addEventListener('click', function () { theme = p[1]; lastTheme = p[1]; showSource = false; apply(); });
-      bar.appendChild(b);
-      btns[p[0]] = b;
-    });
+    let mode = 'svg'; // svg | source
+
     if (kind === 'fence') {
       const src = el('button', 'wd-btn', '源码');
       src.type = 'button';
-      src.addEventListener('click', function () { showSource = !showSource; apply(); });
+      src.addEventListener('click', function () { mode = mode === 'source' ? 'svg' : 'source'; apply(); });
       bar.appendChild(src);
       btns.source = src;
-    }
-    if (originalImg) {
-      const orig = el('button', 'wd-btn', '原图');
-      orig.type = 'button';
-      orig.addEventListener('click', function () { theme = 'original'; apply(); });
-      bar.appendChild(orig);
-      btns.original = orig;
     }
     const edit = el('button', 'wd-btn wd-edit', '✏ 编辑');
     edit.type = 'button';
@@ -106,23 +76,16 @@
       Object.keys(btns).forEach(function (k) { btns[k].classList.remove('on'); });
       body.innerHTML = '';
 
-      if (showSource && btns.source) {
+      if (mode === 'source' && btns.source) {
         btns.source.classList.add('on');
         const pre = el('pre', 'wd-code');
         pre.textContent = jsonText;
         body.appendChild(pre);
         return;
       }
-      if (theme === 'original' && originalImg) {
-        btns.original.classList.add('on');
-        body.appendChild(originalImg);
-        return;
-      }
-      const key = theme === 'traditional' ? 'traditional' : 'modern';
-      btns[key].classList.add('on');
       const holder = el('div', 'wd-svg');
       try {
-        const r = key === 'traditional' ? renderTraditional(jsonText) : renderModern(jsonText);
+        const r = renderModern(jsonText);
         holder.innerHTML = r.svg;
       } catch (e) {
         holder.innerHTML = errSvg(e.message);
@@ -131,12 +94,10 @@
         body.appendChild(pre);
       }
       if (holder.firstChild) body.appendChild(holder);
-      if (originalImg && originalImg.parentNode !== div) { /* 原图节点始终保底挂在 div 上 */ }
     }
 
     div.innerHTML = '';
     div.appendChild(bar);
-    if (originalImg) div.appendChild(originalImg); // 先挂上保底，apply 时再移动
     div.appendChild(body);
     apply();
   }

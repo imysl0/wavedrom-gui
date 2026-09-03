@@ -1,8 +1,8 @@
 {
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
-  "description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代/传统双主题），并一键进入可视化编辑器，编辑结果写回原文件。",
-  "version": "0.1.0",
+  "description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。",
+  "version": "0.1.2",
   "publisher": "wavedrom-gui",
   "license": "MIT",
   "engines": {
@@ -19,8 +19,6 @@
   "contributes": {
     "markdown.markdownItPlugins": true,
     "markdown.previewScripts": [
-      "./vendor/waveskin.js",
-      "./vendor/wavedrom.bundle.js",
       "./media/modern-render.browser.js",
       "./media/preview.js"
     ],
@@ -33,21 +31,7 @@
         "title": "WaveDrom: 编辑当前 Markdown 中的图表",
         "category": "WaveDrom"
       }
-    ],
-    "configuration": {
-      "title": "WaveDrom-Gui",
-      "properties": {
-        "wavedromGui.defaultTheme": {
-          "type": "string",
-          "enum": [
-            "modern",
-            "traditional"
-          ],
-          "default": "modern",
-          "description": "Markdown 预览中 WaveDrom 图表的默认主题"
-        }
-      }
-    }
+    ]
   },
   "scripts": {
     "build": "node scripts/build.js",

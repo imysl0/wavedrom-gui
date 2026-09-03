@@ -88,6 +88,12 @@ ok(findFence(mdText, ['不存在的']) === null, '匹配不到返回 null');
 FENCE_RE.lastIndex = 0;
 ok(mdText.match(FENCE_RE).length >= 1, 'FENCE_RE 可用');
 
+/* 3b. 标题里的 ```wavedrom 不得被误认成围栏开头（回归：曾导致写回错位） */
+const trapMd = '## 标题（```wavedrom 围栏）\n\n```wavedrom\n{"signal":[{}]}\n```\n';
+const trapHit = findFence(trapMd, ['{"signal":[{}]}']);
+ok(trapHit && trapHit[1].trim() === '{"signal":[{}]}', '行首锚定：标题内反引号不再干扰围栏定位');
+ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏');
+
 /* ---- 4. markdown-it 集成（插件 + 真实 env） ---- */
 (async function main() {
   const MarkdownIt = require('markdown-it');
