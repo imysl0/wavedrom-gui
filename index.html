@@ -374,6 +374,9 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .icon-btn:disabled { opacity: .32; pointer-events: none; }
 .col-stepper { display: flex; gap: 4px; margin-left: 4px; }
 .col-stepper .btn { padding: 0 9px; font-family: var(--font-mono); font-size: 12px; }
+.editor-toolbar .chain-label { font: 600 11px var(--font-mono); color: var(--muted); margin-left: 4px; user-select: none; }
+#chainBtn.active { background: var(--acc); border-color: var(--acc); color: var(--acc-ink); font-weight: 600; }
+#chainBtn.active:hover { background: var(--acc); color: var(--acc-ink); }
 .editor-toolbar .hint {
   color: var(--faint); font-size: 11.5px; margin-left: auto;
   cursor: pointer; user-select: none;
@@ -527,6 +530,7 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .cell:hover { background: var(--cell-hover); }
 .cell.col-hl { background: var(--cell-hl); }
 .cell.painting { background: var(--cell-paint); }
+.cell.chain-sel { background: var(--cell-hl); box-shadow: inset 0 0 0 2px var(--acc); border-radius: 3px; }
 .grid-empty {
   margin: 60px auto; max-width: 430px; text-align: center;
   color: var(--muted);
@@ -995,6 +999,8 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <button class="btn ghost" data-act="add-col" data-n="1" title="网格增加 1 拍">＋</button>
         <button class="btn ghost" data-act="add-col" data-n="4" title="网格增加 4 拍">＋4</button>
       </div>
+      <span class="chain-label">自动连续</span>
+      <button class="btn ghost" id="chainBtn" data-act="toggle-autochain" aria-pressed="false" title="自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）">启动</button>
       <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
@@ -2082,6 +2088,7 @@ function renderGrid() {
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, F.text)));
   }
   renderMiniEdges();
+  if (autoChain && chainSel) restoreChainSelHighlight();
 }
 
 /* 编辑区网格上的边线叠加层：把两个节点标记连起来 */
@@ -2630,6 +2637,12 @@ const brushActive = id => id === 'select' ? state.tool.type === 'select'
   : id === 'erase' ? state.tool.type === 'erase'
   : state.tool.type === 'glyph' && state.tool.char === id;
 function setBrush(id, anchor) {
+  if (autoChain && chainSel && id !== 'select' && id !== 'erase') {
+    /* 自动连续模式：点波形笔刷 = 直接给当前选中格上色并右移（不切换当前工具） */
+    closeBrushFly(); closeBrushPanel();
+    paintChainCell(id);
+    return;
+  }
   if (id === 'erase') {
     /* 清除与右键清除重复：不再作为左键笔刷激活，点击只弹引导提示 */
     brushTip(ERASE_HINT, anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
@@ -2924,6 +2937,91 @@ function clearEditingRow() {
   document.querySelectorAll('#gridInner .lane-row.row-active').forEach(r => r.classList.remove('row-active'));
 }
 
+/* ---------- 交互：自动连续模式 ---------- */
+/* 锁定一个单元格连续给状态、逐格右移。中键点单元格可一步启动+选中；
+   模式内键盘字符 / 左键单击（openPop） / 点波形笔刷都作用于选中格并右移。 */
+let autoChain = false, chainSel = null; // chainSel = { laneId, t }
+/* 当前可见（未被折叠分组隐藏）的信号行 id，顺序与网格渲染一致 */
+function visibleChainLaneIds() {
+  const ids = [];
+  const walk = list => list.forEach(n => {
+    if (n.kind === 'group') { if (!collapsedGroups.has(n.id)) walk(n.children); }
+    else if (n.kind === 'lane') ids.push(n.id);
+  });
+  walk(state.tree);
+  return ids;
+}
+function updateChainBtn() {
+  const btn = $('#chainBtn');
+  if (!btn) return;
+  btn.textContent = autoChain ? '退出' : '启动';
+  btn.classList.toggle('active', autoChain);
+  btn.setAttribute('aria-pressed', autoChain ? 'true' : 'false');
+  btn.title = autoChain
+    ? '自动连续模式进行中：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；ESC 或点此退出'
+    : '自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）';
+}
+function clearChainHighlight() {
+  document.querySelectorAll('#gridInner .cell.chain-sel').forEach(c => c.classList.remove('chain-sel'));
+}
+/* 依 chainSel 反查 cell 重贴高亮；越界（减拍/删拍后 t 超出可见窗口）则校正或退出 */
+function restoreChainSelHighlight() {
+  clearChainHighlight();
+  if (!chainSel) return;
+  const lane = getLaneById(chainSel.laneId);
+  if (!lane) { exitAutoChain(); return; }
+  const win = gridWindow();
+  if (chainSel.t >= win.b) chainSel.t = win.b - 1;
+  if (chainSel.t < win.a) chainSel.t = win.a;
+  markEditingRow(lane);
+  const cell = document.querySelector(`#gridInner .cell[data-lane="${lane.id}"][data-t="${chainSel.t}"]`);
+  if (cell) cell.classList.add('chain-sel');
+}
+function setChainSel(lane, t) {
+  chainSel = { laneId: lane.id, t };
+  clearChainHighlight();
+  markEditingRow(lane);
+  const cell = document.querySelector(`#gridInner .cell[data-lane="${lane.id}"][data-t="${t}"]`);
+  if (cell) { cell.classList.add('chain-sel'); cell.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+}
+function enterAutoChain(withCell) {
+  autoChain = true;
+  updateChainBtn();
+  if (!withCell) {
+    chainSel = null;
+    clearChainHighlight();
+    toast('自动连续模式已启动：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）');
+  }
+}
+function exitAutoChain() {
+  autoChain = false;
+  chainSel = null;
+  clearChainHighlight();
+  clearEditingRow();
+  updateChainBtn();
+  if (state.tool.type !== 'select') setBrush('select');
+}
+/* 渲染当前选中格后跳到右侧一格；本行到头则跳下一可见信号行首格；已是末尾则退出 */
+function advanceChain() {
+  if (!chainSel) return;
+  const win = gridWindow();
+  const ids = visibleChainLaneIds();
+  const li = ids.indexOf(chainSel.laneId);
+  if (li < 0) { exitAutoChain(); return; }
+  if (chainSel.t + 1 < win.b) { const lane = getLaneById(chainSel.laneId); if (lane) setChainSel(lane, chainSel.t + 1); return; }
+  if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, win.a); return; } }
+  toast('已到最后一行末尾，自动连续模式已退出');
+  exitAutoChain();
+}
+/* 对当前选中格上色并右移；char 为合法波形字符 */
+function paintChainCell(char) {
+  if (!chainSel) return;
+  const lane = getLaneById(chainSel.laneId);
+  if (!lane) { exitAutoChain(); return; }
+  paintCell(lane, chainSel.t, char); // 内部会 update() → renderGrid()（restoreChainSelHighlight 会重贴当前格）
+  advanceChain();
+}
+
 /* 状态字符网格：单元格弹窗与笔刷面板共用（延续 + 26 字符，5 列） */
 function buildGlyphGrid(parent, currentGlyph, onPick) {
   const glyphs = h('div', { class: 'pop-glyphs' });
@@ -2955,7 +3053,10 @@ function openPop(lane, t, anchor) {
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
     (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空'));
   pop.appendChild(title);
-  buildGlyphGrid(pop, eff, ch => { paintCell(lane, t, ch); closePop(); });
+  buildGlyphGrid(pop, eff, ch => {
+    if (autoChain && chainSel && chainSel.laneId === lane.id && chainSel.t === t) { closePop(); paintChainCell(ch); }
+    else { paintCell(lane, t, ch); closePop(); }
+  });
 
   if (slot && isData(slot.glyph)) {
     const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '如 0x1F、D0、NOP', 'aria-label': '数据标签' });
@@ -3064,9 +3165,20 @@ function bindGrid() {
   let downPos = null;
   inner.addEventListener('mousedown', ev => {
     const cell = ev.target.closest('.cell');
+    if (ev.button === 1) { // 中键：点单元格 = 一步启动+选中；点编辑区内非单元格 = 提示
+      ev.preventDefault(); // 阻止浏览器中键自动滚动
+      if (cell) {
+        const lane = getLaneById(+cell.dataset.lane);
+        if (lane) { if (!autoChain) enterAutoChain(true); setChainSel(lane, +cell.dataset.t); }
+      } else {
+        toast('只有点选单元格才会启动自动连续模式');
+      }
+      return;
+    }
     if (!cell || ev.button !== 0) return;
     downPos = [ev.clientX, ev.clientY];
     paintedSinceDown = false;
+    if (autoChain) return; // 模式内左键不涂抹/不拖延续，交给 click → setChainSel + openPop
     if (state.tool.type === 'glyph') {
       const lane = getLaneById(+cell.dataset.lane);
       if (lane) { paintCell(lane, +cell.dataset.t, state.tool.char); painting = true; paintLane = lane.id; dragLastT = +cell.dataset.t; ev.preventDefault(); }
@@ -3129,11 +3241,15 @@ function bindGrid() {
   inner.addEventListener('click', ev => {
     const cell = ev.target.closest('.cell');
     if (!cell) return;
-    if (state.tool.type !== 'select') return;
     if (paintedSinceDown) return;
     const moved = downPos && Math.hypot(ev.clientX - downPos[0], ev.clientY - downPos[1]) > 4;
     if (moved) return;
     const lane = getLaneById(+cell.dataset.lane);
+    if (autoChain) { // 模式内左键单击：把选中格移到被点格并弹状态面板（与选择笔刷单击一致）
+      if (lane) { setChainSel(lane, +cell.dataset.t); openPop(lane, +cell.dataset.t, cell); }
+      return;
+    }
+    if (state.tool.type !== 'select') return;
     if (lane) openPop(lane, +cell.dataset.t, cell);
   });
   inner.addEventListener('contextmenu', ev => {
@@ -3166,8 +3282,15 @@ function bindGrid() {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    if (ev.key === 'Escape') { setBrush('select'); return; }
-    if (BRUSH_KEYS.includes(ev.key) && ev.key !== '') { setBrush(ev.key); ev.preventDefault(); }
+    if (ev.key === 'Escape') { if (autoChain) exitAutoChain(); else setBrush('select'); return; }
+    if (BRUSH_KEYS.includes(ev.key) && ev.key !== '') {
+      if (autoChain) { // 模式内：有选中格则给该格上色并右移；无选中格则忽略（等待中键点选）
+        if (chainSel) paintChainCell(ev.key);
+        ev.preventDefault();
+        return;
+      }
+      setBrush(ev.key); ev.preventDefault();
+    }
   });
 }
 
@@ -3779,6 +3902,7 @@ function handleAct(act, btn) {
       toast('分组已添加，用通道按钮里的「移入分组」收纳通道');
       break;
     }
+    case 'toggle-autochain': { autoChain ? exitAutoChain() : enterAutoChain(false); break; }
     case 'add-col': {
       const n = +(btn && btn.dataset ? btn.dataset.n : 4) || 4;
       const cur = computeCols();
