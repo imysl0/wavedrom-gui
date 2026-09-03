@@ -2941,6 +2941,13 @@ function clearEditingRow() {
 /* 锁定一个单元格连续给状态、逐格右移。中键点单元格可一步启动+选中；
    模式内键盘字符 / 左键单击（openPop） / 点波形笔刷都作用于选中格并右移。 */
 let autoChain = false, chainSel = null; // chainSel = { laneId, t }
+let chainSelCount = 0; // 本次模式内选中格的累计次数，用于前 3 次的分步引导提示
+/* 前 3 次选中格依次给出引导提示，第 4 次起不再提示 */
+const CHAIN_TIPS = [
+  '鼠标点击笔刷或按笔刷快捷键即可快速渲染并自动跳到下一个单元格',
+  '使用方向键可快速调整选中的单元格',
+  '任何情况下用 + / − 快捷键都可以增减拍',
+];
 /* 当前可见（未被折叠分组隐藏）的信号行 id，顺序与网格渲染一致 */
 function visibleChainLaneIds() {
   const ids = [];
@@ -2983,9 +2990,13 @@ function setChainSel(lane, t) {
   markEditingRow(lane);
   const cell = document.querySelector(`#gridInner .cell[data-lane="${lane.id}"][data-t="${t}"]`);
   if (cell) { cell.classList.add('chain-sel'); cell.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+  const tip = CHAIN_TIPS[chainSelCount]; // 前 3 次选中的分步引导；之后为 undefined 不提示
+  chainSelCount++;
+  if (tip) cellTip(tip, lane, t);
 }
 function enterAutoChain(withCell) {
   autoChain = true;
+  chainSelCount = 0; // 每次进入模式重新计数分步引导
   updateChainBtn();
   if (!withCell) {
     chainSel = null;
