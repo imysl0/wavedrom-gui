@@ -38,7 +38,7 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 
 ## 产品三：VSCode 插件（开发中）
 
-> ⚠️ 尚在开发中，功能与体验可能变动，暂未上架插件市场，欢迎试用反馈。
+> ⚠️ 尚在开发的早期阶段，无法正常使用，欢迎PR。
 
 把 wavedrom-gui 的能力带进 VS Code：在内置 Markdown 预览里直接渲染 ```` ```wavedrom ```` 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。
 
