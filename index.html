@@ -3052,6 +3052,14 @@ function moveChainSel(dx, dy) {
     if (lane) setChainSel(lane, Math.min(win.b - 1, Math.max(win.a, chainSel.t)));
   }
 }
+/* 在当前 chainSel 处重新打开状态面板（供方向键移动后跟随打开）；找不到 cell 则跳过 */
+function reopenPopAtChainSel() {
+  if (!chainSel) return;
+  const lane = getLaneById(chainSel.laneId);
+  if (!lane) return;
+  const cell = document.querySelector(`#gridInner .cell[data-lane="${lane.id}"][data-t="${chainSel.t}"]`);
+  if (cell) openPop(lane, chainSel.t, cell);
+}
 
 /* 状态字符网格：单元格弹窗与笔刷面板共用（延续 + 26 字符，5 列） */
 function buildGlyphGrid(parent, currentGlyph, onPick) {
@@ -3194,17 +3202,29 @@ function openLanePropPop(lane, anchor) {
 function bindGrid() {
   const inner = $('#gridInner');
   let downPos = null;
-  /* 自动连续模式的 Esc 分级退出：捕获阶段优先处理，早于其它 Esc 监听。
-     面板开着 → 第一次 Esc 只关面板、保留模式；面板已关 → 再按 Esc 才退出模式。
-     命中时 stopImmediatePropagation 阻止后续 closePop/退出等重复处理。 */
+  /* 自动连续模式的 Esc 分级退出 + 方向键移动：捕获阶段优先处理，早于其它 Esc/方向键监听，
+     且不受面板输入框焦点影响（面板里的数据标签输入框会抢焦点）。
+     Esc：面板开着 → 第一次仅关面板、保留模式；面板已关 → 再按才退出模式。
+     方向键：移动选中格；若移动前面板是打开的，移动后在新格重新打开面板（面板跟随选中格）。 */
+  const ARROW_DELTA = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   document.addEventListener('keydown', ev => {
-    if (ev.key !== 'Escape' || !autoChain) return;
+    if (!autoChain) return;
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    const t = ev.target;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    ev.stopImmediatePropagation();
-    if ($('#cellPop').classList.contains('open')) closePop(); // 第一次：仅退面板，模式保留
-    else exitAutoChain();                                      // 第二次：退出模式
+    if (ev.key === 'Escape') {
+      const t = ev.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      ev.stopImmediatePropagation();
+      if ($('#cellPop').classList.contains('open')) closePop(); // 第一次：仅退面板，模式保留
+      else exitAutoChain();                                      // 第二次：退出模式
+      return;
+    }
+    if (chainSel && ARROW_DELTA[ev.key]) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      const wasPopOpen = $('#cellPop').classList.contains('open');
+      moveChainSel(ARROW_DELTA[ev.key][0], ARROW_DELTA[ev.key][1]);
+      if (wasPopOpen) reopenPopAtChainSel(); // 面板跟随移动后的选中格打开
+    }
   }, true);
   inner.addEventListener('mousedown', ev => {
     const cell = ev.target.closest('.cell');
@@ -3326,13 +3346,7 @@ function bindGrid() {
     const t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (ev.key === 'Escape') { if (!autoChain) setBrush('select'); return; } // autoChain 的 Esc 由捕获阶段分级处理
-    if (autoChain && chainSel && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' || ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) {
-      // 自动连续模式：方向键调整选中格（不上色、到边界停住）
-      moveChainSel(ev.key === 'ArrowLeft' ? -1 : ev.key === 'ArrowRight' ? 1 : 0,
-                   ev.key === 'ArrowUp' ? -1 : ev.key === 'ArrowDown' ? 1 : 0);
-      ev.preventDefault();
-      return;
-    }
+    // autoChain 的方向键由捕获阶段处理（不受面板输入框焦点影响）
     if (ev.key === '+' || ev.key === 'Add') {
       // 全局：+ 加 1 拍（不论自动连续模式是否启动；= 键仍作数据笔刷）
       $('.col-stepper [data-act="add-col"][data-n="1"]').click();
