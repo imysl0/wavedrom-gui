@@ -772,6 +772,19 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
 .modal .m-err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 16px; }
 .modal a { color: var(--info); }
 .modal a:hover { text-decoration: underline; }
+/* 快捷键弹窗 */
+#shortcutMask .modal { width: min(560px, 94vw); }
+.sc-groups { display: flex; flex-direction: column; gap: 14px; max-height: 62vh; overflow: auto; }
+.sc-group { display: flex; flex-direction: column; gap: 3px; }
+.sc-gt { font: 600 11.5px var(--font-mono); color: var(--acc-text); letter-spacing: .3px; margin-bottom: 3px; }
+.sc-row { display: flex; align-items: baseline; gap: 12px; padding: 3px 0; }
+.sc-k { flex: none; min-width: 210px; display: flex; flex-wrap: wrap; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); }
+.sc-d { color: var(--text); font-size: 12.5px; }
+.sc-k kbd {
+  font: 600 11px var(--font-mono); color: var(--text);
+  background: var(--raise); border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 5px; padding: 1px 6px; min-width: 14px; text-align: center;
+}
 
 /* Toast */
 .toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
@@ -892,6 +905,10 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   </div>
   <div class="menu-wrap" id="m-settings">
     <button class="btn ghost" aria-haspopup="true">设置 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+    <div class="menu"></div>
+  </div>
+  <div class="menu-wrap" id="m-help">
+    <button class="btn ghost" aria-haspopup="true">帮助 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu"></div>
   </div>
   <button class="btn ghost" data-act="open-about" title="关于本项目">
@@ -1080,6 +1097,43 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     <div class="m-foot">
       <button class="btn ghost" data-act="about-close">关闭</button>
       <button class="btn primary" data-act="about-repo">打开仓库 ↗</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="shortcutMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="快捷键">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/></svg>快捷键</h3>
+    <div class="sc-groups">
+      <div class="sc-group">
+        <div class="sc-gt">通用</div>
+        <div class="sc-row"><span class="sc-k"><kbd>Ctrl</kbd>+<kbd>Z</kbd></span><span class="sc-d">撤销</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></span><span class="sc-d">重做</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>+</kbd></span><span class="sc-d">网格加 1 拍</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>−</kbd></span><span class="sc-d">网格减 1 拍</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Esc</kbd></span><span class="sc-d">关闭弹窗 / 菜单，或笔刷回「选择」</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-gt">笔刷（字符直切）</div>
+        <div class="sc-row"><span class="sc-k"><kbd>0</kbd> <kbd>1</kbd></span><span class="sc-d">低 / 高电平</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>p</kbd> <kbd>n</kbd> <kbd>P</kbd> <kbd>N</kbd></span><span class="sc-d">时钟 / 反相 / 带边沿标记</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>u</kbd> <kbd>d</kbd> <kbd>U</kbd> <kbd>D</kbd></span><span class="sc-d">上升 / 下降沿</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>h</kbd> <kbd>l</kbd> <kbd>H</kbd> <kbd>L</kbd></span><span class="sc-d">高 / 低电平段</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>x</kbd> <kbd>z</kbd></span><span class="sc-d">不确定态 / 高阻</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>=</kbd> <kbd>2</kbd>–<kbd>9</kbd></span><span class="sc-d">数据框（多 bit 总线）</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>|</kbd> <kbd>.</kbd></span><span class="sc-d">间隙 / 延续上一拍</span></div>
+      </div>
+      <div class="sc-group">
+        <div class="sc-gt">自动模式（连续编辑）</div>
+        <div class="sc-row"><span class="sc-k">鼠标中键点单元格</span><span class="sc-d">一步启动模式并选中该格</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></span><span class="sc-d">移动选中格（面板打开则跟随）</span></div>
+        <div class="sc-row"><span class="sc-k">笔刷字符键 / 点笔刷 / 左键选状态</span><span class="sc-d">给当前格上色并自动右移</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Enter</kbd></span><span class="sc-d">开 / 关当前格状态面板</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Esc</kbd></span><span class="sc-d">先关面板，再按退出模式</span></div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button class="btn primary" data-act="shortcut-close">知道了</button>
     </div>
   </div>
 </div>
@@ -3358,7 +3412,7 @@ function bindGrid() {
     const bp = $('#brushPanel');
     if (bp && !ev.target.closest('.fan-box') && !bp.contains(ev.target)) bp.remove();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
@@ -3634,8 +3688,16 @@ function buildSettingsMenu(menu) {
     menu.appendChild(b);
   });
 }
+function buildHelpMenu(menu) {
+  menu.textContent = '';
+  const b = h('button', null,
+    icon('<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>', 14),
+    '快捷键');
+  b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); handleAct('open-shortcut'); });
+  menu.appendChild(b);
+}
 function bindMenus() {
-  [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-font', buildFontMenu], ['#m-settings', buildSettingsMenu], ['#m-view', buildViewMenu]].forEach(([sel, builder]) => {
+  [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-font', buildFontMenu], ['#m-settings', buildSettingsMenu], ['#m-help', buildHelpMenu], ['#m-view', buildViewMenu]].forEach(([sel, builder]) => {
     const wrap = $(sel);
     const btn = wrap.querySelector(':scope > button');
     const menu = wrap.querySelector(':scope > .menu');
@@ -4102,6 +4164,8 @@ function handleAct(act, btn) {
     case 'open-about': $('#aboutMask').classList.add('open'); break;
     case 'about-close': $('#aboutMask').classList.remove('open'); break;
     case 'about-repo': window.open('https://cnb.cool/linshi-2026/wavedrom-gui', '_blank'); break;
+    case 'open-shortcut': $('#shortcutMask').classList.add('open'); break;
+    case 'shortcut-close': $('#shortcutMask').classList.remove('open'); break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
       download('wavedrom.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
@@ -4358,6 +4422,7 @@ function init() {
   bindDropImport();
   $('#pasteMask').addEventListener('mousedown', ev => { if (ev.target === $('#pasteMask')) handleAct('paste-cancel'); });
   $('#aboutMask').addEventListener('mousedown', ev => { if (ev.target === $('#aboutMask')) handleAct('about-close'); });
+  $('#shortcutMask').addEventListener('mousedown', ev => { if (ev.target === $('#shortcutMask')) handleAct('shortcut-close'); });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && $('#pasteMask').classList.contains('open') && (ev.ctrlKey || ev.metaKey)) handleAct('paste-ok');
   });
