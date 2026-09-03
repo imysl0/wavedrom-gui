@@ -198,6 +198,7 @@ svg { display: block; }
 #m-font .menu button .kbd { margin-left: auto; }
 #m-font .menu button .check { margin-left: 8px; }
 .menu .sep { height: 1px; background: var(--line-soft); margin: 5px 4px; }
+.menu .menu-tip { padding: 2px 10px 6px; font-size: 11px; color: var(--faint); }
 #m-settings .menu { min-width: 238px; }
 .menu-sec { font-size: 11px; font-weight: 600; color: var(--faint); padding: 7px 10px 3px; letter-spacing: .04em; }
 .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 2px 8px 4px; }
@@ -769,6 +770,26 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
 .toast.err { border-color: var(--danger); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
+/* 拖放导入遮罩：整窗接收，pointer-events 全程放行以免打断拖拽事件序列 */
+#dropZone {
+  position: fixed; inset: 0; z-index: 300; pointer-events: none;
+  display: none; align-items: center; justify-content: center;
+  background: var(--mask);
+}
+#dropZone.open { display: flex; }
+#dropZone .dz-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 32px 56px;
+  background: var(--panel);
+  border: 2px dashed var(--acc); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  animation: dz-in .16s cubic-bezier(.16, 1, .3, 1);
+}
+#dropZone .dz-icon { color: var(--acc); }
+#dropZone .dz-title { font: 600 15px var(--font-ui); color: var(--text); }
+#dropZone .dz-sub { font-size: 12.5px; color: var(--muted); }
+@keyframes dz-in { from { opacity: 0; transform: scale(.96); } }
+
 /* 单元格锚定提示气泡：无效清除等就地反馈，带指向小箭头 */
 #cellTip {
   position: fixed; z-index: 210; pointer-events: none; max-width: 340px;
@@ -849,6 +870,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     <div class="menu">
       <button data-act="import-file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg>打开文件（JSON / SVG / PNG）…</button>
       <button data-act="import-paste"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="9" height="10" rx="1.5"/><path d="M11 4V3a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 3 3v8A1.5 1.5 0 0 0 4.5 12.5H5"/></svg>粘贴 WaveJSON…</button>
+      <div class="menu-tip">也可把文件直接拖进窗口</div>
       <div class="sep"></div>
       <button data-act="open-tutorial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg>WaveDrom 语法教程</button>
     </div>
@@ -1047,6 +1069,13 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 </div>
 
 <input type="file" id="fileInput" accept=".json,.txt,.svg,.png,application/json,image/svg+xml,image/png" hidden>
+<div id="dropZone" aria-hidden="true">
+  <div class="dz-card">
+    <svg class="dz-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
+    <div class="dz-title">松开即可导入</div>
+    <div class="dz-sub">支持 PNG / SVG / JSON（PNG、SVG 需带内嵌 WaveJSON）</div>
+  </div>
+</div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
@@ -3526,6 +3555,61 @@ function pngExtractWaveJSON(bytes) {
   }
   return null;
 }
+/* 文件导入：菜单选择与窗口拖放共用同一条解析链（PNG 内嵌块 / SVG 内嵌 / 纯 JSON） */
+function importFile(f) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const bytes = new Uint8Array(rd.result);
+      let jsonText;
+      if (bytes.length > 8 && PNG_SIG.every((b, i) => bytes[i] === b)) {
+        jsonText = pngExtractWaveJSON(bytes);
+        if (!jsonText) throw new Error('PNG 里没有内嵌 WaveJSON（可能已被转存剥离）');
+      } else {
+        const text = new TextDecoder().decode(bytes);
+        if (/^\s*(<\?xml|<!DOCTYPE|<svg[\s>])/i.test(text)) {
+          jsonText = svgExtractWaveJSON(text);
+          if (!jsonText) throw new Error('SVG 里没有内嵌 WaveJSON');
+        } else jsonText = text;
+      }
+      applyDocJSON(parseWaveJSON(jsonText));
+      toast('已导入 ' + f.name);
+    } catch (e) { toast('文件解析失败：' + e.message, true); }
+  };
+  rd.onerror = () => toast('文件读取失败：' + f.name, true);
+  rd.readAsArrayBuffer(f);
+}
+function bindDropImport() {
+  const zone = $('#dropZone');
+  /* dragenter/dragleave 在子元素间穿梭时会成对乱序触发，用进出计数判断是否真正离开窗口 */
+  let depth = 0;
+  const hasFile = ev => Array.from(ev.dataTransfer?.types || []).includes('Files');
+  const hide = () => { depth = 0; zone.classList.remove('open'); };
+  window.addEventListener('dragenter', ev => {
+    if (!hasFile(ev)) return;
+    ev.preventDefault();
+    depth++; zone.classList.add('open');
+  });
+  window.addEventListener('dragover', ev => {
+    if (!hasFile(ev)) return;
+    ev.preventDefault(); /* 不阻止默认行为，浏览器会直接跳转打开该文件 */
+    ev.dataTransfer.dropEffect = 'copy';
+  });
+  window.addEventListener('dragleave', ev => {
+    if (!hasFile(ev)) return;
+    if (--depth <= 0) hide();
+  });
+  window.addEventListener('drop', ev => {
+    if (!hasFile(ev)) return;
+    ev.preventDefault();
+    hide();
+    const files = Array.from(ev.dataTransfer.files || []);
+    if (!files.length) return;
+    if (files.length > 1) toast('一次只能导入一个文件，已取第一个', true);
+    importFile(files[0]);
+  });
+}
+
 async function pngWithMeta(blob, json) {
   try {
     const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -4024,29 +4108,10 @@ function init() {
   }));
   $('#fileInput').addEventListener('change', ev => {
     const f = ev.target.files[0];
-    if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () => {
-      try {
-        const bytes = new Uint8Array(rd.result);
-        let jsonText;
-        if (bytes.length > 8 && PNG_SIG.every((b, i) => bytes[i] === b)) {
-          jsonText = pngExtractWaveJSON(bytes);
-          if (!jsonText) throw new Error('PNG 里没有内嵌 WaveJSON（可能已被转存剥离）');
-        } else {
-          const text = new TextDecoder().decode(bytes);
-          if (/^\s*(<\?xml|<!DOCTYPE|<svg[\s>])/i.test(text)) {
-            jsonText = svgExtractWaveJSON(text);
-            if (!jsonText) throw new Error('SVG 里没有内嵌 WaveJSON');
-          } else jsonText = text;
-        }
-        applyDocJSON(parseWaveJSON(jsonText));
-        toast('已导入 ' + f.name);
-      } catch (e) { toast('文件解析失败：' + e.message, true); }
-    };
-    rd.readAsArrayBuffer(f);
+    if (f) importFile(f);
     ev.target.value = '';
   });
+  bindDropImport();
   $('#pasteMask').addEventListener('mousedown', ev => { if (ev.target === $('#pasteMask')) handleAct('paste-cancel'); });
   $('#aboutMask').addEventListener('mousedown', ev => { if (ev.target === $('#aboutMask')) handleAct('about-close'); });
   document.addEventListener('keydown', ev => {
