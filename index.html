@@ -764,6 +764,23 @@ html[data-theme="light"] #themeBtn .ic-sun { display: none; }
   border: 1px solid var(--line-soft); border-radius: 999px;
   padding: 1px 8px; user-select: none;
 }
+/* 顶栏版本徽标：可点击去仓库首页看看有没有新版，悬停给一句提示 */
+header .ver-badge.ver-link {
+  position: relative;
+  cursor: pointer; background: transparent;
+}
+header .ver-badge.ver-link:hover { color: var(--acc-text); border-color: var(--acc); }
+header .ver-badge.ver-link .ver-pop {
+  display: none;
+  position: absolute; left: 50%; transform: translateX(-50%); top: calc(100% + 8px);
+  z-index: 60;
+  background: var(--raise); border: 1px solid var(--line-hover); border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  padding: 8px 12px;
+  font: 400 11.5px/1.6 var(--font-ui); color: var(--muted);
+  white-space: nowrap; cursor: pointer;
+}
+header .ver-badge.ver-link:hover .ver-pop, header .ver-badge.ver-link:focus-visible .ver-pop { display: block; }
 .modal p { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; }
 .modal textarea {
   width: 100%; height: 220px; resize: vertical;
@@ -917,7 +934,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <button class="btn ghost" data-act="open-about" title="关于本项目">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
   </button>
-  <span class="ver-badge" data-app-version title="版本 dev">dev</span>
+  <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip">说不定有新版了，快点击去仓库首页看看吧！</span></button>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -1176,8 +1193,8 @@ try { module.exports = WaveSkin; } catch(err) {}
 function syncAppVersion() {
   const version = document.querySelector('meta[name="app-version"]')?.content.trim() || 'dev';
   document.querySelectorAll('[data-app-version]').forEach(el => { el.textContent = version; });
-  const topBadge = document.querySelector('header > [data-app-version]');
-  if (topBadge) topBadge.title = '版本 ' + version;
+  const topBadge = document.querySelector('#verBadge');
+  if (topBadge) topBadge.setAttribute('aria-label', '当前版本 ' + version + '，点击打开仓库首页');
 }
 syncAppVersion();
 
