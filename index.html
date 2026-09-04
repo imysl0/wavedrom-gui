@@ -1290,6 +1290,7 @@ const CELLW = 40, NAMEW = 196;
 const NODE_LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DATA_CHARS = '=23456789';
 const CLOCK_CHARS = 'pnPN';
+const LEVEL_EDGE_CHARS = '01hlHLudUD';
 /* 选中格滚轮切换的候选环：按通道类型取用（见 laneType） */
 const WHEEL_CYCLES = {
   clock: ['p', 'n', 'P', 'N'],
@@ -1298,6 +1299,8 @@ const WHEEL_CYCLES = {
 };
 /* 待初始化通道（只有第一格）不限类型：按笔刷分组顺序取三类元素的合集（间隙除外） */
 WHEEL_CYCLES.seed = [...new Set(BRUSH_GROUPS.filter(g => g.name !== '间隙').flatMap(g => g.items))];
+/* 非时钟通道（只有 x/z 等，判不出电平还是数据）：信号环与总线环的合集 */
+WHEEL_CYCLES.nonclock = [...new Set([...WHEEL_CYCLES.signal, ...WHEEL_CYCLES.bus])];
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 let xclipSeq = 0;
 const gridCellW = () => CELLW * (state.hscale || 1);
@@ -1560,17 +1563,22 @@ function allLanes() { const r = []; eachLane(l => r.push(l)); return r; }
 function isData(g) { return DATA_CHARS.includes(g); }
 
 /* 通道类型：无持久字段，按整条已落字符推断（'.' 延续与 '|' 间隙不参与）。
-   只有第一格的通道视为「待初始化」，滚轮给三类元素的合集，方便一格定基调。 */
+   只有第一格的通道视为「待初始化」，滚轮给三类元素的合集，方便一格定基调；
+   既无时钟也无电平/沿、只有 x/z 之类的通道判不出方向，兜底为「非时钟」，给信号+总线合集。 */
 function laneType(lane) {
   if (laneLen(lane) <= 1) return 'seed';
-  let hasClock = false, hasData = false;
+  let hasClock = false, hasData = false, hasLevel = false;
   (lane.slots || []).forEach(s => {
     const g = s && s.glyph;
     if (!g || g === '.' || g === '|') return;
     if (CLOCK_CHARS.includes(g)) hasClock = true;
     else if (isData(g)) hasData = true;
+    else if (LEVEL_EDGE_CHARS.includes(g)) hasLevel = true;
   });
-  return hasClock ? 'clock' : hasData ? 'bus' : 'signal';
+  if (hasClock) return 'clock';
+  if (hasData) return 'bus';
+  if (hasLevel) return 'signal';
+  return 'nonclock';
 }
 
 /* ---------- 序列化 ---------- */
