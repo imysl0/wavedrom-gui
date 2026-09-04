@@ -3147,7 +3147,7 @@ function exitAutoChain() {
   updateChainBtn();
   if (state.tool.type !== 'select') setBrush('select');
 }
-/* 渲染当前选中格后跳到右侧一格；本行到头则跳下一可见信号行首格；已是末尾则退出 */
+/* 渲染当前选中格后跳到右侧一格；本行到头则跳下一可见信号行首格；已是末尾则停留 */
 function advanceChain() {
   if (!chainSel) return;
   const win = gridWindow();
@@ -3156,8 +3156,8 @@ function advanceChain() {
   if (li < 0) { exitAutoChain(); return; }
   if (chainSel.t + 1 < win.b) { const lane = getLaneById(chainSel.laneId); if (lane) setChainSel(lane, chainSel.t + 1); return; }
   if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, win.a); return; } }
-  toast('已到最后一行末尾，自动连续模式已退出');
-  exitAutoChain();
+  toast('已到最后一行末尾，自动连续模式停留在当前格');
+  restoreChainSelHighlight();
 }
 /* 对当前选中格上色并右移；char 为合法波形字符 */
 function paintChainCell(char) {
