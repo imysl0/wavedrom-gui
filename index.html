@@ -1315,7 +1315,7 @@ const NODE_LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DATA_CHARS = '=23456789';
 const CLOCK_CHARS = 'pnPN';
 const LEVEL_EDGE_CHARS = '01hlHLudUD';
-/* 选中格滚轮切换的候选环：按通道类型取用（见 laneType） */
+/* 各通道类型的合法字符集参考（原用于滚轮状态环，滚轮已改为上/下变换 cellUp/cellDown；此处保留备用） */
 const WHEEL_CYCLES = {
   clock: ['p', 'n', 'P', 'N'],
   signal: ['0', '1', 'h', 'l', 'H', 'L', 'u', 'd', 'U', 'D', 'z', 'x'],
@@ -1603,6 +1603,55 @@ function laneType(lane) {
   if (hasData) return 'bus';
   if (hasLevel) return 'signal';
   return 'nonclock';
+}
+
+/* 拖动越界的上/下变换：按字符本身归类（基准字符已决定其类别），返回变换后的字符。
+   时钟：上=大小写互切（相位不变 p↔P n↔N）；下=正负相切换（大小写不变 p↔n P↔N）。
+   总线：上=数值+1（'=' 视为 1 只作起点，2..9 环形，9→2）；下=一律 x。
+   信号：0↔1（上1下0）、h/l、H/L、u/d、U/D 成对（上取高/前者，下取低/后者）。
+   x：上→2 下→0；z：上→1 下→0。未识别字符原样返回。 */
+const BUS_UP_RING = '23456789'; // '=' 起点上变换进入 2，之后环形回绕到 2
+function cellUp(g) {
+  switch (g) {
+    case 'p': return 'P'; case 'P': return 'p';
+    case 'n': return 'N'; case 'N': return 'n';
+    case '0': return '1'; case '1': return '1';
+    case 'h': return 'h'; case 'l': return 'h';
+    case 'H': return 'H'; case 'L': return 'H';
+    case 'u': return 'u'; case 'd': return 'u';
+    case 'U': return 'U'; case 'D': return 'U';
+    case 'x': return '2'; case 'z': return '1';
+    case '=': return '2';
+  }
+  if (BUS_UP_RING.includes(g)) { // 2..9：+1，9 回绕到 2
+    const i = BUS_UP_RING.indexOf(g);
+    return BUS_UP_RING[(i + 1) % BUS_UP_RING.length];
+  }
+  return g;
+}
+function cellDown(g) {
+  switch (g) {
+    case 'p': return 'n'; case 'n': return 'p';
+    case 'P': return 'N'; case 'N': return 'P';
+    case '0': return '0'; case '1': return '0';
+    case 'h': return 'l'; case 'l': return 'l';
+    case 'H': return 'L'; case 'L': return 'L';
+    case 'u': return 'd'; case 'd': return 'd';
+    case 'U': return 'D'; case 'D': return 'D';
+    case 'x': return 'x'; case 'z': return '0';
+  }
+  if (g === '=' || BUS_UP_RING.includes(g)) return 'x'; // 总线下变换一律 x
+  return g;
+}
+/* 某列上/下变换的基准字符：该列当前真实字符（x 除外）；空格/延续格/x 向前深度追溯，
+   跳过所有 x 与延续格 . 直到遇到非 x 的真实字符；全程只有 x/./空 → 基准 'x' */
+function baseGlyphAt(lane, t) {
+  for (let i = t; i >= 0; i--) {
+    const s = lane.slots[i];
+    const g = s && s.glyph;
+    if (g && g !== '.' && g !== '|' && g !== 'x') return g;
+  }
+  return 'x';
 }
 
 /* ---------- 序列化 ---------- */
@@ -3007,6 +3056,7 @@ function showBrushPanelNearFab(fab, atX, atY) {
 
 /* ---------- 交互：单元格 ---------- */
 let painting = false, paintLane = null, paintedSinceDown = false, dragLastT = -1, extendMode = false;
+let lastXform = null; // 越界变换的边缘触发去抖：{ t, zone }——仅当所在列或上/下区域变化时才变换一次
 function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l; }); return r; }
 function paintCell(lane, t, glyph) {
   commitTag = 'paint';
@@ -3014,17 +3064,18 @@ function paintCell(lane, t, glyph) {
   const slot = { glyph };
   if (keepLabel) {
     /* 换字符默认丢标签；开启标签保持后，数据字符间换色留住标签，
-       途经 x/z 暂存（仅限当前选中格，脱离选中即作废），切回数据字符恢复。 */
+       途经 x/z 或被延续符 . 覆盖时暂存（仅限当前选中格或拖动格），切回数据字符恢复。 */
     const prev = lane.slots[t];
     const prevLabel = prev && prev.label;
     const stashed = labelStash && labelStash.laneId === lane.id && labelStash.t === t ? labelStash.label : undefined;
     const carried = prevLabel !== undefined && prevLabel !== null ? prevLabel : stashed;
+    const isCont = glyph === '.'; // 延续符：不显示标签，但覆盖有标签格时需暂存以便变换后恢复
     if (isData(glyph)) {
       if (carried !== undefined && carried !== null) slot.label = carried;
       if (labelStash && labelStash.laneId === lane.id && labelStash.t === t) labelStash = null;
-    } else if (isUnknown(glyph) && carried !== undefined && carried !== null && isSelectedCell(lane.id, t)) {
+    } else if ((isUnknown(glyph) || isCont) && carried !== undefined && carried !== null && (isSelectedCell(lane.id, t) || isActiveDragCell(lane.id, t))) {
       labelStash = { laneId: lane.id, t, label: carried };
-    } else if (!isUnknown(glyph) && labelStash && labelStash.laneId === lane.id && labelStash.t === t) {
+    } else if (!isUnknown(glyph) && !isCont && labelStash && labelStash.laneId === lane.id && labelStash.t === t) {
       labelStash = null;
     }
   }
@@ -3038,6 +3089,12 @@ function isSelectedCell(laneId, t) {
   if (popCell && popCell.lane.id === laneId && popCell.t === t) return true;
   if (autoChain && chainSel && chainSel.laneId === laneId && chainSel.t === t) return true;
   return false;
+}
+/* 该格是否为当前拖动正在变换的格：拖动中（本通道）对任意列途经 x/z 都需暂存标签，
+   否则 bus 下变换（→x）或途经 x 再变回数据时标签会永久丢失（该格并非选中格）。
+   不限定 t === dragLastT：右移后回头改左侧列时该格仍是被变换格，同样要暂存。 */
+function isActiveDragCell(laneId, t) {
+  return painting && paintLane === laneId;
 }
 /* 选中格变化 / 关闭面板时作废暂存标签 */
 function dropLabelStash(laneId, t) {
@@ -3438,6 +3495,7 @@ function bindGrid() {
     if (!cell || ev.button !== 0) return;
     downPos = [ev.clientX, ev.clientY];
     paintedSinceDown = false;
+    lastXform = null; // 新拖动开始：清除越界变换去抖记录
     if (autoChain) return; // 模式内左键不涂抹/不拖延续，交给 click → setChainSel + openPop
     if (state.tool.type === 'glyph') {
       const lane = getLaneById(+cell.dataset.lane);
@@ -3484,8 +3542,13 @@ function bindGrid() {
       }
     }
   });
-  window.addEventListener('mouseup', () => { painting = false; paintLane = null; extendMode = false; });
-  // 拖到波形末尾之外：向右越界拖动时逐拍生长延续（每次事件加一拍，跟随光标）
+  window.addEventListener('mouseup', () => { painting = false; paintLane = null; extendMode = false; lastXform = null; });
+  /* 拖动中的越界处理（边缘触发，仅在跨界那一刻变换一次，避免同格抖动反复变换而闪烁）：
+     - 鼠标 Y 在通道上边界之上 → 对鼠标所在列做「上变换」
+     - 鼠标 Y 在通道下边界之下 → 对鼠标所在列做「下变换」
+       仅当「所在列」或「上/下区域」相对上次记录发生变化时才触发一次（lastXform 去抖）。
+     - 鼠标 Y 在通道内 → 清除去抖记录；X 越过右边界时逐拍向右生长延续（延续上一拍，原有行为）。
+     向右进入通道内的正常延续仍由 mouseover 处理。 */
   inner.addEventListener('mousemove', ev => {
     if (!painting || (ev.buttons & 1) !== 1) return;
     if (!(extendMode || state.tool.type === 'glyph')) return;
@@ -3493,7 +3556,23 @@ function bindGrid() {
     const track = lane && document.querySelector(`#gridInner .lane-row[data-lane="${paintLane}"] .lane-track`);
     if (!track) return;
     const r = track.getBoundingClientRect();
-    if (ev.clientY < r.top || ev.clientY > r.bottom || ev.clientX <= r.right) return;
+    if (ev.clientY < r.top || ev.clientY > r.bottom) {
+      const zone = ev.clientY < r.top ? 'up' : 'down';
+      // 鼠标所在列（夹取到已拖过的范围内，避免跳格）
+      const win = gridWindow();
+      const rawT = win.a + Math.floor((ev.clientX - r.left) / gridCellW());
+      const t = Math.max(0, Math.min(rawT, dragLastT + 1));
+      // 边缘触发：所在列或区域未变则不重复变换
+      if (lastXform && lastXform.t === t && lastXform.zone === zone) return;
+      const base = baseGlyphAt(lane, t);
+      const next = zone === 'up' ? cellUp(base) : cellDown(base);
+      if (t > dragLastT) dragLastT = t; // 先推进再落值：paintCell 内 isActiveDragCell 需以当前列为准（决定 x/z 途经时暂存标签）
+      paintCell(lane, t, next);
+      lastXform = { t, zone };
+      return;
+    }
+    lastXform = null; // 回到通道内：跨界记录清零，下次跨出上/下方可重新触发
+    if (ev.clientX <= r.right) return;
     dragLastT += 1;
     paintCell(lane, dragLastT, '.');
   });
@@ -3519,7 +3598,7 @@ function bindGrid() {
     const lane = getLaneById(+cell.dataset.lane);
     if (lane) clearCell(lane, +cell.dataset.t);
   });
-  /* 选中格上滚轮：在该通道类型对应的状态环里前后切换并立即渲染 */
+  /* 选中格上滚轮：按上/下变换切换（与拖动越界变换同一套语义）——上滚=上变换，下滚=下变换 */
   inner.addEventListener('wheel', ev => {
     if (!popCell) return;
     const cell = ev.target.closest('.cell');
@@ -3527,12 +3606,8 @@ function bindGrid() {
     if (+cell.dataset.lane !== popCell.lane.id || +cell.dataset.t !== popCell.t) return;
     ev.preventDefault();
     const lane = popCell.lane, t = popCell.t;
-    const cyc = WHEEL_CYCLES[laneType(lane)];
-    const cur = lane.slots[t] && lane.slots[t].glyph;
-    const i = cyc.indexOf(cur);
-    const dir = ev.deltaY > 0 ? 1 : -1;
-    /* 环形；当前状态不在环内（空格 / 延续格 / 间隙）时从环的一端进入 */
-    const next = i < 0 ? cyc[dir > 0 ? 0 : cyc.length - 1] : cyc[(i + dir + cyc.length) % cyc.length];
+    const base = baseGlyphAt(lane, t);
+    const next = ev.deltaY < 0 ? cellUp(base) : cellDown(base);
     commitTag = 'wheel';
     paintCell(lane, t, next);
     reopenPopAt(lane, t);
