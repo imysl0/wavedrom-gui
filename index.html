@@ -536,8 +536,11 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
   position: absolute; top: 0; height: 100%;
   width: 36px;
   cursor: pointer;
+  user-select: none; -webkit-user-select: none; caret-color: transparent;
+  outline: none;
   transition: background .12s ease;
 }
+.cell:focus, .cell:focus-visible { outline: none; }
 .cell:hover { background: var(--cell-hover); }
 .cell.col-hl { background: var(--cell-hl); }
 .cell.painting { background: var(--cell-paint); }
@@ -3119,6 +3122,9 @@ function restoreChainSelHighlight() {
   if (cell) cell.classList.add('chain-sel');
 }
 function setChainSel(lane, t) {
+  /* 自动模式下面板开着时，选中格一变就跟着搬家——键盘笔刷、点笔刷、方向键、中键共用这一条路径 */
+  const wasPopOpen = autoChain && $('#cellPop').classList.contains('open');
+  const changed = !chainSel || chainSel.laneId !== lane.id || chainSel.t !== t;
   dropLabelStash(lane.id, t);
   chainSel = { laneId: lane.id, t };
   clearChainHighlight();
@@ -3128,6 +3134,7 @@ function setChainSel(lane, t) {
   const tip = CHAIN_TIPS[chainSelCount]; // 前 4 次选中的分步引导；之后为 undefined 不提示
   chainSelCount++;
   if (tip) toast(tip);
+  if (wasPopOpen && changed) reopenPopAtChainSel();
 }
 function enterAutoChain(withCell) {
   autoChain = true;
@@ -3164,8 +3171,12 @@ function paintChainCell(char) {
   if (!chainSel) return;
   const lane = getLaneById(chainSel.laneId);
   if (!lane) { exitAutoChain(); return; }
+  const wasPopOpen = $('#cellPop').classList.contains('open');
+  const from = { laneId: chainSel.laneId, t: chainSel.t };
   paintCell(lane, chainSel.t, char); // 内部会 update() → renderGrid()（restoreChainSelHighlight 会重贴当前格）
   advanceChain();
+  /* 末尾停留：选中格没变，setChainSel 不会触发跟随，但 DOM 已重建、面板内容还是旧字符 —— 就地刷新 */
+  if (wasPopOpen && chainSel && chainSel.laneId === from.laneId && chainSel.t === from.t) reopenPopAtChainSel();
 }
 /* 方向键移动选中格（不上色、不换色、到边界停住不退出）：左右在可见窗口内移动拍，上下换可见信号行、拍不变 */
 function moveChainSel(dx, dy) {
@@ -3236,7 +3247,7 @@ function openPop(lane, t, anchor) {
   pop.appendChild(title);
   const glyphsWrap = h('div');
   buildGlyphGrid(glyphsWrap, eff, ch => {
-    if (autoChain && chainSel && chainSel.laneId === lane.id && chainSel.t === t) { closePop(); paintChainCell(ch); }
+    if (autoChain && chainSel && chainSel.laneId === lane.id && chainSel.t === t) { paintChainCell(ch); }
     else { paintCell(lane, t, ch); closePop(); }
   });
   pop.appendChild(glyphsWrap);
@@ -3329,6 +3340,8 @@ function closePop() {
   $('#cellPop').classList.remove('open');
   popCell = null;
   dropLabelStash();
+  const active = document.activeElement;
+  if (active && active.classList && active.classList.contains('cell')) active.blur();
   clearEditingRow();
   closeMoreMenu();
 }
@@ -3390,9 +3403,7 @@ function bindGrid() {
     if (chainSel && ARROW_DELTA[ev.key]) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
-      const wasPopOpen = $('#cellPop').classList.contains('open');
-      moveChainSel(ARROW_DELTA[ev.key][0], ARROW_DELTA[ev.key][1]);
-      if (wasPopOpen) reopenPopAtChainSel(); // 面板跟随移动后的选中格打开
+      moveChainSel(ARROW_DELTA[ev.key][0], ARROW_DELTA[ev.key][1]); // 面板跟随由 setChainSel 统一处理
     }
   }, true);
   inner.addEventListener('mousedown', ev => {
