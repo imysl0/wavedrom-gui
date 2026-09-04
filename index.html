@@ -1250,6 +1250,10 @@ const state_node = {
 };
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
 if (state_node.mode !== 'dot') state_node.mode = 'letter';
+/* 标签保持：在数据字符（= 2-9）间换色不清除数据标签；途经 x/z 时把标签暂存，
+   切回数据字符即恢复，暂存随该格脱离选中而失效。关闭则沿用旧行为（换字符即清标签）。 */
+let keepLabel = localStorage.getItem('wdgui-keep-label') !== 'off';
+let labelStash = null; // { laneId, t, label }
 const nodeR = () => 6.5 * state_node.scale;
 /* 在 svg 上画一个节点标记：letter 模式画圆圈+字母；dot 模式画一个实心小圆点（不画字母） */
 function drawNodeMarker(svg, x, y, letter) {
@@ -1561,7 +1565,7 @@ function findLoc(id) {
 function eachLane(fn) { walkTree(state.tree, n => { if (n.kind === 'lane') fn(n); }); }
 function allLanes() { const r = []; eachLane(l => r.push(l)); return r; }
 function isData(g) { return DATA_CHARS.includes(g); }
-
+function isUnknown(g) { return g === 'x' || g === 'z'; }
 /* 通道类型：无持久字段，按整条已落字符推断（'.' 延续与 '|' 间隙不参与）。
    只有第一格的通道视为「待初始化」，滚轮给三类元素的合集，方便一格定基调；
    既无时钟也无电平/沿、只有 x/z 之类的通道判不出方向，兜底为「非时钟」，给信号+总线合集。 */
@@ -2987,10 +2991,39 @@ function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l;
 function paintCell(lane, t, glyph) {
   commitTag = 'paint';
   while (lane.slots.length <= t) lane.slots.push(null);
-  lane.slots[t] = { glyph };
+  const slot = { glyph };
+  if (keepLabel) {
+    /* 换字符默认丢标签；开启标签保持后，数据字符间换色留住标签，
+       途经 x/z 暂存（仅限当前选中格，脱离选中即作废），切回数据字符恢复。 */
+    const prev = lane.slots[t];
+    const prevLabel = prev && prev.label;
+    const stashed = labelStash && labelStash.laneId === lane.id && labelStash.t === t ? labelStash.label : undefined;
+    const carried = prevLabel !== undefined && prevLabel !== null ? prevLabel : stashed;
+    if (isData(glyph)) {
+      if (carried !== undefined && carried !== null) slot.label = carried;
+      if (labelStash && labelStash.laneId === lane.id && labelStash.t === t) labelStash = null;
+    } else if (isUnknown(glyph) && carried !== undefined && carried !== null && isSelectedCell(lane.id, t)) {
+      labelStash = { laneId: lane.id, t, label: carried };
+    } else if (!isUnknown(glyph) && labelStash && labelStash.laneId === lane.id && labelStash.t === t) {
+      labelStash = null;
+    }
+  }
+  lane.slots[t] = slot;
   lane.len = Math.max(lane.len || 0, t + 1);
   paintedSinceDown = true;
   update();
+}
+/* 该格是否处于选中态（状态面板打开的格，或自动连续模式的锁定格）——决定标签暂存是否存活 */
+function isSelectedCell(laneId, t) {
+  if (popCell && popCell.lane.id === laneId && popCell.t === t) return true;
+  if (autoChain && chainSel && chainSel.laneId === laneId && chainSel.t === t) return true;
+  return false;
+}
+/* 选中格变化 / 关闭面板时作废暂存标签 */
+function dropLabelStash(laneId, t) {
+  if (!labelStash) return;
+  if (laneId === undefined) { labelStash = null; return; }
+  if (labelStash.laneId !== laneId || labelStash.t !== t) labelStash = null;
 }
 /* 从 t-1 往前找最近的真实字符格：延续格延续的就是那一拍；-1 表示前面没有真实字符 */
 function extendSource(lane, t) {
@@ -3086,6 +3119,7 @@ function restoreChainSelHighlight() {
   if (cell) cell.classList.add('chain-sel');
 }
 function setChainSel(lane, t) {
+  dropLabelStash(lane.id, t);
   chainSel = { laneId: lane.id, t };
   clearChainHighlight();
   markEditingRow(lane);
@@ -3188,6 +3222,7 @@ let popCell = null; // {lane, t}
 let popGlyphsCollapsed = false; // 状态字符网格折叠态（标题栏折叠按钮，跨开合记忆）
 function openPop(lane, t, anchor) {
   const pop = $('#cellPop');
+  dropLabelStash(lane.id, t); // 换格打开则作废暂存；同格重开（滚轮后）保留
   popCell = { lane, t };
   pop.textContent = '';
   const slot = lane.slots[t];
@@ -3234,6 +3269,7 @@ function openPop(lane, t, anchor) {
       b.style.background = bg;
       if (ch === '=') b.textContent = 'A';
       b.addEventListener('click', () => {
+        if (!keepLabel) delete slot.label;
         slot.glyph = ch;
         scheduleUpdate();
         openPop(lane, t, anchor);
@@ -3292,6 +3328,7 @@ function extendSample() {
 function closePop() {
   $('#cellPop').classList.remove('open');
   popCell = null;
+  dropLabelStash();
   clearEditingRow();
   closeMoreMenu();
 }
@@ -3719,6 +3756,25 @@ function buildSettingsMenu(menu) {
       localStorage.setItem('wdgui-node-mode', v);
       buildSettingsMenu(menu);
       renderGrid();
+    });
+    menu.appendChild(b);
+  });
+  sec('数据标签');
+  [['on', '标签保持'], ['off', '换字符即清除']].forEach(([v, label]) => {
+    const active = (keepLabel ? 'on' : 'off') === v;
+    const b = h('button', { class: active ? 'active' : '', 'aria-label': '数据标签：' + label });
+    b.appendChild(h('span', null, label));
+    if (active) {
+      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
+      ck.style.marginLeft = 'auto'; ck.style.color = 'var(--acc)';
+      b.appendChild(ck);
+    }
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      keepLabel = v === 'on';
+      localStorage.setItem('wdgui-keep-label', v);
+      if (!keepLabel) labelStash = null;
+      buildSettingsMenu(menu);
     });
     menu.appendChild(b);
   });
