@@ -3148,6 +3148,7 @@ function buildGlyphGrid(parent, currentGlyph, onPick) {
 
 /* 单元格弹窗 */
 let popCell = null; // {lane, t}
+let popGlyphsCollapsed = false; // 状态字符网格折叠态（标题栏折叠按钮，跨开合记忆）
 function openPop(lane, t, anchor) {
   const pop = $('#cellPop');
   popCell = { lane, t };
@@ -3159,12 +3160,28 @@ function openPop(lane, t, anchor) {
   const curLabel = eff ? glyphLabel(eff) : '';
   const title = h('div', { class: 'pop-title' },
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
-    (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空'));
+    h('span', { style: 'flex:1;min-width:0' }, (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空')));
   pop.appendChild(title);
-  buildGlyphGrid(pop, eff, ch => {
+  const glyphsWrap = h('div');
+  buildGlyphGrid(glyphsWrap, eff, ch => {
     if (autoChain && chainSel && chainSel.laneId === lane.id && chainSel.t === t) { closePop(); paintChainCell(ch); }
     else { paintCell(lane, t, ch); closePop(); }
   });
+  pop.appendChild(glyphsWrap);
+  const foldGlyphs = foldBtn('', popGlyphsCollapsed ? 'down' : 'up', () => {
+    popGlyphsCollapsed = !popGlyphsCollapsed;
+    applyGlyphFold();
+  });
+  const applyGlyphFold = () => {
+    glyphsWrap.style.display = popGlyphsCollapsed ? 'none' : '';
+    foldGlyphs.textContent = '';
+    foldGlyphs.appendChild(icon(FOLD_PATHS[popGlyphsCollapsed ? 'down' : 'up'], 12));
+    const lbl = popGlyphsCollapsed ? '展开状态字符' : '折叠状态字符';
+    foldGlyphs.title = lbl;
+    foldGlyphs.setAttribute('aria-label', lbl);
+  };
+  title.appendChild(foldGlyphs);
+  applyGlyphFold();
 
   if (slot && isData(slot.glyph)) {
     const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '如 0x1F、D0、NOP', 'aria-label': '数据标签' });
@@ -3189,7 +3206,7 @@ function openPop(lane, t, anchor) {
     row.appendChild(mkSw('=', '自动·跟随通道', laneColor(lane)));
     Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, '数据' + k + '（官方填充）', DIGIT_FILLS[k])));
     pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '官方填充色（写入 wave 数字槽位，官方完全识别）'), row));
-    setTimeout(() => inp.focus(), 30);
+    setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
   }
   const nodeRow = h('div', { class: 'pop-node' });
   const letter = lane.nodeByT[t];
