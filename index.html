@@ -4468,7 +4468,7 @@ function buildEditorSvg() {
   const innerBox = inner.getBoundingClientRect();
   const cxOf = e2 => e2.getBoundingClientRect().left - innerBox.left; // 内容坐标，滚动无关
   const fsOf = (e2, fallback) => e2 ? (parseFloat(getComputedStyle(e2).fontSize) || fallback) : fallback;
-  const padL = e2 => e2 ? (parseFloat(getComputedStyle(e2).paddingLeft) || 0) : 0;
+  const padL = e2 => e2 ? (parseFloat(getComputedStyle(e2).borderLeftWidth) + parseFloat(getComputedStyle(e2).paddingLeft) || 0) : 0;
   const fsTime = fsOf(inner.querySelector('.time-cell'), 12);
   const fsStripT = fsOf(inner.querySelector('.strip-text'), 15);
   const fsStripN = fsOf(inner.querySelector('.strip-num'), 12);
@@ -4545,10 +4545,18 @@ function buildEditorSvg() {
         txt(svg, cxOf(badge), cy + fsB * 0.35, badge.textContent, { 'font-size': fsB, 'font-weight': 600, fill: cssVar('--warn-ink'), 'font-family': mono });
       }
     } else if (r.dataset.group) {
+      // 与屏幕同构：折叠箭头画在 caret 自身位置（展开朝下/折叠朝右），组名从输入框真实位置起笔
+      const caret = head.querySelector('.g-caret');
+      if (caret) {
+        const cx = cxOf(caret) + caret.offsetWidth / 2;
+        const collapsed = r.classList.contains('collapsed');
+        const gRot = el('g', { transform: `translate(${cx} ${cy}) rotate(${collapsed ? 0 : 90}) scale(0.75) translate(-8 -8)` }, svg);
+        el('path', { d: 'M6 4l4 4-4 4', fill: 'none', stroke: cssVar('--faint'), 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, gRot);
+      }
       const g = head.querySelector('.gname');
       if (g) {
         const fsG = fsOf(g, 15);
-        txt(svg, cxOf(g) + padL(g), cy + fsG * 0.35, '▸ ' + g.value, { 'font-size': fsG, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
+        txt(svg, cxOf(g) + padL(g), cy + fsG * 0.35, g.value, { 'font-size': fsG, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
       }
     } else if (r.dataset.spacer) {
       const lb = head.querySelector('.spacer-label');
