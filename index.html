@@ -534,6 +534,7 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 }
 .lane-head .lane-actions .icon-btn { width: 20px; height: 20px; }
 .lane-row:hover .lane-actions, .lane-row:focus-within .lane-actions { display: inline-flex; }
+.lane-head:has(input:focus) .lane-actions { display: none !important; /* 改名输入中隐藏悬浮操作，不遮挡输入框 */ }
 .lane-head .pp-badge {
   flex: none;
   font: 600 11px var(--font-mono);
