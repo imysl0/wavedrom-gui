@@ -1331,7 +1331,8 @@ function drawNodeMarker(svg, x, y, letter) {
   tx.setAttribute('text-anchor', 'middle');
   tx.setAttribute('font-size', '9'); tx.setAttribute('font-weight', '600');
   tx.setAttribute('transform', `translate(${x} ${y}) scale(${state_node.scale})`);
-  tx.style.fontFamily = 'var(--font-mono)'; tx.setAttribute('fill', cssVar('--node-line'));
+  tx.style.fontFamily = 'var(--font-mono)';
+  tx.setAttribute('fill', cssVar('--node-line'));
   tx.textContent = letter;
   svg.appendChild(tx);
 }
@@ -2009,10 +2010,10 @@ function laneSVG(lane, colCount, color, cropX) {
         const tx = document.createElementNS(NS, 'text');
         tx.setAttribute('x', x0 + w / 2); tx.setAttribute('y', 29);
         tx.setAttribute('text-anchor', 'middle');
-        tx.setAttribute('font-size', '9.5'); tx.style.fontFamily = 'var(--font-mono)';
+        tx.setAttribute('font-size', '14'); tx.style.fontFamily = 'var(--font-mono)';
         tx.setAttribute('fill', isDigit ? '#1B2536' : color);
         tx.textContent = String(label);
-        if (String(label).length * 6 > w - 8) { tx.setAttribute('textLength', w - 10); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+        if (String(label).length * 7.4 > w - 8) { tx.setAttribute('textLength', w - 10); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
         svg.appendChild(tx);
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -2823,6 +2824,11 @@ function renderPreview() {
     const rwf = window.WaveDrom.renderWaveForm || window.WaveDrom.RenderWaveForm;
     if (typeof rwf !== 'function') throw new Error('渲染 API 缺失');
     rwf.call(window.WaveDrom, 0, json, 'wv');
+    /* 自愈：皮肤 <style> 偶发整体失效（disabled 残留 / CSSOM 未解析）会让波形全糊成黑色填充，这里每次渲染强制恢复 */
+    host.querySelectorAll('svg style').forEach(st => {
+      if (st.disabled) st.disabled = false;
+      if (!st.sheet || !st.sheet.cssRules.length) st.textContent = st.textContent;
+    });
     if (state.autoFit) {
       const svg = host.querySelector('svg');
       const stage = $('#previewStage');
@@ -4429,6 +4435,15 @@ function buildEditorSvg() {
   const nameW = headEl ? headEl.querySelector(':scope > .lane-head').offsetWidth : 196;
   const W = nameW + colsW;
 
+  /* 字号与名称列位置全部取自屏幕真实元素——界面字号/布局调整后导出自动跟随，不再手调常数 */
+  const innerBox = inner.getBoundingClientRect();
+  const cxOf = e2 => e2.getBoundingClientRect().left - innerBox.left; // 内容坐标，滚动无关
+  const fsOf = (e2, fallback) => e2 ? (parseFloat(getComputedStyle(e2).fontSize) || fallback) : fallback;
+  const padL = e2 => e2 ? (parseFloat(getComputedStyle(e2).paddingLeft) || 0) : 0;
+  const fsTime = fsOf(inner.querySelector('.time-cell'), 12);
+  const fsStripT = fsOf(inner.querySelector('.strip-text'), 15);
+  const fsStripN = fsOf(inner.querySelector('.strip-num'), 12);
+
   const svg = el('svg', { xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}` });
   el('rect', { x: 0, y: 0, width: W, height: H, fill: cssVar('--bg') }, svg);
   const fixVars = clone => clone.querySelectorAll('[style]').forEach(e2 => {
@@ -4440,9 +4455,9 @@ function buildEditorSvg() {
     if (r.classList.contains('strip')) {
       const st = r.querySelector('.strip-text');
       el('rect', { x: nameW, y, width: colsW, height: h, fill: cssVar('--bg') }, svg);
-      if (st) txt(svg, nameW + colsW / 2, y + h / 2 + 4.5, st.textContent, { 'text-anchor': 'middle', 'font-size': 12.5, 'font-weight': 600, fill: cssVar('--muted'), 'font-family': uiFont });
+      if (st) txt(svg, nameW + colsW / 2, y + h / 2 + fsStripT * 0.35, st.textContent, { 'text-anchor': 'middle', 'font-size': fsStripT, 'font-weight': 600, fill: cssVar('--muted'), 'font-family': uiFont });
       else r.querySelectorAll('.strip-num').forEach((n, i) => {
-        if (n.textContent) txt(svg, nameW + i * gw + gw / 2, y + h / 2 + 3.5, n.textContent, { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 500, fill: cssVar('--acc-text'), 'font-family': mono });
+        if (n.textContent) txt(svg, nameW + i * gw + gw / 2, y + h / 2 + fsStripN * 0.35, n.textContent, { 'text-anchor': 'middle', 'font-size': fsStripN, 'font-weight': 500, fill: cssVar('--acc-text'), 'font-family': mono });
       });
       return;
     }
@@ -4452,7 +4467,7 @@ function buildEditorSvg() {
       r.querySelectorAll('.time-cell').forEach((c, i) => {
         const cx = nameW + i * gw;
         if (i > 0) el('line', { x1: cx, y1: y + 4, x2: cx, y2: y + h - 4, stroke: cssVar('--line-soft') }, svg);
-        if (c.textContent) txt(svg, cx + gw / 2, y + h / 2 + 3.5, c.textContent, { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': c.classList.contains('tick') ? 600 : 500, fill: c.classList.contains('tick') ? cssVar('--acc-text') : cssVar('--faint'), 'font-family': mono });
+        if (c.textContent) txt(svg, cx + gw / 2, y + h / 2 + fsTime * 0.35, c.textContent, { 'text-anchor': 'middle', 'font-size': fsTime, 'font-weight': c.classList.contains('tick') ? 600 : 500, fill: c.classList.contains('tick') ? cssVar('--acc-text') : cssVar('--faint'), 'font-family': mono });
       });
       return;
     }
@@ -4486,21 +4501,30 @@ function buildEditorSvg() {
     if (!r.classList.contains('lane-row')) return;
     const y = r.offsetTop, h = r.offsetHeight, cy = y + h / 2;
     const head = r.querySelector(':scope > .lane-head');
-    const indent = head.querySelector('.indent');
-    const ix = indent ? (parseFloat(getComputedStyle(indent).width) || 0) : 0;
     if (r.dataset.lane) {
       const dot = head.querySelector('.dot');
-      if (dot) el('circle', { cx: 12 + ix + 4, cy, r: 4.5, fill: getComputedStyle(dot).backgroundColor }, svg);
+      if (dot) el('circle', { cx: cxOf(dot) + dot.offsetWidth / 2, cy, r: 4.5, fill: getComputedStyle(dot).backgroundColor }, svg);
       const inp = head.querySelector('input.lane-name');
       const name = inp ? inp.value : '';
-      if (name) txt(svg, 12 + ix + 14, cy + 4.5, name, { 'font-size': 12.5, 'font-weight': 500, fill: cssVar('--text'), 'font-family': mono });
+      if (name) {
+        const fsN = fsOf(inp, 15);
+        txt(svg, cxOf(inp) + padL(inp), cy + fsN * 0.35, name, { 'font-size': fsN, 'font-weight': 500, fill: cssVar('--text'), 'font-family': mono });
+      }
       const badge = head.querySelector('.pp-badge');
-      if (badge) txt(svg, 12 + ix + 16 + name.length * 7.5, cy + 3.5, badge.textContent, { 'font-size': 9.5, 'font-weight': 600, fill: cssVar('--warn-ink'), 'font-family': mono });
+      if (badge) {
+        const fsB = fsOf(badge, 11);
+        txt(svg, cxOf(badge), cy + fsB * 0.35, badge.textContent, { 'font-size': fsB, 'font-weight': 600, fill: cssVar('--warn-ink'), 'font-family': mono });
+      }
     } else if (r.dataset.group) {
       const g = head.querySelector('.gname');
-      txt(svg, 12 + ix + 4, cy + 4.5, '▸ ' + (g ? g.value : ''), { 'font-size': 12.5, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
+      if (g) {
+        const fsG = fsOf(g, 15);
+        txt(svg, cxOf(g) + padL(g), cy + fsG * 0.35, '▸ ' + g.value, { 'font-size': fsG, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
+      }
     } else if (r.dataset.spacer) {
-      txt(svg, 12 + ix, cy + 4, '空白占位', { 'font-size': 11.5, fill: cssVar('--faint'), 'font-family': uiFont });
+      const lb = head.querySelector('.spacer-label');
+      const fsS = fsOf(lb, 11.5);
+      txt(svg, cxOf(lb || head), cy + fsS * 0.35, '空白占位', { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
     }
   });
   return svg;
@@ -4813,8 +4837,46 @@ function applyTheme(t) {
   renderGrid(); renderTree(); renderEdges(); renderBrushUI(); renderPreview();
 }
 
+/* ---------- WaveSkin 字体规则作用域化 ----------
+   皮肤 <style> 的 text{font-size:11pt;font-family:Helvetica;...} 是文档级规则，
+   会覆盖编辑区迷你波形 SVG 文字的 font-size 展示属性（节点字母的 font-weight:600 同样被压掉）。
+   只拆这一条规则的字体声明：搬进 :where(svg[id^="svgcontent_"]) text{...} 孪生规则——
+   :where() 特异性贡献为零，预览内部级联与原 text{} 完全一致，编辑区不再被命中。
+   其余规则（.sN/.wire/.gate 等几何样式）经 <use> 阴影树渲染，文档样式表的组合选择器
+   无法命中克隆实例，加前缀会让预览糊成黑块，因此一根手指都不动。 */
+function scopeSkinFontRules() {
+  if (!window.WaveSkin) return;
+  const twinSel = ':where(svg[id^="svgcontent_"]) text';
+  Object.values(window.WaveSkin).forEach(skin => {
+    if (!Array.isArray(skin)) return;
+    const walk = node => {
+      if (!Array.isArray(node)) return;
+      node.forEach((el, i) => {
+        if (typeof el === 'string') {
+          if (!el.includes('{') || !el.includes('}')) return;
+          // split('}') 后每段是不带收尾大括号的规则，flatMap 让 text 规则一拆为二，join('}') 逐段补回
+          node[i] = el.split('}').flatMap(chunk => {
+            if (!chunk.trim()) return [''];
+            const b = chunk.indexOf('{');
+            if (b < 0) return [chunk];
+            const sel = chunk.slice(0, b).trim(), body = chunk.slice(b + 1);
+            if (sel !== 'text') return [chunk];
+            const decls = body.split(';').map(d => d.trim()).filter(Boolean);
+            const font = decls.filter(d => d.startsWith('font-'));
+            const rest = decls.filter(d => !d.startsWith('font-'));
+            if (!font.length) return [chunk];
+            return [rest.length ? 'text{' + rest.join(';') : '', twinSel + '{' + font.join(';')];
+          }).join('}');
+        } else if (Array.isArray(el)) walk(el);
+      });
+    };
+    walk(skin);
+  });
+}
+
 /* ---------- 启动 ---------- */
 function init() {
+  scopeSkinFontRules();
   let restored = false;
   if (location.hash.length > 1) {
     try { adoptState(parseDoc(parseWaveJSON(decodeURIComponent(location.hash.slice(1))))); restored = true; } catch (e) { /* 忽略坏链接 */ }
