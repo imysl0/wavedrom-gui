@@ -292,6 +292,43 @@ html[data-tree-tools="always"] .tree-row .lane-actions { display: inline-flex; }
 html[data-tree-tools="always"] #treeToolsBtn .ic-hover { display: none; }
 html[data-tree-tools="always"] #treeToolsBtn .ic-always { display: block; }
 .tree-empty { color: var(--faint); font-size: 12px; padding: 10px 6px; }
+
+/* 行拖拽排序（结构树行 + 网格行头共用） */
+.drag-grip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 22px; flex: none;
+  color: var(--faint); cursor: grab; border-radius: 4px;
+  opacity: 0; transition: opacity .12s ease, color .12s ease;
+}
+.tree-row:hover .drag-grip, .lane-row:hover .drag-grip,
+.tree-row:focus-within .drag-grip, .lane-row:focus-within .drag-grip { opacity: 1; }
+html[data-tree-tools="always"] .tree-row .drag-grip { opacity: 1; }
+.drag-grip:hover { color: var(--text); background: var(--raise); }
+body.dnd-dragging { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+body.dnd-dragging .drag-grip { cursor: grabbing; }
+body.dnd-dragging .tree-row .lane-actions, body.dnd-dragging .lane-head .lane-actions { display: none !important; }
+body.dnd-dragging .tree-row, body.dnd-dragging .lane-head { cursor: grabbing; }
+.dnd-src { opacity: .4; }
+.dnd-ghost {
+  position: fixed; z-index: 300; pointer-events: none;
+  background: var(--panel); border: 1px solid var(--acc);
+  border-radius: var(--r-sm); box-shadow: 0 10px 28px var(--mask);
+  opacity: .93; overflow: hidden;
+}
+.dnd-line {
+  position: fixed; z-index: 301; pointer-events: none; height: 3px;
+  background: var(--acc); border-radius: 2px;
+  box-shadow: 0 0 7px var(--acc);
+}
+.dnd-into { box-shadow: inset 0 0 0 1.5px var(--acc); border-radius: 6px; }
+
+/* 信号列宽分割条（名称列与波形区之间，拖动 / 双击重置） */
+.name-split {
+  position: absolute; top: 0; bottom: 0;
+  left: calc(var(--namew, 196px) - 4px); width: 8px;
+  cursor: col-resize; z-index: 40; border-radius: 3px;
+}
+.name-split:hover, .name-split.dragging, body.col-resizing .name-split { background: var(--acc-veil); }
 .add-lane-btns {
   display: grid; gap: 6px; margin-top: 9px;
   grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
@@ -2168,6 +2205,34 @@ function gridWindow() {
   return { a: 0, b: computeCols() };
 }
 function gridWidth() { const w = gridWindow(); return (w.b - w.a) * gridCellW(); }
+
+/* ---------- 信号列宽：canvas 按实际字体测量 + 最长名自适应，手动值（state.sizes.namew）优先 ---------- */
+const NAMEW_MIN = 120, NAMEW_MAX = 480;      // 自适应列宽的下限 / 整列上限（超长名到此封顶，悬停可看全名）
+const NAMEW_DRAG_MIN = 80, NAMEW_DRAG_MAX = 900; // 手动拖拽允许的范围
+function clampNameW(v) { return Math.max(NAMEW_DRAG_MIN, Math.min(NAMEW_DRAG_MAX, Math.round(+v) || 196)); }
+function textPx(s, group) {
+  if (!textPx.ctx) textPx.ctx = document.createElement('canvas').getContext('2d');
+  const root = getComputedStyle(document.documentElement);
+  textPx.ctx.font = group
+    ? '700 15px ' + root.getPropertyValue('--font-ui')
+    : '500 15px ' + root.getPropertyValue('--font-mono');
+  return textPx.ctx.measureText(s).width;
+}
+function calcNamew() {
+  let namew = NAMEW_MIN;
+  walkTree(state.tree, (n, d) => {
+    let extra = 0;
+    if (n.kind === 'group' && collapsedGroups.has(n.id)) {
+      extra = 18 + String(n.children.length).length * 6.5; // 子行数角标
+    } else if (n.kind === 'lane' && ((n.period && n.period > 1) || n.phase)) {
+      const label = (n.period && n.period > 1 ? '×' + n.period : '') + (n.phase ? ' φ' + n.phase : '');
+      extra = 14 + label.length * 6; // period/phase 徽标
+    }
+    const nameW = n.name ? textPx(n.name, n.kind === 'group') : 0;
+    namew = Math.max(namew, Math.min(NAMEW_MAX, 80 + d * 14 + nameW + extra));
+  });
+  return Math.min(NAMEW_MAX, namew);
+}
 function laneColor(lane) {
   const flats = allLanes();
   const i = flats.indexOf(lane);
@@ -2185,24 +2250,9 @@ function toggleGroupCollapse(id) {
 function renderGrid() {
   const inner = $('#gridInner');
   inner.textContent = '';
-  // 信号名列宽自适应：整棵树最长名称（含分组名）+ 固定余量，带上限/下限
-  /* 名称列宽自适应：逐行累加缩进、组名/信号名（单行封顶，超长省略号）、折叠角标、φ 徽标 */
-  const textW = s => { let w = 0; for (const ch of s) w += ch.charCodeAt(0) > 0x2e7f ? 11.5 : 6.8; return w; };
-  let namew = 120;
-  walkTree(state.tree, (n, d) => {
-    const indent = d * 14;
-    let extra = 0;
-    if (n.kind === 'group' && collapsedGroups.has(n.id)) {
-      extra = 18 + String(n.children.length).length * 6.5; // 子行数角标
-    } else if (n.kind === 'lane' && ((n.period && n.period > 1) || n.phase)) {
-      const label = (n.period && n.period > 1 ? '×' + n.period : '') + (n.phase ? ' φ' + n.phase : '');
-      extra = 14 + label.length * 6; // period/phase 徽标
-    }
-    const name = n.name || '';
-    const nameW = Math.min(textW(name), 96); // 超长名字省略号截断，不撑宽整列
-    namew = Math.max(namew, Math.min(340, 64 + indent + nameW + extra));
-  });
-  namew = Math.min(340, namew);
+  // 信号名列宽：手动值（拖拽分割条）优先，否则整树最长名称（含分组名）自适应
+  /* 名字宽度用 canvas 按实际字体精确测量，不再单名封顶——列宽跟随最长名（上限 NAMEW_MAX） */
+  const namew = state.sizes.namew ? clampNameW(state.sizes.namew) : calcNamew();
   document.documentElement.style.setProperty('--namew', namew + 'px');
   const win = gridWindow();
   const colCount = win.b - win.a;
@@ -2270,6 +2320,7 @@ function renderGrid() {
       h('div', { class: 'strip-corner' }),
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, F.text)));
   }
+  bindNameSplit(h('div', { class: 'name-split', title: '拖动调整信号列宽 · 双击恢复自动' }), inner);
   renderMiniEdges();
   if (autoChain && chainSel) restoreChainSelHighlight();
 }
@@ -2491,11 +2542,13 @@ function closeMoreMenu() { $('#morePop').classList.remove('open'); }
 function buildLaneRow(lane, depth, colCount, win) {
   const color = laneColor(lane);
   const row = h('div', { class: 'lane-row', 'data-lane': lane.id });
+  row.dataset.nodeId = lane.id;
   const head = h('div', { class: 'lane-head', style: '--ch:' + color },
     indentEl(depth),
+    dndGrip(),
     h('span', { class: 'dot' }),
     (() => {
-      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': '通道名称' });
+      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': '通道名称', title: lane.name || '未命名' });
       inp.addEventListener('change', () => { lane.name = inp.value.trim(); update(true); });
       inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
       return inp;
@@ -2535,12 +2588,14 @@ function buildLaneRow(lane, depth, colCount, win) {
     }));
   }
   row.appendChild(head); row.appendChild(track);
+  attachRowDnD(head, lane.id, $('#gridInner'));
   return row;
 }
 function buildGroupRow(group, depth) {
   const collapsed = collapsedGroups.has(group.id);
   const row = h('div', { class: 'lane-row group-row' + (collapsed ? ' collapsed' : ''), 'data-group': group.id });
-  const inp = h('input', { class: 'gname', value: group.name, 'aria-label': '分组名称' });
+  row.dataset.nodeId = group.id;
+  const inp = h('input', { class: 'gname', value: group.name, 'aria-label': '分组名称', title: group.name || '分组' });
   inp.addEventListener('change', () => { group.name = inp.value.trim() || '分组'; update(true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
   const caret = h('button', { class: 'g-caret', title: collapsed ? '展开分组' : '折叠分组', 'aria-label': (collapsed ? '展开分组：' : '折叠分组：') + (group.name || '分组') });
@@ -2549,18 +2604,22 @@ function buildGroupRow(group, depth) {
     ev.stopPropagation();
     toggleGroupCollapse(group.id);
   });
-  const head = h('div', { class: 'lane-head' }, indentEl(depth), caret, inp,
+  const head = h('div', { class: 'lane-head' }, indentEl(depth), dndGrip(), caret, inp,
     collapsed ? h('span', { class: 'g-count' }, String(group.children.length)) : null);
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
+  attachRowDnD(head, group.id, $('#gridInner'));
   return row;
 }
 function buildSpacerRow(sp, depth) {
   const row = h('div', { class: 'lane-row spacer-row', 'data-spacer': sp.id });
+  row.dataset.nodeId = sp.id;
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
+    dndGrip(),
     h('span', { class: 'spacer-label' }, '空白占位'));
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
+  attachRowDnD(head, sp.id, $('#gridInner'));
   return row;
 }
 function buildEmptyState() {
@@ -2581,13 +2640,16 @@ function renderTree() {
   const build = (list, depth) => {
     list.forEach(node => {
       const row = h('div', { class: 'tree-row' + (node.kind === 'group' ? ' group' : ''), style: `padding-left:${6 + depth * 14}px` });
+      row.dataset.nodeId = node.id;
+      row.appendChild(dndGrip());
+      attachRowDnD(row, node.id, treeEl);
       if (node.kind === 'group') {
         const collapsed = collapsedGroups.has(node.id);
         const caret = h('button', { class: 'g-caret', title: collapsed ? '展开分组' : '折叠分组', 'aria-label': (collapsed ? '展开分组：' : '折叠分组：') + (node.name || '分组') });
         caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 11));
         caret.addEventListener('click', ev => { ev.stopPropagation(); toggleGroupCollapse(node.id); });
         row.appendChild(caret);
-        row.appendChild(h('span', { class: 'tw-name' }, node.name));
+        row.appendChild(h('span', { class: 'tw-name', title: node.name }, node.name));
         row.appendChild(h('span', { class: 'tw-kind' }, `组·${node.children.length}`));
         row.appendChild(rowActions(node, 'group', true));
       } else if (node.kind === 'spacer') {
@@ -2598,7 +2660,7 @@ function renderTree() {
         row.appendChild(h('span', { class: 'tw-color', style: 'background:' + laneColor(node) }));
         const nameInp = h('input', {
           class: 'tw-name-input', value: node.name,
-          'aria-label': '通道名称', title: '点击修改名称',
+          'aria-label': '通道名称', title: node.name ? node.name + '（点击可修改）' : '点击修改名称',
         });
         nameInp.addEventListener('change', () => { node.name = nameInp.value.trim(); update(true); });
         nameInp.addEventListener('keydown', ev => { if (ev.key === 'Enter') nameInp.blur(); });
@@ -3512,6 +3574,7 @@ function bindGrid() {
     }
   });
   inner.addEventListener('mouseover', ev => {
+    if (rowDnd.active) return; // 行拖拽中不点亮列高亮
     const cell = ev.target.closest('.cell');
     document.querySelectorAll('.col-hl').forEach(x => x.classList.remove('col-hl'));
     if (cell) {
@@ -3713,6 +3776,161 @@ function delNode(node) {
     const dead = new Set(Object.values(node.nodeByT || {}));
     state.edges = state.edges.filter(e => !dead.has(e.from) && !dead.has(e.to));
   }
+  update(true);
+}
+/* ---------- 行拖拽排序（结构树行 + 网格行头共用） ----------
+   把节点拖到目标行的上/下沿 = 同级插入其前/后；拖到分组行中部 = 移入该组末尾。
+   仅在发起侧的同一容器（#tree 或 #gridInner）内识别落点，跨容器拖动无效。 */
+const rowDnd = {
+  pending: false, active: false, srcId: null, srcEl: null, container: null,
+  startX: 0, startY: 0, offX: 0, offY: 0, lastX: 0, lastY: 0,
+  ghost: null, line: null, intoEl: null, hoverId: null, hoverPos: null, raf: 0, scroller: null,
+};
+function dndGrip() {
+  return h('span', { class: 'drag-grip', title: '拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）', 'aria-hidden': 'true' },
+    icon('<path d="M5.5 4v.01M10.5 4v.01M5.5 8v.01M10.5 8v.01M5.5 12v.01M10.5 12v.01" stroke-width="2.1"/>', 13));
+}
+/* handle = 可拖起的元素（树行 / 网格行头）；从输入框、按钮、行内小工具上按下不触发拖拽 */
+function attachRowDnD(handle, nodeId, container) {
+  handle.addEventListener('pointerdown', ev => {
+    if (ev.button !== 0 || ev.pointerType !== 'mouse') return;
+    if (ev.target.closest('input, textarea, select, button, .lane-actions')) return;
+    try { handle.setPointerCapture(ev.pointerId); } catch (e) { /* 指针已释放 */ } // 拖出窗口也能收到 pointerup
+    rowDnd.pending = true; rowDnd.active = false;
+    rowDnd.srcId = nodeId; rowDnd.srcEl = handle; rowDnd.container = container;
+    rowDnd.startX = ev.clientX; rowDnd.startY = ev.clientY;
+    window.addEventListener('pointermove', rowDndMove, true);
+    window.addEventListener('pointerup', rowDndUp, true);
+    window.addEventListener('pointercancel', rowDndUp, true);
+  });
+}
+function rowDndMove(ev) {
+  if (rowDnd.pending && !rowDnd.active) {
+    if (Math.hypot(ev.clientX - rowDnd.startX, ev.clientY - rowDnd.startY) < 5) return;
+    rowDndActivate();
+  }
+  if (!rowDnd.active) return;
+  rowDnd.lastX = ev.clientX; rowDnd.lastY = ev.clientY;
+  rowDnd.ghost.style.left = (ev.clientX - rowDnd.offX) + 'px';
+  rowDnd.ghost.style.top = (ev.clientY - rowDnd.offY) + 'px';
+  rowDndTarget(ev.clientX, ev.clientY);
+}
+function rowDndActivate() {
+  rowDnd.active = true;
+  const r = rowDnd.srcEl.getBoundingClientRect();
+  rowDnd.offX = rowDnd.startX - r.left; rowDnd.offY = rowDnd.startY - r.top;
+  rowDnd.lastX = rowDnd.startX; rowDnd.lastY = rowDnd.startY;
+  const ghost = rowDnd.srcEl.cloneNode(true);
+  ghost.classList.add('dnd-ghost');
+  ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+  ghost.style.left = r.left + 'px'; ghost.style.top = r.top + 'px';
+  document.body.appendChild(ghost);
+  rowDnd.ghost = ghost;
+  rowDnd.line = h('div', { class: 'dnd-line' });
+  rowDnd.line.style.display = 'none';
+  document.body.appendChild(rowDnd.line);
+  rowDnd.srcEl.classList.add('dnd-src');
+  document.body.classList.add('dnd-dragging');
+  window.addEventListener('keydown', rowDndKey, true);
+  rowDnd.scroller = dndScrollParent(rowDnd.container);
+  rowDnd.raf = requestAnimationFrame(rowDndAutoScroll);
+}
+function rowDndKey(ev) { if (ev.key === 'Escape' && rowDnd.active) { ev.stopPropagation(); rowDnd.hoverId = null; rowDndUp(); } }
+function dndScrollParent(el) {
+  for (let n = el && el.parentElement; n; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if (o === 'auto' || o === 'scroll') return n;
+  }
+  return null;
+}
+function rowDndAutoScroll() {
+  if (!rowDnd.active) return;
+  const sc = rowDnd.scroller;
+  if (sc) {
+    const r = sc.getBoundingClientRect(), m = 36, sp = 10;
+    let dy = 0;
+    if (rowDnd.lastY < r.top + m && sc.scrollTop > 0) dy = -sp;
+    else if (rowDnd.lastY > r.bottom - m) dy = sp;
+    if (dy) {
+      sc.scrollTop += dy;
+      rowDnd.ghost.style.top = (rowDnd.lastY - rowDnd.offY) + 'px';
+      rowDndTarget(rowDnd.lastX, rowDnd.lastY);
+    }
+  }
+  rowDnd.raf = requestAnimationFrame(rowDndAutoScroll);
+}
+function rowDndTarget(x, y) {
+  const el = document.elementFromPoint(x, y);
+  const row = el && el.closest('[data-node-id]');
+  if (!row || !rowDnd.container.contains(row)) return rowDndHint(null);
+  const id = +row.dataset.nodeId;
+  const loc = findLoc(id), src = findLoc(rowDnd.srcId);
+  if (!loc || !src || id === rowDnd.srcId) return rowDndHint(null);
+  if (src.node.kind === 'group' && nodeInSubtree(src.node, id)) return rowDndHint(null);
+  const r = row.getBoundingClientRect();
+  const edge = Math.min(10, r.height * 0.3);
+  const pos = y < r.top + edge ? 'before' : y > r.bottom - edge ? 'after'
+    : loc.node.kind === 'group' ? 'into' : (y < r.top + r.height / 2 ? 'before' : 'after');
+  rowDndHint({ row, pos, r });
+}
+function rowDndHint(t) {
+  if (rowDnd.intoEl) { rowDnd.intoEl.classList.remove('dnd-into'); rowDnd.intoEl = null; }
+  rowDnd.hoverId = null; rowDnd.hoverPos = null;
+  if (!t) { rowDnd.line.style.display = 'none'; return; }
+  const { row, pos, r } = t;
+  rowDnd.hoverId = +row.dataset.nodeId; rowDnd.hoverPos = pos;
+  if (pos === 'into') {
+    rowDnd.line.style.display = 'none';
+    rowDnd.intoEl = row.querySelector('.lane-head') || row;
+    rowDnd.intoEl.classList.add('dnd-into');
+  } else {
+    rowDnd.line.style.display = 'block';
+    rowDnd.line.style.left = r.left + 'px';
+    rowDnd.line.style.top = (pos === 'before' ? r.top - 1 : r.bottom - 2) + 'px';
+    rowDnd.line.style.width = Math.min(r.width, window.innerWidth - r.left - 8) + 'px';
+  }
+}
+function rowDndUp() {
+  window.removeEventListener('pointermove', rowDndMove, true);
+  window.removeEventListener('pointerup', rowDndUp, true);
+  window.removeEventListener('pointercancel', rowDndUp, true);
+  window.removeEventListener('keydown', rowDndKey, true);
+  cancelAnimationFrame(rowDnd.raf);
+  const { active, hoverId, hoverPos, srcId } = rowDnd;
+  if (rowDnd.ghost) rowDnd.ghost.remove();
+  if (rowDnd.line) rowDnd.line.remove();
+  if (rowDnd.intoEl) rowDnd.intoEl.classList.remove('dnd-into');
+  if (rowDnd.srcEl) rowDnd.srcEl.classList.remove('dnd-src');
+  document.body.classList.remove('dnd-dragging');
+  rowDnd.pending = false; rowDnd.active = false;
+  rowDnd.ghost = rowDnd.line = rowDnd.intoEl = rowDnd.srcEl = rowDnd.container = null;
+  rowDnd.hoverId = rowDnd.hoverPos = null; rowDnd.srcId = null;
+  if (active && hoverId != null) dropNode(srcId, hoverId, hoverPos);
+}
+/* 落点模型操作：与「上移/下移、移入分组」同一套语义，update(true) 计入撤销 */
+function nodeInSubtree(groupNode, id) {
+  let hit = false;
+  walkTree([groupNode], n => { if (n.id === id) hit = true; });
+  return hit;
+}
+function dropNode(srcId, tgtId, pos) {
+  const src = findLoc(srcId), tgt = findLoc(tgtId);
+  if (!src || !tgt) return;
+  if (pos === 'into' && tgt.node.kind !== 'group') return;
+  if (src.node.kind === 'group' && nodeInSubtree(src.node, tgtId)) { toast('不能把分组移进它自己或它的子组'); return; }
+  const node = src.node;
+  let list, index;
+  if (pos === 'into') {
+    if (tgt.node.children[tgt.node.children.length - 1] === node) return; // 已在组尾
+    list = tgt.node.children; index = list.length;
+  } else {
+    let ti = tgt.index;
+    if (tgt.list === src.list && src.index < tgt.index) ti--; // 源先移除，目标位置前移
+    list = tgt.list; index = pos === 'after' ? ti + 1 : ti;
+  }
+  if (list === src.list && index === src.index) return; // 位置没变
+  src.list.splice(src.index, 1);
+  list.splice(index, 0, node);
   update(true);
 }
 function addLane(type) {
@@ -4509,6 +4727,39 @@ function applySizes() {
   }
 }
 function saveSizes() { localStorage.setItem('wdgui-splits', JSON.stringify(state.sizes)); }
+/* 信号列宽分割条：拖动 = 手动列宽（记忆到 wdgui-splits），双击 = 恢复自适应 */
+let nameSplitDrag = null;
+function bindNameSplit(el, container) {
+  container.appendChild(el);
+  el.addEventListener('mousedown', ev => {
+    if (ev.button !== 0) return;
+    const head = document.querySelector('#gridInner .lane-head');
+    nameSplitDrag = { start: ev.clientX, size: head ? head.getBoundingClientRect().width : 196, el };
+    el.classList.add('dragging');
+    document.body.classList.add('col-resizing');
+    ev.preventDefault();
+  });
+  el.addEventListener('dblclick', () => {
+    if (!state.sizes.namew) return;
+    delete state.sizes.namew;
+    saveSizes();
+    update(true);
+    toast('信号列宽已恢复自动');
+  });
+}
+window.addEventListener('mousemove', ev => {
+  if (!nameSplitDrag) return;
+  const w = clampNameW(nameSplitDrag.size + ev.clientX - nameSplitDrag.start);
+  state.sizes.namew = w;
+  document.documentElement.style.setProperty('--namew', w + 'px'); // 拖动中只改变量，行内容随 var 实时伸缩
+});
+window.addEventListener('mouseup', () => {
+  if (!nameSplitDrag) return;
+  nameSplitDrag.el.classList.remove('dragging');
+  nameSplitDrag = null;
+  document.body.classList.remove('col-resizing');
+  saveSizes();
+});
 function bindSplitters() {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   let drag = null;
@@ -4681,6 +4932,10 @@ function init() {
   animateLanes = new Set(allLanes().map(l => l.id));
   renderGrid();
   animateLanes = null;
+  // 界面字体异步加载完成后按真实字形重算列宽（只更新 --namew 变量，不重建 DOM，不打断输入）
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { if (!state.sizes.namew) document.documentElement.style.setProperty('--namew', calcNamew() + 'px'); });
+  }
 }
 document.addEventListener('DOMContentLoaded', init);
 
