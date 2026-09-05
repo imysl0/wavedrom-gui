@@ -4414,6 +4414,22 @@ function download(name, blob) {
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
 }
+/* 导出文件名：有标题 → wavdrom_gui_标题（清洗文件系统非法字符、超长截断）；
+   无标题 → wavdrom_gui_日期_序号（日期 YYMMDD，序号 = 当天第 N 次导出，localStorage 跨刷新记忆） */
+function exportBaseName() {
+  const title = (state.head.text || '').trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
+    .replace(/\s+/g, ' ').slice(0, 40).trim().replace(/[. ]+$/, '');
+  if (title) return 'wavdrom_gui_' + title;
+  const d = new Date();
+  const date = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  let seq = { date: '', n: 0 };
+  try { seq = JSON.parse(localStorage.getItem('wdgui-export-seq')) || seq; } catch (e) {}
+  seq.n = seq.date === date ? seq.n + 1 : 1;
+  seq.date = date;
+  try { localStorage.setItem('wdgui-export-seq', JSON.stringify(seq)); } catch (e) { /* 隐私模式等场景忽略 */ }
+  return 'wavdrom_gui_' + date + '_' + seq.n;
+}
 function getExportSvg() {
   const svg = $('#wv0 svg');
   if (!svg) { toast('预览还没有内容', true); return null; }
@@ -4456,18 +4472,20 @@ function buildEditorSvg() {
   });
   const colsW = Math.max(gw, Math.min(winW, Math.ceil(usedPx)));
 
-  /* 纵向范围：网格实际内容行（time-row / lane-row / strip），天然不含内边距 */
+  /* 纵向范围：网格实际内容行（time-row / lane-row / strip），天然不含内边距。
+     行 y 用行高累加而非 offsetTop——time-row 是 sticky 吸顶，offsetTop 会随滚动变成吸顶视觉位置 */
   const rows = [...inner.children].filter(c => c.classList.contains('lane-row') || c.classList.contains('time-row') || c.classList.contains('strip'));
   if (!rows.length) { toast('编辑区还没有内容', true); return null; }
-  const last = rows[rows.length - 1];
-  const H = last.offsetTop + last.offsetHeight;
+  const rowY = new Map();
+  let accY = 0;
+  rows.forEach(r => { rowY.set(r, accY); accY += r.offsetHeight; });
+  const H = accY;
   const headEl = rows.find(r => r.querySelector(':scope > .lane-head'));
   const nameW = headEl ? headEl.querySelector(':scope > .lane-head').offsetWidth : 196;
   const W = nameW + colsW;
 
-  /* 字号与名称列位置全部取自屏幕真实元素——界面字号/布局调整后导出自动跟随，不再手调常数 */
-  const innerBox = inner.getBoundingClientRect();
-  const cxOf = e2 => e2.getBoundingClientRect().left - innerBox.left; // 内容坐标，滚动无关
+  /* 字号与名称列位置全部取自屏幕真实元素——界面字号/布局调整后导出自动跟随，不再手调常数。
+     横向用 offsetLeft（lane-head 是 sticky left，rect 会随横向滚动位移，offsetLeft 不受影响） */
   const fsOf = (e2, fallback) => e2 ? (parseFloat(getComputedStyle(e2).fontSize) || fallback) : fallback;
   const padL = e2 => e2 ? (parseFloat(getComputedStyle(e2).borderLeftWidth) + parseFloat(getComputedStyle(e2).paddingLeft) || 0) : 0;
   const fsTime = fsOf(inner.querySelector('.time-cell'), 12);
@@ -4481,7 +4499,7 @@ function buildEditorSvg() {
   });
 
   rows.forEach(r => {
-    const y = r.offsetTop, h = r.offsetHeight;
+    const y = rowY.get(r), h = r.offsetHeight;
     if (r.classList.contains('strip')) {
       const st = r.querySelector('.strip-text');
       el('rect', { x: nameW, y, width: colsW, height: h, fill: cssVar('--bg') }, svg);
@@ -4529,27 +4547,27 @@ function buildEditorSvg() {
   el('line', { x1: nameW, y1: 0, x2: nameW, y2: H, stroke: cssVar('--line') }, svg);
   rows.forEach(r => {
     if (!r.classList.contains('lane-row')) return;
-    const y = r.offsetTop, h = r.offsetHeight, cy = y + h / 2;
+    const y = rowY.get(r), h = r.offsetHeight, cy = y + h / 2;
     const head = r.querySelector(':scope > .lane-head');
     if (r.dataset.lane) {
       const dot = head.querySelector('.dot');
-      if (dot) el('circle', { cx: cxOf(dot) + dot.offsetWidth / 2, cy, r: 4.5, fill: getComputedStyle(dot).backgroundColor }, svg);
+      if (dot) el('circle', { cx: dot.offsetLeft + dot.offsetWidth / 2, cy, r: 4.5, fill: getComputedStyle(dot).backgroundColor }, svg);
       const inp = head.querySelector('input.lane-name');
       const name = inp ? inp.value : '';
       if (name) {
         const fsN = fsOf(inp, 15);
-        txt(svg, cxOf(inp) + padL(inp), cy + fsN * 0.35, name, { 'font-size': fsN, 'font-weight': 500, fill: cssVar('--text'), 'font-family': mono });
+        txt(svg, inp.offsetLeft + padL(inp), cy + fsN * 0.35, name, { 'font-size': fsN, 'font-weight': 500, fill: cssVar('--text'), 'font-family': mono });
       }
       const badge = head.querySelector('.pp-badge');
       if (badge) {
         const fsB = fsOf(badge, 11);
-        txt(svg, cxOf(badge), cy + fsB * 0.35, badge.textContent, { 'font-size': fsB, 'font-weight': 600, fill: cssVar('--warn-ink'), 'font-family': mono });
+        txt(svg, badge.offsetLeft, cy + fsB * 0.35, badge.textContent, { 'font-size': fsB, 'font-weight': 600, fill: cssVar('--warn-ink'), 'font-family': mono });
       }
     } else if (r.dataset.group) {
       // 与屏幕同构：折叠箭头画在 caret 自身位置（展开朝下/折叠朝右），组名从输入框真实位置起笔
       const caret = head.querySelector('.g-caret');
       if (caret) {
-        const cx = cxOf(caret) + caret.offsetWidth / 2;
+        const cx = caret.offsetLeft + caret.offsetWidth / 2;
         const collapsed = r.classList.contains('collapsed');
         const gRot = el('g', { transform: `translate(${cx} ${cy}) rotate(${collapsed ? 0 : 90}) scale(0.75) translate(-8 -8)` }, svg);
         el('path', { d: 'M6 4l4 4-4 4', fill: 'none', stroke: cssVar('--faint'), 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, gRot);
@@ -4557,12 +4575,12 @@ function buildEditorSvg() {
       const g = head.querySelector('.gname');
       if (g) {
         const fsG = fsOf(g, 15);
-        txt(svg, cxOf(g) + padL(g), cy + fsG * 0.35, g.value, { 'font-size': fsG, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
+        txt(svg, g.offsetLeft + padL(g), cy + fsG * 0.35, g.value, { 'font-size': fsG, 'font-weight': 700, fill: cssVar('--acc-text'), 'font-family': uiFont });
       }
     } else if (r.dataset.spacer) {
       const lb = head.querySelector('.spacer-label');
       const fsS = fsOf(lb, 11.5);
-      txt(svg, cxOf(lb || head), cy + fsS * 0.35, '空白占位', { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
+      txt(svg, (lb || head).offsetLeft, cy + fsS * 0.35, '空白占位', { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
     }
   });
   return svg;
@@ -4679,7 +4697,7 @@ function handleAct(act, btn) {
     case 'shortcut-close': $('#shortcutMask').classList.remove('open'); break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
-      download('wavedrom.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
+      download(exportBaseName() + '.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
       break;
     }
     case 'export-png': {
@@ -4693,7 +4711,7 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(async b => { if (b) download('wavedrom.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
@@ -4702,7 +4720,7 @@ function handleAct(act, btn) {
     }
     case 'export-editor-svg': {
       const es = buildEditorSvg(); if (!es) return;
-      download('wavedrom-editor.svg', new Blob([svgWithMeta(new XMLSerializer().serializeToString(es), fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
+      download(exportBaseName() + '.svg', new Blob([svgWithMeta(new XMLSerializer().serializeToString(es), fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
       break;
     }
     case 'export-editor-png': {
@@ -4717,14 +4735,14 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = cssVar('--bg'); ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(async b => { if (b) download('wavedrom-editor.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
       img.src = url;
       break;
     }
-    case 'export-json': download('wavedrom.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
+    case 'export-json': download(exportBaseName() + '.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
     case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), 'JSON 已复制到剪贴板'); break;
     case 'copy-kroki': {
       const block = '```kroki\nwavedrom\n' + fmtJSON(buildJSON(), 0, codeCompact) + '\n```';
