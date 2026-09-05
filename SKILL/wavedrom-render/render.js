@@ -96,11 +96,32 @@ function main() {
     ? renderTraditional(source, { skin: o.skin })
     : renderModern(source, { nodePos: o.nodePos, nodeScale: o.nodeScale });
 
-  // Resolve output base name.
+  // Resolve output base name. Default (no --out): same convention as the app —
+  // wavdrom_gui_<title> if the chart has a head title, else
+  // wavdrom_gui_<YYMMDD>_<N> where N continues the day's numbering in the CWD.
   let base;
-  if (o.out) base = o.out.replace(/\.(svg|png)$/i, '');
-  else if (o.input && o.input !== '-') base = o.input.replace(/\.[^.]+$/, '') + '.' + o.mode;
-  else base = path.join(process.cwd(), 'wavedrom.' + o.mode);
+  if (o.out) {
+    base = o.out.replace(/\.(svg|png)$/i, '');
+  } else {
+    const title = String((source && source.head && source.head.text) || '').trim()
+      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
+      .replace(/\s+/g, ' ').slice(0, 40).trim().replace(/[. ]+$/, '');
+    const d = new Date();
+    const date = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+    if (title) {
+      base = 'wavdrom_gui_' + title;
+    } else {
+      let n = 0;
+      try {
+        for (const f of fs.readdirSync(process.cwd())) {
+          const m = /^wavdrom_gui_(\d{6})_(\d+)\./.exec(f);
+          if (m && m[1] === date) n = Math.max(n, +m[2]);
+        }
+      } catch (e) { /* unreadable dir -> start at 1 */ }
+      base = 'wavdrom_gui_' + date + '_' + (n + 1);
+    }
+    if (o.input && o.input !== '-') base = path.join(path.dirname(path.resolve(o.input)), base);
+  }
 
   const wrote = [];
   if (o.format === 'svg' || o.format === 'both') {

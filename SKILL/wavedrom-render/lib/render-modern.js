@@ -309,7 +309,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
         const attrs = { x: x0 + w / 2, y: 29, 'text-anchor': 'middle', 'font-size': FONTS.dataLabel,
           'font-family': FONT_MONO, fill: isDigit ? '#1B2536' : color };
-        if (String(label).length * FONTS.dataLabel * 0.63 > w - 8) { attrs.textLength = w - 10; attrs.lengthAdjust = 'spacingAndGlyphs'; }
+        if (String(label).length * FONTS.dataLabel * 0.53 > w - 8) { attrs.textLength = w - 10; attrs.lengthAdjust = 'spacingAndGlyphs'; }
         out += tag('text', attrs, esc(String(label)));
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -404,11 +404,10 @@ function tickLabels(val, len) {
 /* ============================================================================
  * Full diagram assembly (port of renderGrid + buildEditorSvg + renderMiniEdges)
  * ========================================================================== */
-function textW(s) {
-  // per-char width estimate, scaled to the configured signal-name size
-  const k = FONTS.signalName / 12.5;
+function textW(s, size = FONTS.signalName) {
+  // per-char width estimate at the given size (LXGW Mono: ~0.55em latin, 1em CJK)
   let w = 0;
-  for (const ch of s) w += (ch.charCodeAt(0) > 0x2e7f ? 11.5 : 6.8) * k;
+  for (const ch of s) w += (ch.charCodeAt(0) > 0x2e7f ? 1 : 0.55) * size;
   return w;
 }
 
@@ -447,12 +446,12 @@ function renderModern(source, opts = {}) {
       const label = (n.period && n.period > 1 ? '×' + n.period : '') + (n.phase ? ' φ' + n.phase : '');
       extra = 14 + label.length * 6;
     }
-    const nameW = Math.min(textW(n.name || ''), 96 * (FONTS.signalName / 12.5));
-    namew = Math.max(namew, Math.min(340, 64 + indent + nameW + extra));
+    const nameW = textW(n.name || '');
+    namew = Math.max(namew, Math.min(480, 70 + indent + nameW + extra));
     if (n.kind === 'group') walk(n.children, depth + 1);
   });
   walk(st.tree, 0);
-  namew = Math.round(Math.min(340, namew));
+  namew = Math.round(Math.min(480, namew));
 
   const win = gridWindow(st);
   const colCount = win.b - win.a;
@@ -679,20 +678,20 @@ function renderModern(source, opts = {}) {
     if (r.type === 'lane') {
       const idx = flat.indexOf(r.node);
       const color = C.ch[(idx < 0 ? 0 : idx) % 6];
-      nameLayer += tag('circle', { cx: 12 + ix + 4, cy, r: 4.5, fill: color });
-      if (r.node.name) nameLayer += tag('text', { x: 12 + ix + 14, y: cy + 4.5, 'font-size': FONTS.signalName, 'font-weight': 500, fill: C.text, 'font-family': FONT_MONO }, esc(r.node.name));
+      nameLayer += tag('circle', { cx: 22 + ix, cy, r: 4.5, fill: color });
+      if (r.node.name) nameLayer += tag('text', { x: 44 + ix, y: cy + 4.5, 'font-size': FONTS.signalName, 'font-weight': 500, fill: C.text, 'font-family': FONT_MONO }, esc(r.node.name));
       if ((r.node.period && r.node.period > 1) || r.node.phase) {
         const badge = (r.node.period && r.node.period > 1 ? '×' + r.node.period : '') + (r.node.phase ? ' φ' + r.node.phase : '');
-        nameLayer += tag('text', { x: 12 + ix + 16 + (r.node.name || '').length * (FONTS.signalName * 0.6), y: cy + 3.5, 'font-size': FONTS.ppBadge, 'font-weight': 600, fill: C.warnInk, 'font-family': FONT_MONO }, esc(badge));
+        nameLayer += tag('text', { x: namew - 8 - textW(badge, FONTS.ppBadge), y: cy + 3.5, 'font-size': FONTS.ppBadge, 'font-weight': 600, fill: C.warnInk, 'font-family': FONT_MONO }, esc(badge));
       }
     } else if (r.type === 'group') {
       // Fold triangle drawn as an SVG path (font glyph ▸ substitutes wrongly
       // in some rasterizers), then the group name text after it.
-      const triX = 12 + ix + 1, triY = cy, triS = FONTS.groupName * 0.42;
-      nameLayer += tag('path', { d: `M${triX} ${triY - triS}L${triX + triS} ${triY}L${triX} ${triY + triS}z`, fill: C.accText });
-      nameLayer += tag('text', { x: 12 + ix + FONTS.groupName * 0.55 + 6, y: cy + 4.5, 'font-size': FONTS.groupName, 'font-weight': 700, fill: C.accText, 'font-family': FONT_UI }, esc(r.node.name || ''));
+      const chevCx = 22 + ix;
+      nameLayer += tag('path', { d: `M${chevCx - 2.2} ${cy - 1.6}L${chevCx} ${cy + 1.6}L${chevCx + 2.2} ${cy - 1.6}`, fill: 'none', stroke: C.faint, 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+      nameLayer += tag('text', { x: 44 + ix, y: cy + 4.5, 'font-size': FONTS.groupName, 'font-weight': 700, fill: C.accText, 'font-family': FONT_UI }, esc(r.node.name || ''));
     } else {
-      nameLayer += tag('text', { x: 12 + ix, y: cy + 4, 'font-size': FONTS.spacer, fill: C.faint, 'font-family': FONT_UI }, '空白占位');
+      nameLayer += tag('text', { x: 31 + ix, y: cy + 4, 'font-size': FONTS.spacer, fill: C.faint, 'font-family': FONT_UI }, '空白占位');
     }
   }
 
