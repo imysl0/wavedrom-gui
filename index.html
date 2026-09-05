@@ -266,7 +266,7 @@ svg { display: block; }
   color: var(--text);
 }
 .tree-row:hover { background: var(--raise); }
-.tree-row .tw-color { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.tree-row .tw-color { width: 8px; height: 8px; border-radius: 50%; flex: none; margin: 0 5px; /* 占位 18px：与分组 caret 同宽同中心 */ }
 .tree-row .tw-name {
   flex: 1; min-width: 0;
   font: 500 12.5px var(--font-mono);
@@ -507,10 +507,10 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line-soft);
   display: flex; align-items: center; gap: 7px;
-  padding: 0 8px 0 12px;
+  padding: 0 8px 0 6px;
 }
 .lane-row:hover .lane-head { background: var(--head-hover); }
-.lane-head .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ch); box-shadow: 0 0 4px var(--ch); }
+.lane-head .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ch); box-shadow: 0 0 4px var(--ch); margin: 0 4.5px; /* 占位 18px：与分组 caret 同宽同中心，组名/信号名首字母对齐 */ }
 .lane-head input.lane-name {
   flex: 1; min-width: 0;
   background: transparent; border: 1px solid transparent; border-radius: 4px;
@@ -549,6 +549,7 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
   background: transparent; color: var(--faint); cursor: pointer;
 }
 .g-caret svg { transition: transform .15s ease; transform: rotate(90deg); }
+.lane-row.group-row .g-caret svg { filter: drop-shadow(0 0 2.5px var(--acc)); /* 折叠符号辉光，与圆点 box-shadow 呼应 */ }
 .lane-row.group-row.collapsed .g-caret svg { transform: rotate(0deg); }
 .g-caret:hover { color: var(--text); background: rgba(120, 150, 200, .14); }
 .g-count {
@@ -2230,7 +2231,7 @@ function calcNamew() {
       extra = 14 + label.length * 6; // period/phase 徽标
     }
     const nameW = n.name ? textPx(n.name, n.kind === 'group') : 0;
-    namew = Math.max(namew, Math.min(NAMEW_MAX, 80 + d * 14 + nameW + extra));
+    namew = Math.max(namew, Math.min(NAMEW_MAX, 92 + d * 14 + nameW + extra));
   });
   return Math.min(NAMEW_MAX, namew);
 }
