@@ -526,6 +526,13 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .lane-head input.lane-name:hover { border-color: var(--line); }
 .lane-head input.lane-name:focus { outline: none; border-color: var(--acc); background: var(--panel-2); }
 .lane-head .lane-actions { display: none; gap: 0; flex: none; }
+/* 行头右侧悬浮操作条（⋯/🗑）：悬停淡入，不占名称列宽度 */
+.lane-head .lane-actions {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  z-index: 3; gap: 1px; padding: 1px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+}
+.lane-head .lane-actions .icon-btn { width: 20px; height: 20px; }
 .lane-row:hover .lane-actions, .lane-row:focus-within .lane-actions { display: inline-flex; }
 .lane-head .pp-badge {
   flex: none;
@@ -2511,6 +2518,19 @@ function rowActions(node, kind, inTree) {
   wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
   return wrap;
 }
+/* 编辑区行头右侧悬浮操作（⋯/🗑）：悬停显示，占位行没有菜单只给删除 */
+function laneHeadActions(node, kind) {
+  const wrap = h('div', { class: 'lane-actions' });
+  const mk = (ic, title, fn, cls) => {
+    const b = h('button', { class: 'icon-btn' + (cls ? ' ' + cls : ''), title, 'aria-label': title });
+    b.appendChild(icon(ic, 13));
+    b.addEventListener('click', ev => { ev.stopPropagation(); fn(b); });
+    return b;
+  };
+  if (kind !== 'spacer') wrap.appendChild(mk(IC.more, '更多操作', btn => openMoreMenu(node, kind, btn)));
+  wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
+  return wrap;
+}
 /* ⋯ 更多操作小菜单（固定定位弹层，窄侧栏也完整展示） */
 function openMoreMenu(node, kind, anchor) {
   const pop = $('#morePop');
@@ -2563,6 +2583,7 @@ function buildLaneRow(lane, depth, colCount, win) {
     ((lane.period && lane.period > 1) || lane.phase)
       ? h('span', { class: 'pp-badge' }, (lane.period && lane.period > 1 ? '×' + lane.period : '') + (lane.phase ? ' φ' + lane.phase : ''))
       : null);
+  head.appendChild(laneHeadActions(lane, 'lane'));
   const track = h('div', { class: 'lane-track', style: 'width:' + colCount * gridCellW() + 'px' });
   const svg = laneSVG(lane, colCount, color, win.a * gridCellW());
   if (animateLanes && animateLanes.has(lane.id)) {
@@ -2613,6 +2634,7 @@ function buildGroupRow(group, depth) {
   });
   const head = h('div', { class: 'lane-head' }, indentEl(depth), dndGrip(), caret, inp,
     collapsed ? h('span', { class: 'g-count' }, String(group.children.length)) : null);
+  head.appendChild(laneHeadActions(group, 'group'));
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
   attachRowDnD(head, group.id, $('#gridInner'));
@@ -2624,6 +2646,7 @@ function buildSpacerRow(sp, depth) {
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
     dndGrip(),
     h('span', { class: 'spacer-label' }, '空白占位'));
+  head.appendChild(laneHeadActions(sp, 'spacer'));
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
   attachRowDnD(head, sp.id, $('#gridInner'));
