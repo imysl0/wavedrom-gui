@@ -142,7 +142,6 @@ svg { display: block; }
 .brand .name span { color: var(--muted); font-weight: 500; }
 .brand .name .bn-gui, .brand .name .bn-phone { color: var(--acc-text); font-weight: 600; }
 .brand .name .bn-phone { display: none; }
-.brand .name .bn-phone { display: none; }
 .topbar .spacer { flex: 1; }
 
 /* ============ 按钮 ============ */
@@ -948,8 +947,10 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 @media (max-width: 1360px) { .right-col { width: 400px; } .side { width: 270px; } }
 /* 窄屏：侧栏收进左侧抽屉，顶栏 ☰ 唤出 */
 #drawerBtn { display: none; }
+#sideDockBtn { display: none; } /* 仅手机/简约模式显示（见 html[data-mobile]） */
 #drawerMask { position: fixed; inset: 0; z-index: 129; background: var(--mask); display: none; }
-@media (max-width: 800px) {
+/* 手机布局：视口≤800px（自动模式）或强制「简约模式」时生效——由 JS 依 isMobile() 设置 html[data-mobile] */
+html[data-mobile] {
   body { overflow: auto; }
   .workspace { flex-direction: column; overflow: visible; }
   #drawerBtn { display: inline-flex; }
@@ -962,13 +963,31 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     box-shadow: var(--shadow-pop);
   }
   .side.drawer-open { transform: none; }
+  /* 侧栏固定钮：手机/简约模式显示，独占一行（不遮挡分区标题/内容）；固定态高亮 */
+  #sideDockBtn { display: flex; align-self: flex-end; width: 30px; height: 26px; margin-bottom: 2px; flex: none; }
+  #sideDockBtn.on { color: var(--acc-text); border-color: var(--acc); background: var(--acc-veil); }
+  /* 固定态：workspace 用网格——第 1 行 [侧栏 | 编辑区]，第 2 行笔刷栏全宽贯通两者下方 */
+  &[data-side-dock] .workspace {
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto;
+    align-items: stretch;
+  }
+  &[data-side-dock] .side { grid-row: 1; grid-column: 1; }
+  &[data-side-dock] .main-col { grid-row: 1; grid-column: 2; min-height: 0; }
+  &[data-side-dock] #palette { grid-row: 2; grid-column: 1 / -1; } /* 笔刷栏横跨两列 */
+  &[data-side-dock] #brushFan { grid-row: 2; grid-column: 1 / -1; }
+  &[data-side-dock] .side {
+    position: relative !important; transform: none !important;
+    z-index: auto; box-shadow: none; border-right: 1px solid var(--line);
+  }
+  &[data-side-dock] #drawerMask { display: none !important; } /* 固定态无遮罩 */
+  &[data-side-dock] .side:not([data-drawer-sec]) { display: none; } /* 未选分区则不占位 */
   /* 分区抽屉：选哪个分区只显示哪个，并各自套用宽度 */
   .side[data-drawer-sec] .side-section { display: none; }
   .side[data-drawer-sec="tree"] .side-section[data-sec="tree"],
   .side[data-drawer-sec="edge"] .side-section[data-sec="edge"],
   .side[data-drawer-sec="cfg"]  .side-section[data-sec="cfg"] { display: block; }
-  .side[data-drawer-sec="edge"] { width: min(86vw, 60vw) !important; }  /* 边与箭头 ≤60% */
-  .side[data-drawer-sec="cfg"]  { width: min(86vw, 75vw) !important; }  /* 图表设置 ≤75% */
+  .side[data-drawer-sec="edge"] { width: min(86vw, 280px) !important; }  /* 边与箭头 ≤280px */
+  .side[data-drawer-sec="cfg"]  { width: min(86vw, 280px) !important; }  /* 图表设置 ≤280px */
   /* 通道与分组：只留“添加按钮排”，一列、尽量窄；隐藏树与整条标题栏 */
   .side[data-drawer-sec="tree"] { width: max-content !important; min-width: 0; }
   .side[data-drawer-sec="tree"] #tree,
@@ -995,7 +1014,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   } /* sticky：内容短时紧跟笔刷，内容长滚动时吸底可点 */
   .mobile-pane-btns .btn { min-height: 36px; }
   .right-tabs .rt-close { display: inline-flex; margin-left: 4px; }
-  html[data-show-preview="0"][data-show-code="0"] .mobile-pane-btns { display: none; }
+  &[data-show-preview="0"][data-show-code="0"] .mobile-pane-btns { display: none; }
   .preview-stage { min-height: 320px; }
   .code-wrap textarea { min-height: 240px; }
   #brushCol.on { position: fixed; right: 8px; top: 56px; bottom: 12px; z-index: 40; border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
@@ -1017,14 +1036,14 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   }
   .topbar #m-settings > button > svg, .topbar #m-import > button > svg,
   .topbar #m-export > button > svg { display: none; } /* 隐藏前导图标与下拉箭头 */
-  /* 品牌名 + 版本号叠放（版本绝对定位到品牌名下方，两行塞进现有栏高、不增高） */
-  .brand { margin-right: 6px; align-items: flex-start; padding-top: 6px; }
-  .brand .name b { font-size: 12.5px; }
+  /* 品牌区单行：Wave + 内联版本（淡胶囊），mark 与文字整体垂直居中、不头重脚轻 */
+  .brand { margin-right: 6px; }
+  .brand .name b { font-size: 15px; }
   .topbar #verBadge {
-    position: absolute; left: 32px; top: 24px; /* 让开 mark 图标宽度，贴品牌名下方 */
-    font-size: 8.5px; padding: 0 4px; height: 13px; line-height: 12px;
+    position: static; font-size: 9px; padding: 1px 6px;
+    height: auto; line-height: 1.2; align-self: center; border-color: var(--line-soft);
   }
-  .topbar #verBadge .ver-pop { font-size: 11px; }
+  .topbar #verBadge .ver-pop { display: none !important; } /* 手机顶栏窄且会裁剪，去掉版本提示气泡 */
   .editor-toolbar { flex-wrap: wrap; row-gap: 6px; }
   .editor-toolbar .hint { display: none; }
   .chain-title .ct-full { display: none; }
@@ -1038,6 +1057,9 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   /* 隐藏 ±4 步进与自动模式开/关文字及其分隔竖线 */
   .col-stepper .btn[data-n="-4"], .col-stepper .btn[data-n="4"] { display: none; }
   .editor-toolbar .chain-state, .editor-toolbar .chain-pill .chain-sep { display: none; }
+  /* 自动模式胶囊：手机只剩「自动」二字，胶囊与字号都收小一些 */
+  .editor-toolbar .chain-pill { height: 26px; padding: 0 10px; margin-left: 6px; border-width: 1.4px; }
+  .editor-toolbar .chain-pill .chain-title { font-size: 12px; letter-spacing: .2px; }
   /* 状态面板：glyph 紧凑化（类笔刷弹层，形状为主无文字） */
   .pop-glyphs { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 3px; }
   .pop-glyphs .pg .tlabel { display: none; }
@@ -1047,8 +1069,8 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   /* 信号\拍 角格：名称列操作按钮的显示/隐藏开关 */
   .time-corner .ha-toggle { display: inline-flex; margin-left: auto; }
   .lane-head .drag-grip, .lane-head .lane-actions { display: none !important; }
-  html[data-head-actions="1"] .lane-head .drag-grip { display: inline-flex !important; opacity: 1 !important; }
-  html[data-head-actions="1"] .lane-head .lane-actions { display: inline-flex !important; }
+  &[data-head-actions="1"] .lane-head .drag-grip { display: inline-flex !important; opacity: 1 !important; }
+  &[data-head-actions="1"] .lane-head .lane-actions { display: inline-flex !important; }
   /* 笔刷按钮矮长方形：省纵向空间，一行多放几支 */
   #palette .tool, #brushFly .tool, #brushCol .tool {
     width: auto; min-width: 38px; height: 28px;
@@ -1059,6 +1081,9 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   /* 带形状的笔刷只显示形状（隐藏字符标签），纯文字按钮保留文字 */
   .palette .tool:not(.txt) .tlabel, #brushFly .tool:not(.txt) .tlabel,
   #brushCol .tool:not(.txt) .tlabel { display: none; }
+  /* 分组弹层：笔刷多时自动换行、宽度钳在视口内，避免笔刷跑到屏幕外 */
+  #brushFly { flex-wrap: wrap; max-width: calc(100vw - 16px); }
+  #brushFly .fly-pin { align-self: auto; height: 28px; } /* 多行时钉钮不再纵向拉伸 */
 }
 /* 触屏（粗指针）：放大触控目标，悬停类控件常显 */
 @media (pointer: coarse) {
@@ -1102,7 +1127,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
       <path d="M1 14h4V6h4v10h4V6h4v8h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
-    <div class="name"><b><span class="bn-gui">WaveDrom-Gui</span><span class="bn-phone">WavePhone</span></b></div>
+    <div class="name"><b><span class="bn-gui">WaveDrom-Gui</span><span class="bn-phone">Wave</span></b></div>
     <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip">说不定有新版了，快点击去仓库首页看看吧！</span></button>
   </div>
   <div class="menu-wrap" id="m-examples">
@@ -1170,6 +1195,9 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 <main class="workspace">
   <aside class="side">
+    <button class="icon-btn" id="sideDockBtn" title="固定为编辑区左栏" aria-label="固定侧栏为编辑区左栏" aria-pressed="false">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M6.5 2.5v11"/></svg>
+    </button>
     <details class="side-section" data-sec="tree" open>
       <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>通道与分组
         <button class="icon-btn" id="treeToolsBtn" title="行内小工具：总是显示（点击改为悬停显示）" aria-label="切换行内小工具显示方式">
@@ -1408,6 +1436,46 @@ document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === '
 document.documentElement.dataset.showPreview = localStorage.getItem('wdgui-show-preview') === '0' ? '0' : '1';
 document.documentElement.dataset.showCode = localStorage.getItem('wdgui-show-code') === '0' ? '0' : '1';
 document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
+/* ---------- 视图模式：auto=按屏宽判断桌面/手机；simple=强制手机（简约）布局 ---------- */
+const VIEWMODE_MQ = window.matchMedia('(max-width: 800px)');
+function viewMode() { return localStorage.getItem('wdgui-viewmode') === 'simple' ? 'simple' : 'auto'; }
+/* 是否走手机布局：简约模式恒为真；自动模式看视口是否 ≤800px */
+function isMobile() { return viewMode() === 'simple' || VIEWMODE_MQ.matches; }
+/* 把有效手机态写到 html[data-mobile]，驱动手机 CSS 作用域 */
+function applyViewMode() {
+  if (isMobile()) document.documentElement.dataset.mobile = '';
+  else delete document.documentElement.dataset.mobile;
+}
+applyViewMode();
+/* ---------- 侧栏固定（手机/简约模式）：固定后分区以编辑区左栏形式常驻，取消则恢复悬浮 ---------- */
+function sideDock() { return localStorage.getItem('wdgui-side-dock') === '1'; }
+/* 固定态：把笔刷栏移到 .workspace 直属层，作为「固定栏+编辑区」共同下方的全宽底栏；取消则移回编辑区内 */
+function relocatePalette(dock) {
+  const ws = document.querySelector('.workspace');
+  const editor = document.querySelector('.editor-col');
+  const pal = document.getElementById('palette'), fan = document.getElementById('brushFan');
+  if (!ws || !editor || !pal) return;
+  if (dock) { ws.appendChild(pal); if (fan) ws.appendChild(fan); }      // 移到 workspace 末尾（网格布局第 2 行全宽）
+  else { editor.appendChild(pal); if (fan) editor.appendChild(fan); }   // 移回编辑区底部
+}
+function applySideDock() {
+  const on = sideDock() && isMobile(); // 仅手机/简约模式下的固定才生效
+  if (on) document.documentElement.dataset.sideDock = '';
+  else delete document.documentElement.dataset.sideDock;
+  relocatePalette(on);
+  const b = document.getElementById('sideDockBtn');
+  if (b) { b.classList.toggle('on', sideDock()); b.setAttribute('aria-pressed', String(sideDock()));
+    b.title = sideDock() ? '取消固定（恢复悬浮抽屉）' : '固定为编辑区左栏'; }
+}
+/* 切换视图模式偏好（auto/simple）并即时生效 */
+function setViewModePref(mode) {
+  localStorage.setItem('wdgui-viewmode', mode === 'simple' ? 'simple' : 'auto');
+  applyViewMode();
+  applySideDock();          // 有效手机态变了→修正固定态与笔刷栏归属（避免离开手机态后 palette 仍挂在 workspace）
+  renderBrushUI();          // 笔刷分组/形态随手机态切换
+  if (!isMobile()) { closeBrushFly(); const s = $('.side'); s.classList.remove('drawer-open'); delete s.dataset.drawerSec; $('#drawerMask').classList.remove('open'); }
+  state.autoFit = true; renderPreview();
+}
 /* 界面字体 / 数据·代码字体（独立选择，JS 写入 CSS 变量） */
 const FONT_STACKS = {
   'lxgw-mono': {
@@ -1452,7 +1520,7 @@ let _brushDef = localStorage.getItem('wdgui-brush-default');
 if (!_brushDef) _brushDef = _brushDefMig[localStorage.getItem('wdgui-brush-mode')] || 'bar';
 if (!BRUSH_DEFAULTS.some(m => m[0] === _brushDef)) _brushDef = 'bar';
 const state_brush = { def: _brushDef, mode: _brushDef };
-if (matchMedia('(max-width: 800px)').matches) state_brush.mode = 'compact'; // 手机默认分组模式（紧凑条双行 + 分组弹层）
+if (isMobile()) state_brush.mode = 'compact'; // 手机默认分组模式（紧凑条双行 + 分组弹层）
 const BRUSH_GROUPS = [
   { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L'] },
   { name: '时钟', items: ['p', 'n', 'P', 'N'] },
@@ -1461,6 +1529,16 @@ const BRUSH_GROUPS = [
   { name: '不定', items: ['x', 'z'] },
   { name: '间隙', items: ['|'] },
 ];
+/* 手机分组：电平并入沿、不定并入间隙为「其他」、数据改名「总线」；每组末尾追加延续「.」，
+   总线组额外加 x（工具栏因此不再需要独立延续笔刷） */
+const BRUSH_GROUPS_MOBILE = [
+  { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L', 'u', 'd', 'U', 'D', '.'] },
+  { name: '时钟', items: ['p', 'n', 'P', 'N', '.'] },
+  { name: '总线', items: ['=', '2', '3', '4', '5', '6', '7', '8', '9', 'x', '.'] },
+  { name: '其他', items: ['x', 'z', '|', '.'] },
+];
+/* 当前渲染用的分组：≤800px 用手机分组，否则用桌面分组 */
+function curBrushGroups() { return isMobile() ? BRUSH_GROUPS_MOBILE : BRUSH_GROUPS; }
 
 /* 节点圆标位置与比例（显示偏好，存 localStorage） */
 const NODE_POS_KEYS = {
@@ -3074,7 +3152,9 @@ const brushActive = id => id === 'select' ? state.tool.type === 'select'
 function setBrush(id, anchor) {
   if (autoChain && chainSel && id !== 'select' && id !== 'erase') {
     /* 自动连续模式：点波形笔刷 = 直接给当前选中格上色并右移（不切换当前工具） */
-    closeBrushFly(); closeBrushPanel();
+    const fly = document.querySelector('#brushFly.on');
+    if (fly && brushFlyKeep()) refreshBrushFlyActive(); else closeBrushFly(); // 钉住则保持分组弹层
+    closeBrushPanel();
     paintChainCell(id);
     return;
   }
@@ -3198,9 +3278,11 @@ function buildBarPalette(pal) {
 function buildCompactPalette(pal) {
   pal.appendChild(foldBtn('展开为横条', 'up', () => setBrushMode('bar')));
   pal.appendChild(foldBtn('折叠为右下角按钮', 'right', () => setBrushMode('fab')));
-  ['select', 'erase', '.'].forEach(id => pal.appendChild(brushTxtBtn(id)));
+  const mobile = isMobile();
+  // 手机：延续已并入每个分组，不再单列独立笔刷
+  (mobile ? ['select', 'erase'] : ['select', 'erase', '.']).forEach(id => pal.appendChild(brushTxtBtn(id)));
   pal.appendChild(h('span', { class: 'psep' }));
-  BRUSH_GROUPS.forEach(g => pal.appendChild(groupChip(g, false)));
+  curBrushGroups().forEach(g => pal.appendChild(groupChip(g, false)));
   pal.appendChild(h('div', { id: 'brushFly' }));
 }
 /* D 右纵条：B 的纵向排列，右侧窄分栏；↓ 折叠成 C，→ 展开为 E */
@@ -3210,8 +3292,9 @@ function buildVGroupPalette() {
     foldBtn('折叠为右下角按钮', 'down', () => setBrushMode('fab')),
     foldBtn('展开为右侧面板', 'left', () => setBrushMode('panel'))));
   const col = h('div', { class: 'vgroup-col' });
-  ['select', 'erase', '.'].forEach(id => col.appendChild(brushTxtBtn(id)));
-  BRUSH_GROUPS.forEach(g => col.appendChild(groupChip(g, true)));
+  const mobile = isMobile();
+  (mobile ? ['select', 'erase'] : ['select', 'erase', '.']).forEach(id => col.appendChild(brushTxtBtn(id)));
+  curBrushGroups().forEach(g => col.appendChild(groupChip(g, true)));
   root.appendChild(col);
 }
 /* 分组弹层：悬停 / 点击分组展示，离开分组与弹层区域或选择笔刷后自动隐藏 */
@@ -4035,7 +4118,7 @@ function bindGrid() {
     const bp = $('#brushPanel');
     if (bp && !ev.target.closest('.fan-box') && !bp.contains(ev.target)) bp.remove();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); delete $('.side').dataset.drawerSec; $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); if (localStorage.getItem('wdgui-side-dock') !== '1') { $('.side').classList.remove('drawer-open'); delete $('.side').dataset.drawerSec; } $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
@@ -4358,6 +4441,10 @@ function buildViewMenu(menu) {
     });
     menu.appendChild(b);
   };
+  menu.appendChild(h('div', { class: 'menu-sec' }, '视图模式'));
+  addItem('自动（按屏宽判断）', viewMode() === 'auto', () => setViewModePref('auto'));
+  addItem('简约模式（固定手机版）', viewMode() === 'simple', () => setViewModePref('simple'));
+  menu.appendChild(h('div', { class: 'sep' }));
   menu.appendChild(h('div', { class: 'menu-sec' }, '布局方向'));
   addItem('预览在右侧', root.dataset.view === 'side', () => setViewMode('side'));
   addItem('预览在下方', root.dataset.view === 'below', () => setViewMode('below'));
@@ -5326,12 +5413,26 @@ function init() {
     const det = side.querySelector(`.side-section[data-sec="${sec}"]`);
     if (det) det.open = true; // 展开被选中分区（防其处于折叠态）
     side.classList.add('drawer-open');
-    $('#drawerMask').classList.add('open');
+    if (!sideDock()) $('#drawerMask').classList.add('open'); // 固定态是在流内左栏，无需遮罩
   };
+  /* 侧栏固定钮：切换 wdgui-side-dock；固定后分区常驻为编辑区左栏，取消则恢复悬浮 */
+  applySideDock();
+  if (sideDock() && isMobile() && !$('.side').dataset.drawerSec) openDrawerSec('tree'); // 加载时已固定→自动展开默认分区
+  const sideDockBtn = $('#sideDockBtn');
+  if (sideDockBtn) sideDockBtn.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const on = !sideDock();
+    localStorage.setItem('wdgui-side-dock', on ? '1' : '0');
+    applySideDock();
+    if (on) { if (!$('.side').dataset.drawerSec) openDrawerSec('tree'); $('#drawerMask').classList.remove('open'); }
+    else if ($('.side').classList.contains('drawer-open')) $('#drawerMask').classList.add('open'); // 取消固定后若仍展开→补上遮罩恢复悬浮语义
+    else closeDrawer();
+    state.autoFit = true; renderPreview();
+  });
   $('#drawerBtn').addEventListener('click', ev => {
     ev.stopPropagation();
-    // 已展开某分区时，按钮作“关闭”用；否则弹出分区菜单
-    if ($('.side').classList.contains('drawer-open')) { closeDrawer(); return; }
+    // 固定态：☰ 仍弹分区菜单以切换左栏显示的分区；非固定且已展开时作“关闭”用
+    if (!sideDock() && $('.side').classList.contains('drawer-open')) { closeDrawer(); return; }
     const open = !drawerMenu.classList.contains('open');
     closeMenus();
     if (open) { restoreDrawerBase(); drawerMenu.classList.add('open'); positionMenu($('#m-drawer'), drawerMenu); }
@@ -5367,10 +5468,10 @@ function init() {
   }
   bindDrawerMenu();
   $('#drawerMask').addEventListener('click', closeDrawer);
-  const narrowMq = window.matchMedia('(max-width: 800px)');
-  const onNarrowChange = ev => { if (!ev.matches) closeDrawer(); };
-  if (narrowMq.addEventListener) narrowMq.addEventListener('change', onNarrowChange);
-  else narrowMq.addListener(onNarrowChange);
+  /* 视口跨越 800px 时：重算有效手机态、刷新笔刷 UI；回到桌面宽且非简约模式则收起抽屉 */
+  const onNarrowChange = () => { applyViewMode(); applySideDock(); renderBrushUI(); if (!isMobile()) closeDrawer(); };
+  if (VIEWMODE_MQ.addEventListener) VIEWMODE_MQ.addEventListener('change', onNarrowChange);
+  else VIEWMODE_MQ.addListener(onNarrowChange);
 
   $('#traceBtn').addEventListener('click', () => {
     const t = document.documentElement.dataset.trace === 'glow' ? 'slim' : 'glow';
