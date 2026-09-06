@@ -3943,19 +3943,31 @@ function bindGrid() {
   };
   inner.addEventListener('pointerup', touchEnd);
   inner.addEventListener('pointercancel', touchEnd);
-  /* 选中格上滚轮：按上/下变换切换（与拖动越界变换同一套语义）——上滚=上变换，下滚=下变换 */
+  /* 滚轮切换状态：上滚=上变换，下滚=下变换（与拖动越界变换同一套语义）。
+     覆盖三种场景——① 非自动模式选中格（popCell，跟随面板）；
+     ② 非自动模式悬停任意格（无需点选，不弹面板）；
+     ③ 自动模式当前锁定格（chainSel，就地变换不右移；面板开着则跟随刷新）。 */
   inner.addEventListener('wheel', ev => {
-    if (!popCell) return;
     const cell = ev.target.closest('.cell');
     if (!cell) return;
-    if (+cell.dataset.lane !== popCell.lane.id || +cell.dataset.t !== popCell.t) return;
+    const cLane = +cell.dataset.lane, cT = +cell.dataset.t;
+    const onPopCell = popCell && cLane === popCell.lane.id && cT === popCell.t;
+    const onChainSel = autoChain && chainSel && cLane === chainSel.laneId && cT === chainSel.t;
+    if (autoChain) {
+      if (!onChainSel) return; // 自动模式：仅当前锁定格上滚轮才变换（悬停其他格不处理）
+    } else if (!onPopCell && popCell) {
+      return; // 非自动模式：有选中格但滚在别处，不处理
+    }
+    const lane = getLaneById(cLane);
+    if (!lane) return;
     ev.preventDefault();
-    const lane = popCell.lane, t = popCell.t;
-    const base = baseGlyphAt(lane, t);
+    const base = baseGlyphAt(lane, cT);
     const next = ev.deltaY < 0 ? cellUp(base) : cellDown(base);
     commitTag = 'wheel';
-    paintCell(lane, t, next);
-    reopenPopAt(lane, t);
+    paintCell(lane, cT, next); // 就地变换，不触发 advanceChain（滚轮是微调手势，不右移）
+    if (onChainSel) restoreChainSelHighlight(); // paintCell 重建 DOM，重贴当前格高亮
+    if (onPopCell) reopenPopAt(lane, cT); // 选中格滚轮重开面板；悬停切换不弹面板
+    else if (onChainSel && $('#cellPop').classList.contains('open')) reopenPopAtChainSel();
   }, { passive: false });
   inner.addEventListener('keydown', ev => { if (ev.key === 'Escape') closePop(); });
   $('#previewStage').addEventListener('keydown', ev => { if (ev.key === 'Escape') closePop(); });
@@ -4220,12 +4232,15 @@ function dropNode(srcId, tgtId, pos) {
 function addLane(type) {
   const n = allLanes().length;
   const lane = newLane(type === 'clock' ? 'clk' : type === 'bus' ? 'bus' : 'signal_' + n);
-  if (type === 'clock') { for (let i = 0; i < 8; i++) lane.slots.push({ glyph: 'p' }); }
+  // 预填 8 拍：首拍落定基调字符，其余 7 拍用延续符（.）——时钟 p / 信号 0 / 总线 x
+  const head = type === 'clock' ? 'p' : type === 'bus' ? 'x' : '0';
+  lane.slots.push({ glyph: head });
+  for (let i = 1; i < 8; i++) lane.slots.push({ glyph: '.' });
   state.tree.push(lane);
   animateLanes = new Set([lane.id]);
   update(true);
   animateLanes = null;
-  if (type === 'clock') toast('时钟通道已添加，已预填 8 拍');
+  toast((type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + '通道已添加，已预填 8 拍');
 }
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
