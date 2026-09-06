@@ -1060,12 +1060,13 @@ html[data-mobile] {
   /* 自动模式胶囊：手机只剩「自动」二字，胶囊与字号都收小一些 */
   .editor-toolbar .chain-pill { height: 26px; padding: 0 10px; margin-left: 6px; border-width: 1.4px; }
   .editor-toolbar .chain-pill .chain-title { font-size: 12px; letter-spacing: .2px; }
-  /* 状态面板：glyph 紧凑化（类笔刷弹层，形状为主无文字） */
-  .pop-glyphs { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 3px; }
-  .pop-glyphs .pg .tlabel { display: none; }
-  .pop-glyphs .pg { padding: 2px 3px; }
-  #cellPop .pop-glyphs .pg { height: auto; } /* 矮长方形：高度随内容（形状 14px） */
-  .pop-glyphs .pg svg { width: 24px; height: 14px; }
+  /* 简约模式状态面板：仅标题 + 一行迷你操作（标签/节点/清除），窄而紧凑 */
+  #cellPop { width: auto; max-width: min(92vw, 320px); padding: 8px; }
+  #cellPop .pop-title { margin-bottom: 6px; }
+  #cellPop .pop-mini { display: flex; align-items: center; gap: 6px; }
+  #cellPop .pop-mini input { flex: 1; min-width: 60px; height: 28px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 8px; color: var(--text); font-size: 12px; }
+  #cellPop .pop-mini input:focus { outline: none; border-color: var(--acc); }
+  #cellPop .pop-mini .btn { font-size: 12px; padding: 0 8px; }
   /* 信号\拍 角格：名称列操作按钮的显示/隐藏开关 */
   .time-corner .ha-toggle { display: inline-flex; margin-left: auto; }
   .lane-head .drag-grip, .lane-head .lane-actions { display: none !important; }
@@ -3696,26 +3697,61 @@ function openPop(lane, t, anchor) {
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
     h('span', { style: 'flex:1;min-width:0' }, (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空')));
   pop.appendChild(title);
-  const glyphsWrap = h('div');
-  buildGlyphGrid(glyphsWrap, eff, ch => {
-    if (autoChain && chainSel && chainSel.laneId === lane.id && chainSel.t === t) { paintChainCell(ch); }
-    else { paintCell(lane, t, ch); closePop(); }
-  });
-  pop.appendChild(glyphsWrap);
-  const foldGlyphs = foldBtn('', popGlyphsCollapsed ? 'down' : 'up', () => {
-    popGlyphsCollapsed = !popGlyphsCollapsed;
+  const mobile = isMobile();
+  if (!mobile) {
+    const glyphsWrap = h('div');
+    buildGlyphGrid(glyphsWrap, eff, ch => {
+      if (autoChain && chainSel && chainSel.laneId === lane.id && chainSel.t === t) { paintChainCell(ch); }
+      else { paintCell(lane, t, ch); closePop(); }
+    });
+    pop.appendChild(glyphsWrap);
+    const foldGlyphs = foldBtn('', popGlyphsCollapsed ? 'down' : 'up', () => {
+      popGlyphsCollapsed = !popGlyphsCollapsed;
+      applyGlyphFold();
+    });
+    var applyGlyphFold = () => {
+      glyphsWrap.style.display = popGlyphsCollapsed ? 'none' : '';
+      foldGlyphs.textContent = '';
+      foldGlyphs.appendChild(icon(FOLD_PATHS[popGlyphsCollapsed ? 'down' : 'up'], 12));
+      const lbl = popGlyphsCollapsed ? '展开状态字符' : '折叠状态字符';
+      foldGlyphs.title = lbl;
+      foldGlyphs.setAttribute('aria-label', lbl);
+    };
+    title.appendChild(foldGlyphs);
     applyGlyphFold();
-  });
-  const applyGlyphFold = () => {
-    glyphsWrap.style.display = popGlyphsCollapsed ? 'none' : '';
-    foldGlyphs.textContent = '';
-    foldGlyphs.appendChild(icon(FOLD_PATHS[popGlyphsCollapsed ? 'down' : 'up'], 12));
-    const lbl = popGlyphsCollapsed ? '展开状态字符' : '折叠状态字符';
-    foldGlyphs.title = lbl;
-    foldGlyphs.setAttribute('aria-label', lbl);
-  };
-  title.appendChild(foldGlyphs);
-  applyGlyphFold();
+  }
+
+  if (mobile) {
+    /* 简约模式：只保留 标题 + 一行「标签(数据格) · 放置/移除节点 · 清除本格」；状态字符与填充色改由底部笔刷栏/滚轮 */
+    const row = h('div', { class: 'pop-mini' });
+    if (slot && isData(slot.glyph)) {
+      const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '标签', 'aria-label': '数据标签' });
+      inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
+      inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
+      row.appendChild(inp);
+      setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
+    }
+    const letter = lane.nodeByT[t];
+    const nodeBtn = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, letter ? ('节点 ' + letter + ' ✕') : '⊕ 节点');
+    nodeBtn.title = letter ? '移除节点标记' : '放置节点（可连箭头）';
+    nodeBtn.addEventListener('click', () => {
+      if (letter) { delete lane.nodeByT[t]; update(); }
+      else { const L = nextNodeLetter(); if (!L) { toast('节点字母（a–Z 共 52 个）已用完', true); return; } lane.nodeByT[t] = L; update(true); }
+      openPop(lane, t, anchor);
+    });
+    row.appendChild(nodeBtn);
+    pop.appendChild(row);
+    pop.classList.add('open');
+    const r0 = anchor.getBoundingClientRect();
+    let x0 = r0.left, y0 = r0.bottom + 6;
+    const pw0 = pop.offsetWidth, ph0 = pop.offsetHeight;
+    if (x0 + pw0 > innerWidth - 8) x0 = innerWidth - pw0 - 8;
+    if (y0 + ph0 > innerHeight - 8) y0 = r0.top - ph0 - 6;
+    pop.style.left = Math.max(8, x0) + 'px';
+    pop.style.top = Math.max(8, y0) + 'px';
+    markEditingRow(lane);
+    return;
+  }
 
   if (slot && isData(slot.glyph)) {
     const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '如 0x1F、D0、NOP', 'aria-label': '数据标签' });
