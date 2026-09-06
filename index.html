@@ -140,6 +140,9 @@ svg { display: block; }
 .brand .name { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
 .brand .name b { font-family: var(--font-mono); font-weight: 600; color: var(--acc-text); }
 .brand .name span { color: var(--muted); font-weight: 500; }
+.brand .name .bn-gui, .brand .name .bn-phone { color: var(--acc-text); font-weight: 600; }
+.brand .name .bn-phone { display: none; }
+.brand .name .bn-phone { display: none; }
 .topbar .spacer { flex: 1; }
 
 /* ============ 按钮 ============ */
@@ -173,6 +176,9 @@ svg { display: block; }
 .menu-wrap { position: relative; }
 .menu {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 90;
+  max-height: calc(100vh - 70px);
+  max-height: calc(100dvh - 70px);
+  overflow-y: auto;
   min-width: 190px;
   background: var(--raise);
   border: 1px solid var(--line);
@@ -305,6 +311,7 @@ html[data-tree-collapsed="1"] .tree { display: none; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 15px; height: 22px; flex: none;
   color: var(--faint); cursor: grab; border-radius: 4px;
+  touch-action: none; /* 触摸从把手拖拽排序不被页面滚动打断 */
   opacity: 0; transition: opacity .12s ease, color .12s ease;
 }
 /* 编辑区：把手悬浮在名称格左缘，不占列宽（结构树把手保持占位） */
@@ -434,6 +441,9 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .editor-toolbar .chain-pill .chain-title { font: 600 15px var(--font-ui); letter-spacing: .5px; line-height: 1; }
 .editor-toolbar .chain-pill .chain-sep { width: 1.4px; height: 15px; background: currentColor; opacity: .55; border-radius: 1px; }
 .editor-toolbar .chain-pill .chain-state { font: 500 12px var(--font-mono); line-height: 1; }
+.chain-state::after { content: '启动'; }
+.chain-state[data-s="on"]::after { content: '退出'; }
+.chain-title .ct-short { display: none; }
 .editor-toolbar .chain-pill.active { background: var(--acc); border-color: var(--acc); color: var(--acc-ink); }
 .editor-toolbar .chain-pill.active:hover { background: var(--acc); }
 .editor-toolbar .chain-pill.active .chain-title { color: #FFFFFF; }
@@ -468,6 +478,7 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
   background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
+.time-corner .ha-toggle { display: none; } /* 桌面无此按钮，≤800 由媒体查询打开 */
 .time-corner {
   position: sticky; left: 0; z-index: 6;
   width: var(--namew, 196px); flex: none;
@@ -666,6 +677,14 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
   box-shadow: var(--shadow-pop);
 }
 #brushFly.on { display: flex; }
+#brushFly .fly-pin {
+  flex: none; align-self: stretch; width: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: transparent; color: var(--faint); cursor: pointer;
+}
+#brushFly .fly-pin.on { color: var(--acc-text); border-color: var(--acc); background: var(--acc-veil); }
+#brushFly .fly-pin.on svg circle { fill: currentColor; }
 .tool.chip-v { width: 42px; height: 30px; padding: 0 2px; }
 .tool.chip-v .chip-name { font-size: 10.5px; }
 .vgroup-col { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
@@ -711,6 +730,8 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 }
 .right-tabs .tab.active { color: var(--text); background: var(--panel); border-bottom-color: var(--acc); }
 .right-tabs .rt-spacer { flex: 1; }
+.mobile-pane-btns { display: none; }
+.right-tabs .rt-close { display: none; }
 .right-toolbar { display: flex; align-items: center; gap: 4px; padding-bottom: 4px; }
 .right-toolbar .zoom-label { font: 600 11px var(--font-mono); color: var(--muted); min-width: 42px; text-align: center; }
 .pane { flex: 1; min-height: 0; display: none; }
@@ -942,14 +963,76 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   .side.drawer-open { transform: none; }
   .side-section { flex: none; }
   #drawerMask.open { display: block; }
-  .main-col { flex-direction: column; flex: none; }
+  .main-col { flex-direction: column; flex: 1 1 auto; min-height: calc(100vh - 104px); min-height: calc(100dvh - 104px); }
   .split { display: none; }
-  .editor-col { flex: none; min-height: 62vh; }
-  .right-col { flex: none; width: auto !important; height: auto !important; border-left: none; border-top: 1px solid var(--line); }
+  .editor-col { flex: 1 1 auto; min-height: 0; } /* 高度随内容收缩，不留无用空白 */
+  .right-col { flex: none; width: auto !important; height: auto !important; border-left: none; border-top: 1px solid var(--line); display: none; }
+  .right-col.mobile-open {
+    display: flex; position: fixed; left: 0; right: 0; top: 52px; bottom: 52px;
+    z-index: 120; background: var(--bg); border-top: 1px solid var(--line);
+  }
+  .mobile-pane-btns {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    position: sticky; bottom: 0; z-index: 30;
+    height: 52px; box-sizing: border-box; align-items: center;
+    padding: 8px 10px; background: var(--bg); border-top: 1px solid var(--line-soft);
+  } /* sticky：内容短时紧跟笔刷，内容长滚动时吸底可点 */
+  .mobile-pane-btns .btn { min-height: 36px; }
+  .right-tabs .rt-close { display: inline-flex; margin-left: 4px; }
+  html[data-show-preview="0"][data-show-code="0"] .mobile-pane-btns { display: none; }
   .preview-stage { min-height: 320px; }
   .code-wrap textarea { min-height: 240px; }
   #brushCol.on { position: fixed; right: 8px; top: 56px; bottom: 12px; z-index: 40; border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
+  /* 手机/窄屏：顶栏横向收纳，工具栏换行，笔刷横滑 */
+  .topbar { overflow-x: auto; scrollbar-width: none; padding: 0 8px; gap: 6px; }
+  .topbar::-webkit-scrollbar { display: none; }
+  .topbar > * { flex: none; }
+  .topbar .spacer { flex: 1 1 0; min-width: 0; }
+  .editor-toolbar { flex-wrap: wrap; row-gap: 6px; }
+  .editor-toolbar .hint { display: none; }
+  .chain-title .ct-full { display: none; }
+  .chain-title .ct-short { display: inline; }
+  .chain-state::after { content: '开'; }
+  .chain-state[data-s="on"]::after { content: '关'; }
+  .brand .name .bn-gui { display: none; }
+  .brand .name .bn-phone { display: inline; }
+  .palette { flex-wrap: wrap; row-gap: 4px; } /* 手机：笔刷双行 */
+  .palette > * { flex: none; }
+  /* 隐藏 ±4 步进与自动模式开/关文字 */
+  .col-stepper .btn[data-n="-4"], .col-stepper .btn[data-n="4"] { display: none; }
+  .editor-toolbar .chain-state { display: none; }
+  /* 状态面板：glyph 紧凑化（类笔刷弹层，形状为主无文字） */
+  .pop-glyphs { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 3px; }
+  .pop-glyphs .pg .tlabel { display: none; }
+  .pop-glyphs .pg { padding: 2px 3px; }
+  #cellPop .pop-glyphs .pg { height: auto; } /* 矮长方形：高度随内容（形状 14px） */
+  .pop-glyphs .pg svg { width: 24px; height: 14px; }
+  /* 信号\拍 角格：名称列操作按钮的显示/隐藏开关 */
+  .time-corner .ha-toggle { display: inline-flex; margin-left: auto; }
+  .lane-head .drag-grip, .lane-head .lane-actions { display: none !important; }
+  html[data-head-actions="1"] .lane-head .drag-grip { display: inline-flex !important; opacity: 1 !important; }
+  html[data-head-actions="1"] .lane-head .lane-actions { display: inline-flex !important; }
+  /* 笔刷按钮矮长方形：省纵向空间，一行多放几支 */
+  #palette .tool, #brushFly .tool, #brushCol .tool {
+    width: auto; min-width: 38px; height: 28px;
+    flex-direction: row; gap: 4px; padding: 0 8px;
+  }
+  #palette .tool svg, #brushFly .tool svg, #brushCol .tool svg { height: 12px; width: auto; }
+  #palette .psep { height: 18px; }
+  /* 带形状的笔刷只显示形状（隐藏字符标签），纯文字按钮保留文字 */
+  .palette .tool:not(.txt) .tlabel, #brushFly .tool:not(.txt) .tlabel,
+  #brushCol .tool:not(.txt) .tlabel { display: none; }
 }
+/* 触屏（粗指针）：放大触控目标，悬停类控件常显 */
+@media (pointer: coarse) {
+  .topbar .icon-btn { width: 36px !important; height: 36px !important; }
+  .topbar .btn, .add-lane-btns .btn, .editor-toolbar .btn { min-height: 36px; }
+  .g-caret { width: 18px; height: 18px; }
+  .tree-row .drag-grip, .lane-head .drag-grip { opacity: 1; }
+  .tree-row .lane-actions, .lane-head .lane-actions { display: inline-flex; }
+}
+/* 波形单元格：触摸单指绘制不被原生滚动打断（touch-action 只影响触摸，桌面零影响） */
+.cell { touch-action: none; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -965,7 +1048,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
       <path d="M1 14h4V6h4v10h4V6h4v8h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
-    <div class="name"><b>WaveDrom-Gui</b></div>
+    <div class="name"><b><span class="bn-gui">WaveDrom-Gui</span><span class="bn-phone">WavePhone</span></b></div>
   </div>
   <div class="menu-wrap" id="m-examples">
     <button class="btn ghost" aria-haspopup="true">示例 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
@@ -1109,7 +1192,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <button class="btn ghost" data-act="add-col" data-n="1" title="网格增加 1 拍">＋</button>
         <button class="btn ghost" data-act="add-col" data-n="4" title="网格增加 4 拍">＋4</button>
       </div>
-      <button class="chain-pill" id="chainBtn" data-act="toggle-autochain" aria-pressed="false" title="自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）"><span class="chain-title">自动模式</span><span class="chain-sep"></span><span class="chain-state">启动</span></button>
+      <button class="chain-pill" id="chainBtn" data-act="toggle-autochain" aria-pressed="false" title="自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）"><span class="chain-title"><span class="ct-full">自动模式</span><span class="ct-short">自动</span></span><span class="chain-sep"></span><span class="chain-state" data-s="off"></span></button>
       <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 选中格滚轮切换状态 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
@@ -1130,6 +1213,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
         <span class="zoom-label" id="zoomLabel">100%</span>
         <button class="icon-btn" data-act="zoom-in" title="放大" aria-label="放大预览"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m14 14-3.2-3.2M5 7h4M7 5v4"/></svg></button>
         <button class="icon-btn" data-act="zoom-fit" title="重置缩放" aria-label="重置缩放"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V3.5A1.5 1.5 0 0 1 3.5 2H6M10 2h2.5A1.5 1.5 0 0 1 14 3.5V6M14 10v2.5a1.5 1.5 0 0 1-1.5 1.5H10M6 14H3.5A1.5 1.5 0 0 1 2 12.5V10"/></svg></button>
+        <button class="icon-btn rt-close" id="paneCloseBtn" title="收起" aria-label="收起预览/代码"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
       </div>
     </div>
     <div class="pane active" id="pane-preview">
@@ -1149,6 +1233,10 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
       </div>
     </div>
   </section>
+  <div class="mobile-pane-btns">
+    <button class="btn" id="mPaneBtnPreview">实时预览</button>
+    <button class="btn" id="mPaneBtnCode">WaveJSON 代码</button>
+  </div>
   </div>
   <aside id="brushCol" aria-label="笔刷面板"></aside>
 </main>
@@ -1310,6 +1398,7 @@ let _brushDef = localStorage.getItem('wdgui-brush-default');
 if (!_brushDef) _brushDef = _brushDefMig[localStorage.getItem('wdgui-brush-mode')] || 'bar';
 if (!BRUSH_DEFAULTS.some(m => m[0] === _brushDef)) _brushDef = 'bar';
 const state_brush = { def: _brushDef, mode: _brushDef };
+if (matchMedia('(max-width: 800px)').matches) state_brush.mode = 'compact'; // 手机默认分组模式（紧凑条双行 + 分组弹层）
 const BRUSH_GROUPS = [
   { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L'] },
   { name: '时钟', items: ['p', 'n', 'P', 'N'] },
@@ -2297,7 +2386,18 @@ function renderGrid() {
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, H.text)));
   }
   const timeRow = h('div', { class: 'time-row' },
-    h('div', { class: 'time-corner' }, state.hb ? `信号 \\ 拍 ${win.a}–${win.b - 1}` : '信号 \\ 拍'),
+    h('div', { class: 'time-corner' }, state.hb ? `信号 \\ 拍 ${win.a}–${win.b - 1}` : '信号 \\ 拍',
+      (() => {
+        const b = h('button', { class: 'icon-btn ha-toggle', title: '显示/隐藏名称列操作按钮（拖拽·更多·删除）', 'aria-label': '显示或隐藏名称列操作按钮' });
+        b.appendChild(icon('<path d="M3 5.5h10M3 10.5h10"/><circle cx="6" cy="5.5" r="1.7"/><circle cx="10" cy="10.5" r="1.7"/>', 13));
+        b.addEventListener('click', ev => {
+          ev.stopPropagation();
+          const on = localStorage.getItem('wdgui-head-actions') === '1';
+          localStorage.setItem('wdgui-head-actions', on ? '0' : '1');
+          applyHeadActions();
+        });
+        return b;
+      })()),
     (() => {
       const cells = h('div', { class: 'time-cells' });
       const headTL = headNums ? tickLabels(H.tick, win.b) : { L: [], offset: 0 };
@@ -2925,16 +3025,21 @@ function setBrush(id, anchor) {
     return;
   }
   if (id === 'erase') {
-    /* 清除与右键清除重复：不再作为左键笔刷激活，点击只弹引导提示 */
-    brushTip(ERASE_HINT, anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
-    closePop(); closeBrushFly(); closeBrushPanel();
-    return;
+    /* 桌面（精指针）：右键清除为主，清除笔刷仅作引导提示不激活；
+       触屏（粗指针）：无右键，清除笔刷恢复为真实工具（点/拖单元格清除） */
+    if (!matchMedia('(pointer: coarse)').matches) {
+      brushTip(ERASE_HINT, anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
+      closePop(); closeBrushFly(); closeBrushPanel();
+      return;
+    }
   }
   state.tool = brushIdTool(id);
   document.querySelectorAll('[data-brush]').forEach(b => b.classList.toggle('active', b.dataset.brush === id));
   closePop();
-  closeBrushFly();
   closeBrushPanel();
+  const fly = document.querySelector('#brushFly.on');
+  if (fly && brushFlyKeep()) refreshBrushFlyActive(); // 钉住：选完保持弹层，仅刷新选中态
+  else closeBrushFly();
 }
 function brushFace(id, w, hgt, iconSize) {
   if (id === 'select') return icon('<path d="M4 2l8 6.5-3.4.8 1.9 4-1.8.8-1.9-4L4 13z"/>', iconSize);
@@ -2999,7 +3104,12 @@ function groupChip(g, vertical) {
   }, h('span', { class: 'chip-name' }, g.name));
   chip.addEventListener('mouseenter', () => { clearTimeout(brushFlyHideTimer); openBrushFly(chip, g); });
   chip.addEventListener('mouseleave', () => scheduleHideBrushFly());
-  chip.addEventListener('click', ev => { ev.stopPropagation(); clearTimeout(brushFlyHideTimer); openBrushFly(chip, g); });
+  chip.addEventListener('click', ev => {
+    ev.stopPropagation(); clearTimeout(brushFlyHideTimer);
+    const fly = document.querySelector('#brushFly.on');
+    if (brushFlyKeep() && fly && fly.dataset.group === g.name) { closeBrushFly(); return; } // 钉住时再点同组 = 收起
+    openBrushFly(chip, g);
+  });
   return chip;
 }
 function renderBrushUI() {
@@ -3053,11 +3163,18 @@ function buildVGroupPalette() {
 /* 分组弹层：悬停 / 点击分组展示，离开分组与弹层区域或选择笔刷后自动隐藏 */
 let brushFlyHideTimer = null;
 function scheduleHideBrushFly() {
+  if (brushFlyKeep()) return; // 钉住模式下不自动隐藏
   clearTimeout(brushFlyHideTimer);
   brushFlyHideTimer = setTimeout(() => {
     const f = $('#brushFly');
     if (f && f.classList.contains('on') && !f.matches(':hover') && !document.querySelector('.tool.chip:hover, .tool.chip-v:hover')) closeBrushFly();
   }, 180);
+}
+/* 分组弹层钉住：开启后选择笔刷不自动收起，再次点击分组按钮才收起（偏好持久化） */
+function brushFlyKeep() { return localStorage.getItem('wdgui-brush-fly-keep') === '1'; }
+function setBrushFlyKeep(v) { try { localStorage.setItem('wdgui-brush-fly-keep', v ? '1' : '0'); } catch (e) {} }
+function refreshBrushFlyActive() {
+  document.querySelectorAll('#brushFly .tool').forEach(b => b.classList.toggle('active', brushActive(b.dataset.brush)));
 }
 function openBrushFly(chip, g) {
   let fly = $('#brushFly');
@@ -3069,6 +3186,20 @@ function openBrushFly(chip, g) {
   }
   fly.textContent = '';
   fly.dataset.group = g.name;
+  const pin = h('button', {
+    class: 'fly-pin' + (brushFlyKeep() ? ' on' : ''),
+    title: brushFlyKeep() ? '已钉住：选择笔刷后弹层保持（点击改回自动收起）' : '选择笔刷后自动收起（点击钉住弹层）',
+    'aria-label': '钉住笔刷弹层', 'aria-pressed': String(brushFlyKeep()),
+  });
+  pin.appendChild(icon('<circle cx="8" cy="5.5" r="3.2"/><path d="M8 8.7V14"/>', 13));
+  pin.addEventListener('click', ev => {
+    ev.stopPropagation();
+    setBrushFlyKeep(!brushFlyKeep());
+    pin.classList.toggle('on', brushFlyKeep());
+    pin.title = brushFlyKeep() ? '已钉住：选择笔刷后弹层保持（点击改回自动收起）' : '选择笔刷后自动收起（点击钉住弹层）';
+    pin.setAttribute('aria-pressed', String(brushFlyKeep()));
+  });
+  fly.appendChild(pin); // 钉住开关置于弹层最左
   g.items.forEach(id => fly.appendChild(brushBtn(id, 'fly')));
   fly.classList.add('on');
   /* fixed 定位：横条锚在分组图标正上方，竖列锚在其左侧，均钳在视口内 */
@@ -3281,7 +3412,7 @@ function updateChainBtn() {
   const btn = $('#chainBtn');
   if (!btn) return;
   const state = btn.querySelector('.chain-state');
-  if (state) state.textContent = autoChain ? '退出' : '启动';
+  if (state) state.dataset.s = autoChain ? 'on' : 'off';
   btn.classList.toggle('active', autoChain);
   btn.setAttribute('aria-pressed', autoChain ? 'true' : 'false');
   btn.title = autoChain
@@ -3708,6 +3839,110 @@ function bindGrid() {
     const lane = getLaneById(+cell.dataset.lane);
     if (lane) clearCell(lane, +cell.dataset.t);
   });
+  /* ---------- 触摸绘制（pointer events，touch 专用，与鼠标路径并行） ----------
+     pointerdown preventDefault 抑制合成鼠标事件避免双路径；单元格 touch-action:none，
+     单指 = 画/擦/延续，双指 = 平移网格（touch-action none 的滚动补偿）。 */
+  const tPoints = new Map();
+  let tPanPrev = null;
+  let touchDrag = null; // { mode: 'paint'|'erase'|'extend', pointerId, laneId }
+  const tCentroid = () => {
+    let x = 0, y = 0;
+    for (const [px, py] of tPoints.values()) { x += px; y += py; }
+    return [x / tPoints.size, y / tPoints.size];
+  };
+  inner.addEventListener('pointerdown', ev => {
+    if (ev.pointerType !== 'touch') return;
+    tPoints.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (tPoints.size >= 2) { // 第二根手指：取消绘制，转平移
+      touchDrag = null; painting = false; extendMode = false; tPanPrev = tCentroid();
+      return;
+    }
+    const cell = ev.target.closest('.cell');
+    if (!cell || ev.button !== 0) return;
+    ev.preventDefault();
+    const lane = getLaneById(+cell.dataset.lane);
+    if (!lane) return;
+    downPos = [ev.clientX, ev.clientY]; paintedSinceDown = false; lastXform = null;
+    if (autoChain && state.tool.type !== 'erase') return; // 自动模式内点击走 click（选格 + 弹面板）；擦除工具除外
+    if (state.tool.type === 'glyph') {
+      paintCell(lane, +cell.dataset.t, state.tool.char);
+      painting = true; paintLane = lane.id; dragLastT = +cell.dataset.t;
+      touchDrag = { mode: 'paint', pointerId: ev.pointerId, laneId: lane.id };
+    } else if (state.tool.type === 'erase') {
+      clearCell(lane, +cell.dataset.t);
+      paintedSinceDown = true;
+      touchDrag = { mode: 'erase', pointerId: ev.pointerId, laneId: lane.id };
+    } else if (state.tool.type === 'select') {
+      const s = lane.slots[+cell.dataset.t];
+      if (s) { painting = true; paintLane = lane.id; dragLastT = +cell.dataset.t; extendMode = true; touchDrag = { mode: 'extend', pointerId: ev.pointerId, laneId: lane.id }; }
+    }
+    if (touchDrag) { try { inner.setPointerCapture(ev.pointerId); } catch (e) { /* 指针已释放 */ } }
+  });
+  inner.addEventListener('pointermove', ev => {
+    if (ev.pointerType !== 'touch') return;
+    if (tPoints.has(ev.pointerId)) tPoints.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (tPoints.size >= 2) { // 双指平移
+      if (tPanPrev) {
+        const c = tCentroid();
+        const gsc = document.getElementById('gridScroll');
+        gsc.scrollLeft -= c[0] - tPanPrev[0];
+        gsc.scrollTop -= c[1] - tPanPrev[1];
+        tPanPrev = c;
+      }
+      return;
+    }
+    if (!touchDrag || ev.pointerId !== touchDrag.pointerId) return;
+    const lane = getLaneById(touchDrag.laneId);
+    if (!lane) return;
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const cell = el && el.closest('.cell');
+    const track = document.querySelector(`#gridInner .lane-row[data-lane="${touchDrag.laneId}"] .lane-track`);
+    if (touchDrag.mode === 'erase') { // 擦除：指到哪清到哪
+      if (cell && +cell.dataset.lane === touchDrag.laneId) {
+        clearCell(lane, +cell.dataset.t);
+        paintedSinceDown = true;
+      }
+      return;
+    }
+    if (cell && +cell.dataset.lane === touchDrag.laneId) { // 复刻 mouseover 逐格涂画
+      const t = +cell.dataset.t;
+      if (touchDrag.mode === 'extend') {
+        if (t === dragLastT + 1) { dragLastT = t; const cur = lane.slots[t]; if (!cur || cur.glyph !== '.') paintCell(lane, t, '.'); }
+      } else {
+        const gch = state.tool.char;
+        const cur = lane.slots[t];
+        if (t === dragLastT + 1) { dragLastT = t; if (!cur || cur.glyph !== '.') paintCell(lane, t, '.'); }
+        else { const same = gch === '.' ? (cur && cur.glyph === gch) : (cur && cur.glyph === gch); dragLastT = t; if (!same) paintCell(lane, t, gch); }
+      }
+    }
+    if ((touchDrag.mode === 'extend' || state.tool.type === 'glyph') && track) { // 复刻 mousemove 越界变换与向右延续
+      const r2 = track.getBoundingClientRect();
+      if (ev.clientY < r2.top || ev.clientY > r2.bottom) {
+        const zone = ev.clientY < r2.top ? 'up' : 'down';
+        const win2 = gridWindow();
+        const rawT = win2.a + Math.floor((ev.clientX - r2.left) / gridCellW());
+        const t = Math.max(0, Math.min(rawT, dragLastT + 1));
+        if (lastXform && lastXform.t === t && lastXform.zone === zone) return;
+        const base = baseGlyphAt(lane, t);
+        const next = zone === 'up' ? cellUp(base) : cellDown(base);
+        if (t > dragLastT) dragLastT = t;
+        paintCell(lane, t, next);
+        lastXform = { t, zone };
+        return;
+      }
+      lastXform = null;
+      if (ev.clientX > r2.right) { dragLastT += 1; paintCell(lane, dragLastT, '.'); }
+    }
+  });
+  const touchEnd = ev => {
+    if (ev.pointerType !== 'touch') return;
+    tPoints.delete(ev.pointerId);
+    if (tPoints.size < 2) tPanPrev = null;
+    if (touchDrag && ev.pointerId === touchDrag.pointerId) touchDrag = null;
+    painting = false; paintLane = null; extendMode = false; lastXform = null;
+  };
+  inner.addEventListener('pointerup', touchEnd);
+  inner.addEventListener('pointercancel', touchEnd);
   /* 选中格上滚轮：按上/下变换切换（与拖动越界变换同一套语义）——上滚=上变换，下滚=下变换 */
   inner.addEventListener('wheel', ev => {
     if (!popCell) return;
@@ -3840,7 +4075,9 @@ function dndGrip() {
 /* handle = 可拖起的元素（树行 / 网格行头）；从输入框、按钮、行内小工具上按下不触发拖拽 */
 function attachRowDnD(handle, nodeId, container) {
   handle.addEventListener('pointerdown', ev => {
-    if (ev.button !== 0 || ev.pointerType !== 'mouse') return;
+    if (ev.button !== 0) return;
+    // 鼠标：行上任意非交互处可拖；触摸/笔：仅从把手启动（避免与滚动冲突，把手已 touch-action:none）
+    if (ev.pointerType !== 'mouse' && !ev.target.closest('.drag-grip')) return;
     if (ev.target.closest('input, textarea, select, button, .lane-actions')) return;
     try { handle.setPointerCapture(ev.pointerId); } catch (e) { /* 指针已释放 */ } // 拖出窗口也能收到 pointerup
     rowDnd.pending = true; rowDnd.active = false;
@@ -3992,7 +4229,12 @@ function addLane(type) {
 }
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
-function closeMenus() { document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')); }
+function closeMenus() {
+  document.querySelectorAll('.menu.open').forEach(m => {
+    m.classList.remove('open');
+    m.style.position = m.style.top = m.style.left = m.style.right = ''; // 清除 fixed 定位残留
+  });
+}
 function buildFontMenu(menu) {
   menu.textContent = '';
   const mkSection = (title) => {
@@ -4192,6 +4434,17 @@ function buildHelpMenu(menu) {
   b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); handleAct('open-shortcut'); });
   menu.appendChild(b);
 }
+/* 菜单 fixed 定位：脱离顶栏滚动容器的裁剪，按按钮位置弹出并钳制在视口内 */
+function positionMenu(wrap, menu) {
+  const b = wrap.querySelector(':scope > button').getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.top = (b.bottom + 6) + 'px';
+  const mw = menu.offsetWidth;
+  let left = menu.classList.contains('menu-right') ? b.right - mw : b.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - mw - 8)); // 两侧钳制在视口内
+  menu.style.left = left + 'px';
+  menu.style.right = 'auto';
+}
 function bindMenus() {
   [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-font', buildFontMenu], ['#m-settings', buildSettingsMenu], ['#m-help', buildHelpMenu], ['#m-view', buildViewMenu]].forEach(([sel, builder]) => {
     const wrap = $(sel);
@@ -4205,12 +4458,13 @@ function bindMenus() {
         if (builder) builder(menu);
         menu.classList.remove('menu-right');
         menu.classList.add('open');
-        const r = menu.getBoundingClientRect();
-        if (r.right > innerWidth - 8) menu.classList.add('menu-right');
+        positionMenu(wrap, menu);
       }
     });
   });
   document.addEventListener('click', ev => { if (!ev.target.closest('.menu-wrap')) closeMenus(); });
+  window.addEventListener('scroll', closeMenus, true); // 任意容器滚动（含顶栏横滑）即关闭菜单
+  window.addEventListener('resize', closeMenus);
   document.querySelectorAll('.menu [data-act]').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); handleAct(b.dataset.act); }));
 }
 function buildExampleMenu(menu) {
@@ -4941,6 +5195,11 @@ function scopeSkinFontRules() {
   });
 }
 
+/* 名称列操作按钮（拖拽/更多/删除）的显示开关（手机用，偏好持久化） */
+function applyHeadActions() {
+  if (localStorage.getItem('wdgui-head-actions') === '1') document.documentElement.dataset.headActions = '1';
+  else delete document.documentElement.dataset.headActions;
+}
 /* ---------- 启动 ---------- */
 function init() {
   scopeSkinFontRules();
@@ -4981,6 +5240,7 @@ function init() {
     }
   };
   applyTreeCollapse();
+  applyHeadActions();
   $('#treeCollapseBtn').addEventListener('click', ev => {
     ev.stopPropagation(); ev.preventDefault();
     const c = localStorage.getItem('wdgui-tree-collapsed') === '1';
@@ -5044,6 +5304,22 @@ function init() {
     document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t.dataset.tab));
     if (t.dataset.tab === 'preview') renderPreview();
   }));
+
+  /* 手机：预览/代码面板折叠为按钮，点击弹出浮层、再点收起 */
+  const paneCol = document.querySelector('.right-col');
+  const setMobilePane = which => {
+    if (!paneCol) return;
+    const active = document.querySelector('.right-tabs .tab.active')?.dataset.tab;
+    const open = !!which && !(paneCol.classList.contains('mobile-open') && active === which);
+    paneCol.classList.toggle('mobile-open', open);
+    if (open) {
+      const tab = document.querySelector(`.right-tabs .tab[data-tab="${which}"]`);
+      if (tab) tab.click(); // 复用既有 tab 切换（激活 pane + renderPreview）
+    }
+  };
+  document.querySelector('#mPaneBtnPreview')?.addEventListener('click', () => setMobilePane('preview'));
+  document.querySelector('#mPaneBtnCode')?.addEventListener('click', () => setMobilePane('code'));
+  document.querySelector('#paneCloseBtn')?.addEventListener('click', () => paneCol.classList.remove('mobile-open'));
   $('#fileInput').addEventListener('change', ev => {
     const f = ev.target.files[0];
     if (f) importFile(f);
