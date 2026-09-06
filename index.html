@@ -135,7 +135,7 @@ svg { display: block; }
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 10px; margin-right: 10px; user-select: none; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: 10px; user-select: none; position: relative; }
 .brand .mark { color: var(--acc); filter: drop-shadow(0 0 5px color-mix(in srgb, var(--acc) 50%, transparent)); }
 .brand .name { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
 .brand .name b { font-family: var(--font-mono); font-weight: 600; color: var(--acc-text); }
@@ -207,6 +207,7 @@ svg { display: block; }
 .menu .menu-tip { padding: 2px 10px 6px; font-size: 11px; color: var(--faint); }
 #m-settings .menu { min-width: 238px; }
 .menu-sec { font-size: 11px; font-weight: 600; color: var(--faint); padding: 7px 10px 3px; letter-spacing: .04em; }
+.menu .drawer-back { font-weight: 600; color: var(--acc-text); }
 .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 2px 8px 4px; }
 .pos-grid button { width: auto; padding: 0; justify-content: center; height: 30px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); color: var(--muted); font-size: 14px; }
 .pos-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
@@ -961,6 +962,21 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
     box-shadow: var(--shadow-pop);
   }
   .side.drawer-open { transform: none; }
+  /* 分区抽屉：选哪个分区只显示哪个，并各自套用宽度 */
+  .side[data-drawer-sec] .side-section { display: none; }
+  .side[data-drawer-sec="tree"] .side-section[data-sec="tree"],
+  .side[data-drawer-sec="edge"] .side-section[data-sec="edge"],
+  .side[data-drawer-sec="cfg"]  .side-section[data-sec="cfg"] { display: block; }
+  .side[data-drawer-sec="edge"] { width: min(86vw, 60vw) !important; }  /* 边与箭头 ≤60% */
+  .side[data-drawer-sec="cfg"]  { width: min(86vw, 75vw) !important; }  /* 图表设置 ≤75% */
+  /* 通道与分组：只留“添加按钮排”，一列、尽量窄；隐藏树与整条标题栏 */
+  .side[data-drawer-sec="tree"] { width: max-content !important; min-width: 0; }
+  .side[data-drawer-sec="tree"] #tree,
+  .side[data-drawer-sec="tree"] .side-section[data-sec="tree"] > summary { display: none; }
+  .side[data-drawer-sec="tree"] .add-lane-btns {
+    grid-template-columns: 1fr; margin: 9px 0 0; /* 单列纵排 */
+  }
+  .side[data-drawer-sec="tree"] .add-lane-btns .btn { white-space: nowrap; }
   .side-section { flex: none; }
   #drawerMask.open { display: block; }
   .main-col { flex-direction: column; flex: 1 1 auto; min-height: calc(100vh - 104px); min-height: calc(100dvh - 104px); }
@@ -988,6 +1004,27 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   .topbar::-webkit-scrollbar { display: none; }
   .topbar > * { flex: none; }
   .topbar .spacer { flex: 1 1 0; min-width: 0; }
+  /* 手机顶栏精简：只留 ☰、品牌+版本、设置/导入/导出（靠右）；其余收进 ☰ 菜单 */
+  .topbar > #m-examples, .topbar > #m-help, .topbar > #m-font, .topbar > #m-view,
+  .topbar > #traceBtn, .topbar > #themeBtn,
+  .topbar > .btn[data-act="open-about"] { display: none; }
+  .topbar #m-settings { order: 3; } .topbar #m-import { order: 4; } .topbar #m-export { order: 5; }
+  .topbar .spacer { order: 2; }
+  #m-drawer { order: 0; } .brand { order: 1; }
+  /* 靠右三菜单：纯文字紧凑、去掉下拉小箭头 */
+  .topbar #m-settings > button, .topbar #m-import > button, .topbar #m-export > button {
+    padding: 0 8px; gap: 0; font-size: 12px; background: transparent; border-color: transparent;
+  }
+  .topbar #m-settings > button > svg, .topbar #m-import > button > svg,
+  .topbar #m-export > button > svg { display: none; } /* 隐藏前导图标与下拉箭头 */
+  /* 品牌名 + 版本号叠放（版本绝对定位到品牌名下方，两行塞进现有栏高、不增高） */
+  .brand { margin-right: 6px; align-items: flex-start; padding-top: 6px; }
+  .brand .name b { font-size: 12.5px; }
+  .topbar #verBadge {
+    position: absolute; left: 32px; top: 24px; /* 让开 mark 图标宽度，贴品牌名下方 */
+    font-size: 8.5px; padding: 0 4px; height: 13px; line-height: 12px;
+  }
+  .topbar #verBadge .ver-pop { font-size: 11px; }
   .editor-toolbar { flex-wrap: wrap; row-gap: 6px; }
   .editor-toolbar .hint { display: none; }
   .chain-title .ct-full { display: none; }
@@ -998,9 +1035,9 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   .brand .name .bn-phone { display: inline; }
   .palette { flex-wrap: wrap; row-gap: 4px; } /* 手机：笔刷双行 */
   .palette > * { flex: none; }
-  /* 隐藏 ±4 步进与自动模式开/关文字 */
+  /* 隐藏 ±4 步进与自动模式开/关文字及其分隔竖线 */
   .col-stepper .btn[data-n="-4"], .col-stepper .btn[data-n="4"] { display: none; }
-  .editor-toolbar .chain-state { display: none; }
+  .editor-toolbar .chain-state, .editor-toolbar .chain-pill .chain-sep { display: none; }
   /* 状态面板：glyph 紧凑化（类笔刷弹层，形状为主无文字） */
   .pop-glyphs { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 3px; }
   .pop-glyphs .pg .tlabel { display: none; }
@@ -1041,14 +1078,32 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 </head>
 <body>
 <header class="topbar">
-  <button class="icon-btn" id="drawerBtn" title="打开侧栏" aria-label="打开侧栏">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
-  </button>
+  <div class="menu-wrap" id="m-drawer">
+    <button class="icon-btn" id="drawerBtn" title="打开侧栏" aria-label="打开侧栏" aria-haspopup="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+    <div class="menu" id="drawerMenu" role="menu">
+      <div class="menu-sec">侧栏</div>
+      <button data-drawer-sec="tree" role="menuitem">通道与分组</button>
+      <button data-drawer-sec="edge" role="menuitem">边与箭头</button>
+      <button data-drawer-sec="cfg" role="menuitem">图表设置</button>
+      <div class="sep"></div>
+      <div class="menu-sec">更多</div>
+      <button data-drawer-sub="examples" role="menuitem">示例 ›</button>
+      <button data-drawer-sub="view" role="menuitem">视图 ›</button>
+      <button data-drawer-sub="font" role="menuitem">界面字体 ›</button>
+      <button data-drawer-sub="help" role="menuitem">帮助 ›</button>
+      <button data-drawer-act="toggle-theme" role="menuitem">切换主题</button>
+      <button data-drawer-act="toggle-trace" role="menuitem">切换轨迹样式</button>
+      <button data-drawer-act="open-about" role="menuitem">关于</button>
+    </div>
+  </div>
   <div class="brand">
     <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
       <path d="M1 14h4V6h4v10h4V6h4v8h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <div class="name"><b><span class="bn-gui">WaveDrom-Gui</span><span class="bn-phone">WavePhone</span></b></div>
+    <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip">说不定有新版了，快点击去仓库首页看看吧！</span></button>
   </div>
   <div class="menu-wrap" id="m-examples">
     <button class="btn ghost" aria-haspopup="true">示例 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
@@ -1075,7 +1130,6 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
   <button class="btn ghost" data-act="open-about" title="关于本项目">
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
   </button>
-  <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip">说不定有新版了，快点击去仓库首页看看吧！</span></button>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-font">
     <button class="icon-btn" title="界面字体" aria-label="界面字体" style="width:30px;height:30px">
@@ -1116,7 +1170,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
 
 <main class="workspace">
   <aside class="side">
-    <details class="side-section" open>
+    <details class="side-section" data-sec="tree" open>
       <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>通道与分组
         <button class="icon-btn" id="treeToolsBtn" title="行内小工具：总是显示（点击改为悬停显示）" aria-label="切换行内小工具显示方式">
           <svg class="ic-hover" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="7.5" r="1.3" fill="currentColor"/><circle cx="8" cy="7.5" r="1.3" fill="currentColor"/><circle cx="13" cy="7.5" r="1.3" fill="currentColor"/><path d="M2.5 12.6h11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 2" opacity=".55"/></svg>
@@ -1140,7 +1194,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
       </div>
     </details>
 
-    <details class="side-section" open>
+    <details class="side-section" data-sec="edge" open>
       <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg>边与箭头
         <svg class="chev" width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 2.5 6.5 5 3 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </summary>
@@ -1151,7 +1205,7 @@ html[data-trace="glow"] #traceBtn .ic-glow { display: block; }
       </div>
     </details>
 
-    <details class="side-section">
+    <details class="side-section" data-sec="cfg">
       <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表设置
         <svg class="chev" width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 2.5 6.5 5 3 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </summary>
@@ -3981,7 +4035,7 @@ function bindGrid() {
     const bp = $('#brushPanel');
     if (bp && !ev.target.closest('.fan-box') && !bp.contains(ev.target)) bp.remove();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); $('.side').classList.remove('drawer-open'); delete $('.side').dataset.drawerSec; $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
@@ -5263,12 +5317,55 @@ function init() {
     applyTreeCollapse();
   });
 
-  /* 窄屏抽屉 */
-  const closeDrawer = () => { $('.side').classList.remove('drawer-open'); $('#drawerMask').classList.remove('open'); };
-  $('#drawerBtn').addEventListener('click', () => {
-    const open = $('.side').classList.toggle('drawer-open');
-    $('#drawerMask').classList.toggle('open', open);
+  /* 窄屏抽屉：顶栏按钮弹出分区菜单，选哪个只显示哪个分区（宽度按分区各异） */
+  const closeDrawer = () => { const s = $('.side'); s.classList.remove('drawer-open'); delete s.dataset.drawerSec; $('#drawerMask').classList.remove('open'); };
+  const drawerMenu = $('#drawerMenu');
+  const openDrawerSec = sec => {
+    const side = $('.side');
+    side.dataset.drawerSec = sec; // CSS 据此只显示对应分区并套用宽度
+    const det = side.querySelector(`.side-section[data-sec="${sec}"]`);
+    if (det) det.open = true; // 展开被选中分区（防其处于折叠态）
+    side.classList.add('drawer-open');
+    $('#drawerMask').classList.add('open');
+  };
+  $('#drawerBtn').addEventListener('click', ev => {
+    ev.stopPropagation();
+    // 已展开某分区时，按钮作“关闭”用；否则弹出分区菜单
+    if ($('.side').classList.contains('drawer-open')) { closeDrawer(); return; }
+    const open = !drawerMenu.classList.contains('open');
+    closeMenus();
+    if (open) { restoreDrawerBase(); drawerMenu.classList.add('open'); positionMenu($('#m-drawer'), drawerMenu); }
   });
+  /* 抽屉菜单里“更多”项：子菜单就地展开（复用顶栏各 builder），直接动作则触发对应按钮 */
+  const drawerBaseHTML = drawerMenu.innerHTML; // 记住基础菜单，便于从子菜单返回
+  const DRAWER_SUB = { examples: buildExampleMenu, view: buildViewMenu, font: buildFontMenu, help: buildHelpMenu };
+  const DRAWER_SUB_LABEL = { examples: '示例', view: '视图', font: '界面字体', help: '帮助' };
+  const restoreDrawerBase = () => { drawerMenu.innerHTML = drawerBaseHTML; bindDrawerMenu(); };
+  function bindDrawerMenu() {
+    drawerMenu.querySelectorAll('[data-drawer-sec]').forEach(b => b.addEventListener('click', ev => {
+      ev.stopPropagation(); closeMenus(); openDrawerSec(b.dataset.drawerSec);
+    }));
+    drawerMenu.querySelectorAll('[data-drawer-sub]').forEach(b => b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const key = b.dataset.drawerSub;
+      drawerMenu.innerHTML = '';
+      const back = h('button', { class: 'drawer-back' }, '‹ 返回');
+      back.addEventListener('click', e2 => { e2.stopPropagation(); restoreDrawerBase(); positionMenu($('#m-drawer'), drawerMenu); });
+      drawerMenu.appendChild(back);
+      drawerMenu.appendChild(h('div', { class: 'menu-sec' }, DRAWER_SUB_LABEL[key]));
+      const sub = h('div'); DRAWER_SUB[key](sub); // builder 直接写入临时容器
+      while (sub.firstChild) drawerMenu.appendChild(sub.firstChild);
+      positionMenu($('#m-drawer'), drawerMenu); // 内容变化后重新定位、钳制视口
+    }));
+    drawerMenu.querySelectorAll('[data-drawer-act]').forEach(b => b.addEventListener('click', ev => {
+      ev.stopPropagation(); closeMenus();
+      const act = b.dataset.drawerAct;
+      if (act === 'toggle-theme') $('#themeBtn').click();
+      else if (act === 'toggle-trace') $('#traceBtn').click();
+      else handleAct(act); // open-about 等
+    }));
+  }
+  bindDrawerMenu();
   $('#drawerMask').addEventListener('click', closeDrawer);
   const narrowMq = window.matchMedia('(max-width: 800px)');
   const onNarrowChange = ev => { if (!ev.matches) closeDrawer(); };
