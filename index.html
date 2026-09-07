@@ -3260,12 +3260,15 @@ function groupChip(g, vertical) {
     class: 'tool ' + (vertical ? 'edge chip-v' : 'chip') + (g.items.some(brushActive) ? ' active' : ''),
     title: g.name + '笔刷', 'aria-label': g.name + '笔刷组',
   }, h('span', { class: 'chip-name' }, g.name));
-  chip.addEventListener('mouseenter', () => { clearTimeout(brushFlyHideTimer); openBrushFly(chip, g); });
+  chip.addEventListener('mouseenter', () => { clearTimeout(brushFlyHideTimer); openBrushFly(chip, g, true); });
   chip.addEventListener('mouseleave', () => scheduleHideBrushFly());
   chip.addEventListener('click', ev => {
     ev.stopPropagation(); clearTimeout(brushFlyHideTimer);
     const fly = document.querySelector('#brushFly.on');
-    if (brushFlyKeep() && fly && fly.dataset.group === g.name) { closeBrushFly(); return; } // 钉住时再点同组 = 收起
+    /* 钉住时再点同组 = 收起。但鼠标的 mouseenter 早于 click，悬停已经把弹层打开了，
+       若不加区分，这一次 click 会立刻把自己刚打开的弹层收掉 —— 表现为「第一次点没反应，
+       第二次才有」。故只有当弹层不是本次悬停打开的（openedByHover 已被真实交互清掉）才算收起。 */
+    if (brushFlyKeep() && fly && fly.dataset.group === g.name && fly.dataset.openedByHover !== '1') { closeBrushFly(); return; }
     openBrushFly(chip, g);
   });
   return chip;
@@ -3337,7 +3340,7 @@ function setBrushFlyKeep(v) { try { localStorage.setItem('wdgui-brush-fly-keep',
 function refreshBrushFlyActive() {
   document.querySelectorAll('#brushFly .tool').forEach(b => b.classList.toggle('active', brushActive(b.dataset.brush)));
 }
-function openBrushFly(chip, g) {
+function openBrushFly(chip, g, byHover) {
   let fly = $('#brushFly');
   if (!fly) { fly = h('div', { id: 'brushFly' }); document.body.appendChild(fly); }
   if (!fly.dataset.bound) {
@@ -3347,6 +3350,9 @@ function openBrushFly(chip, g) {
   }
   fly.textContent = '';
   fly.dataset.group = g.name;
+  /* 悬停打开的弹层做个标记：紧随其后的那次 click 是同一个手势的一部分，不该被当成「再点一次收起」。
+     点击打开（触屏、或已展开后再点）则清掉标记，此后同组点击正常收起。 */
+  if (byHover) fly.dataset.openedByHover = '1'; else delete fly.dataset.openedByHover;
   const pin = h('button', {
     class: 'fly-pin' + (brushFlyKeep() ? ' on' : ''),
     title: brushFlyKeep() ? '已钉住：选择笔刷后弹层保持（点击改回自动收起）' : '选择笔刷后自动收起（点击钉住弹层）',
@@ -3375,7 +3381,7 @@ function openBrushFly(chip, g) {
     fly.style.left = Math.max(8, Math.min(cr.left, window.innerWidth - fly.offsetWidth - 8)) + 'px';
   }
 }
-function closeBrushFly() { const f = $('#brushFly'); if (f) { f.classList.remove('on'); f.dataset.group = ''; if (f.parentElement === document.body) f.remove(); } }
+function closeBrushFly() { const f = $('#brushFly'); if (f) { f.classList.remove('on'); f.dataset.group = ''; delete f.dataset.openedByHover; if (f.parentElement === document.body) f.remove(); } }
 /* C 右下角按钮：悬停 / 点击展示笔刷面板，离开按钮与面板区域或选择笔刷后自动隐藏 */
 let brushPanelHideTimer = null;
 function createBrushPanel() {
