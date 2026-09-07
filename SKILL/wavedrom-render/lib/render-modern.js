@@ -198,6 +198,59 @@ function nodeAnchorXY(bx, bw, pos, scale) {
     fy === 0 ? vIn : fy === 1 ? LANE_H - vIn : MID,
   ];
 }
+/* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
+const LABEL_BAND = [18.5, 32];
+const labelTextW = (s, fs) => String(s).length * fs * 0.53;
+const nodeMarkerR = scale => 6.5 * scale + 0.65;
+/* 被抬起的节点圆心 y：贴数据框上沿，完全避开标签行 */
+const liftedNodeY = scale => Math.max(nodeMarkerR(scale), LABEL_BAND[0] - nodeMarkerR(scale) - 1.5);
+
+/* 一次性算清整条通道里「数据框标签 × 节点圆标」的避让方案，供通道本体与连线层共用
+   （连线层必须拿到同一份结果，否则箭头会指向节点被抬走前的旧位置）。
+   返回 { ranges: Map<起始拍, [lo,hi]>, lift: Set<拍> }：
+     - 节点压在标签行上时，先让出它占的那一侧；
+     - 让完仍放得下标签 → 记进 ranges，标签在剩余区间居中；
+     - 放不下（窄框）→ 该框内的节点记进 lift，抬到框上沿，标签仍按整框居中。 */
+function planLaneNodes(lane, gw, pos, scale, fs) {
+  const ranges = new Map(), lift = new Set();
+  const positions = laneCharPositions(lane, gw);
+  const slots = lane.slots, len = laneLen(lane);
+  const mr = nodeMarkerR(scale);
+  for (let t = 0; t < len; t++) {
+    const s = slots[t];
+    if (!s || !isData(s.glyph)) continue;
+    const pp = positions[t];
+    if (!pp) continue;
+    let e = t + 1;
+    while (e < len && (!slots[e] || slots[e].glyph === '.' || slots[e].glyph === '|')) e++;
+    const lastP = positions[e - 1];
+    const x0 = pp.x, w = lastP ? (lastP.x + lastP.w - x0) : 0;
+    const label = s.label;
+    const hasLabel = label !== undefined && label !== null && String(label) !== '' && w > 14;
+    if (hasLabel) {
+      let lo = x0 + 4, hi = x0 + w - 4, hit = false, centered = false;
+      const mid = x0 + w / 2;
+      for (let k = t; k < e; k++) {
+        if (!lane.nodeByT[k]) continue;
+        const pk = positions[k];
+        if (!pk) continue;
+        const [nx, ny] = nodeAnchorXY(pk.x, pk.w, pos, scale);
+        if (ny + mr <= LABEL_BAND[0] || ny - mr >= LABEL_BAND[1]) continue; // 不在标签行上
+        hit = true;
+        if (nx < mid) lo = Math.max(lo, nx + mr + 2);
+        else if (nx > mid) hi = Math.min(hi, nx - mr - 2);
+        else centered = true; // 正压在框中心：左右都让不动，只能抬走
+      }
+      if (hit && (centered || labelTextW(label, fs) > hi - lo)) {
+        for (let k = t; k < e; k++) if (lane.nodeByT[k]) lift.add(k);
+      } else {
+        ranges.set(t, [lo, hi]);
+      }
+    }
+    t = e - 1;
+  }
+  return { ranges, lift };
+}
 
 /* ============================================================================
  * laneSVG: the self-drawn mini waveform (faithful port of index.html laneSVG)
@@ -217,6 +270,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
   let lvl = null;
   const slots = lane.slots;
   let t = 0, prevClock = null, prevClockNoLead = false, gapPend = '', prevG = null, lastEnd = 0;
+  const nodePlan = planLaneNodes(lane, gw, nodePos, nodeScale, FONTS.dataLabel);
 
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
@@ -311,9 +365,12 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
         stroke: isDigit ? 'rgba(27,37,54,.55)' : hexA(color, .85), 'stroke-width': 1.4 });
       const label = s.label;
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
-        const attrs = { x: x0 + w / 2, y: 29, 'text-anchor': 'middle', 'font-size': FONTS.dataLabel,
+        /* 避让方案由 planLaneNodes 统一决定：ranges 里有 = 让开节点后居中；没有 = 节点已被抬走，按整框居中 */
+        const [lo, hi] = nodePlan.ranges.get(t) || [x0 + 4, x0 + w - 4];
+        const avail = hi - lo;
+        const attrs = { x: (lo + hi) / 2, y: 29, 'text-anchor': 'middle', 'font-size': FONTS.dataLabel,
           'font-family': FONT_MONO, fill: isDigit ? '#1B2536' : color };
-        if (String(label).length * FONTS.dataLabel * 0.53 > w - 8) { attrs.textLength = w - 10; attrs.lengthAdjust = 'spacingAndGlyphs'; }
+        if (labelTextW(label, FONTS.dataLabel) > avail && avail > 0) { attrs.textLength = avail; attrs.lengthAdjust = 'spacingAndGlyphs'; }
         out += tag('text', attrs, esc(String(label)));
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -397,7 +454,9 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
     const pk = positions[+k];
     const bx = pk ? pk.x : (+k - (lane.phase || 0)) * W;
     const bw = pk ? pk.w : W;
-    const [nx, ny] = nodeAnchorXY(bx, bw, nodePos, nodeScale);
+    const [nx, ny0] = nodeAnchorXY(bx, bw, nodePos, nodeScale);
+    /* 窄数据框让不出横向空间时，把圆标抬到框上沿，避开标签行而不遮字 */
+    const ny = nodePlan.lift.has(+k) ? liftedNodeY(nodeScale) : ny0;
     body += tag('circle', { cx: nx, cy: ny, r: nodeR, fill: C.nodeFill, stroke: C.nodeLine, 'stroke-width': 1.3 });
     body += tag('text', { x: 0, y: 3.5, 'text-anchor': 'middle', 'font-size': FONTS.node, 'font-weight': 600,
       transform: `translate(${nx} ${ny}) scale(${nodeScale})`, 'font-family': FONT_MONO, fill: C.nodeLine }, esc(lane.nodeByT[k]));
@@ -593,6 +652,11 @@ function renderModern(source, opts = {}) {
     const byLetter = {};
     nodes.forEach(n => { byLetter[n.letter] = n; });
     const col = C.info;
+    const planCache = new Map();
+    const planOf = l => {
+      if (!planCache.has(l)) planCache.set(l, planLaneNodes(l, gw, nodePos, nodeScale, FONTS.dataLabel));
+      return planCache.get(l);
+    };
     const pos = letter => {
       const n = byLetter[letter];
       if (!n) return null;
@@ -601,7 +665,9 @@ function renderModern(source, opts = {}) {
       const lw = gw * (n.lane.period || 1);
       const lp = laneCharPositions(n.lane, gw)[n.t];
       const bx = lp ? lp.x : (n.t - (n.lane.phase || 0)) * lw;
-      const [ax, ay] = nodeAnchorXY(bx, lp ? lp.w : lw, nodePos, nodeScale);
+      const [ax, ay0] = nodeAnchorXY(bx, lp ? lp.w : lw, nodePos, nodeScale);
+      /* 与通道本体用同一份避让方案，否则箭头会指向节点被抬走前的旧位置 */
+      const ay = planOf(n.lane).lift.has(n.t) ? liftedNodeY(nodeScale) : ay0;
       return { x: namew - winX + ax, y: ry.y + ay };
     };
     const arrow = (x, y, dx, dy) => {

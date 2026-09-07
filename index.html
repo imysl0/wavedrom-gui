@@ -1593,6 +1593,60 @@ function nodeAnchorXY(bx, bw) {
     fy === 0 ? vIn : fy === 1 ? 48 - vIn : 24,
   ];
 }
+/* 节点圆标的实际外接半径（含描边）：letter 模式是圆圈，dot 模式是小圆点 */
+function nodeMarkerR() { return state_node.mode === 'dot' ? 3 * state_node.scale + 1 : nodeR() + 0.65; }
+/* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
+const LABEL_BAND = [18.5, 32];
+const labelTextW = s => String(s).length * 7.4;
+/* 被抬起的节点圆心 y：贴数据框上沿，完全避开标签行 */
+function liftedNodeY() { const mr = nodeMarkerR(); return Math.max(mr, LABEL_BAND[0] - mr - 1.5); }
+
+/* 一次性算清整条通道里「数据框标签 × 节点圆标」的避让方案，供通道本体与连线层共用
+   （连线层必须拿到同一份结果，否则箭头会指向节点被抬走前的旧位置）。
+   返回 { ranges: Map<起始拍, [lo,hi]>, lift: Set<拍> }：
+     - 节点压在标签行上时，先让出它占的那一侧；
+     - 让完仍放得下标签 → 记进 ranges，标签在剩余区间居中；
+     - 放不下（窄框）→ 该框内的节点记进 lift，抬到框上沿，标签仍按整框居中
+       （否则要把 4 个字硬压进 18px，挤成一团反而更难认）。 */
+function planLaneNodes(lane) {
+  const ranges = new Map(), lift = new Set();
+  const positions = laneCharPositions(lane);
+  const slots = lane.slots, len = laneLen(lane);
+  const mr = nodeMarkerR();
+  for (let t = 0; t < len; t++) {
+    const s = slots[t];
+    if (!s || !isData(s.glyph)) continue;
+    const pp = positions[t];
+    if (!pp) continue;
+    let e = t + 1;
+    while (e < len && (!slots[e] || slots[e].glyph === '.' || slots[e].glyph === '|')) e++;
+    const lastP = positions[e - 1];
+    const x0 = pp.x, w = lastP ? (lastP.x + lastP.w - x0) : 0;
+    const label = s.label;
+    if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
+      let lo = x0 + 4, hi = x0 + w - 4, hit = false, centered = false;
+      const mid = x0 + w / 2;
+      for (let k = t; k < e; k++) {
+        if (!lane.nodeByT[k]) continue;
+        const pk = positions[k];
+        if (!pk) continue;
+        const [nx, ny] = nodeAnchorXY(pk.x, pk.w);
+        if (ny + mr <= LABEL_BAND[0] || ny - mr >= LABEL_BAND[1]) continue; // 不在标签行上
+        hit = true;
+        if (nx < mid) lo = Math.max(lo, nx + mr + 2);
+        else if (nx > mid) hi = Math.min(hi, nx - mr - 2);
+        else centered = true; // 正压在框中心：左右都让不动，只能抬走
+      }
+      if (hit && (centered || labelTextW(label) > hi - lo)) {
+        for (let k = t; k < e; k++) if (lane.nodeByT[k]) lift.add(k);
+      } else {
+        ranges.set(t, [lo, hi]);
+      }
+    }
+    t = e - 1;
+  }
+  return { ranges, lift };
+}
 
 /* ---------- 常量 ---------- */
 const CELLW = 40, NAMEW = 196;
@@ -2125,6 +2179,7 @@ function laneSVG(lane, colCount, color, cropX) {
   let lvl = null;
   const slots = lane.slots;
   let t = 0, prevClock = null, prevClockNoLead = false, gapOverlays = null, prevG = null;
+  const nodePlan = planLaneNodes(lane);
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
     const tri = document.createElementNS(NS, 'path');
@@ -2255,13 +2310,16 @@ function laneSVG(lane, colCount, color, cropX) {
       svg.appendChild(box);
       const label = s.label;
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
+        /* 避让方案由 planLaneNodes 统一决定：ranges 里有 = 让开节点后居中；没有 = 节点已被抬走，按整框居中 */
+        const [lo, hi] = nodePlan.ranges.get(t) || [x0 + 4, x0 + w - 4];
+        const avail = hi - lo;
         const tx = document.createElementNS(NS, 'text');
-        tx.setAttribute('x', x0 + w / 2); tx.setAttribute('y', 29);
+        tx.setAttribute('x', (lo + hi) / 2); tx.setAttribute('y', 29);
         tx.setAttribute('text-anchor', 'middle');
         tx.setAttribute('font-size', '14'); tx.style.fontFamily = 'var(--font-mono)';
         tx.setAttribute('fill', isDigit ? '#1B2536' : color);
         tx.textContent = String(label);
-        if (String(label).length * 7.4 > w - 8) { tx.setAttribute('textLength', w - 10); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+        if (labelTextW(label) > avail && avail > 0) { tx.setAttribute('textLength', avail); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
         svg.appendChild(tx);
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -2351,7 +2409,9 @@ function laneSVG(lane, colCount, color, cropX) {
   if (gapOverlays) gapOverlays.forEach(o => svg.appendChild(o));
   Object.keys(lane.nodeByT).forEach(k => {
     const pk = positions[+k];
-    const [nx, ny] = nodeAnchorXY(pk ? pk.x : X(+k), pk ? pk.w : W);
+    const [nx, ny0] = nodeAnchorXY(pk ? pk.x : X(+k), pk ? pk.w : W);
+    /* 窄数据框让不出横向空间时，把圆标抬到框上沿，避开标签行而不遮字 */
+    const ny = nodePlan.lift.has(+k) ? liftedNodeY() : ny0;
     drawNodeMarker(svg, nx, ny, lane.nodeByT[k]);
   });
   return svg;
@@ -2624,6 +2684,8 @@ function renderMiniEdges() {
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const col = cssVar('--info') || '#38BDF8';
   const x0 = gridWindow().a * gridCellW();
+  const planCache = new Map();
+  const planOf = l => { if (!planCache.has(l)) planCache.set(l, planLaneNodes(l)); return planCache.get(l); };
   const pos = letter => {
     const n = byLetter[letter];
     if (!n) return null;
@@ -2634,7 +2696,9 @@ function renderMiniEdges() {
     const lw = gridCellW() * (n.lane.period || 1);
     const lp = laneCharPositions(n.lane)[n.t];
     const bx = lp ? lp.x : (n.t - (n.lane.phase || 0)) * lw;
-    const [ax, ay] = nodeAnchorXY(bx, lp ? lp.w : lw);
+    const [ax, ay0] = nodeAnchorXY(bx, lp ? lp.w : lw);
+    /* 与通道本体用同一份避让方案，否则箭头会指向节点被抬走前的旧位置 */
+    const ay = planOf(n.lane).lift.has(n.t) ? liftedNodeY() : ay0;
     return { x: track.offsetLeft + ax - x0, y: rowEl.offsetTop + ay };
   };
   const arrow = (x, y, dx, dy) => {
