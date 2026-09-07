@@ -1525,7 +1525,7 @@ if (isMobile()) state_brush.mode = 'compact'; // 手机默认分组模式（紧�
 const BRUSH_GROUPS = [
   { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L'] },
   { name: '时钟', items: ['p', 'n', 'P', 'N'] },
-  { name: '沿', items: ['u', 'd', 'U', 'D'] },
+  { name: '沿', items: ['u', 'd'] },
   { name: '数据', items: ['=', '2', '3', '4', '5', '6', '7', '8', '9'] },
   { name: '不定', items: ['x', 'z'] },
   { name: '间隙', items: ['|'] },
@@ -1533,7 +1533,7 @@ const BRUSH_GROUPS = [
 /* 手机分组：电平并入沿、不定并入间隙为「其他」、数据改名「总线」；每组末尾追加延续「.」，
    总线组额外加 x（工具栏因此不再需要独立延续笔刷） */
 const BRUSH_GROUPS_MOBILE = [
-  { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L', 'u', 'd', 'U', 'D', '.'] },
+  { name: '电平', items: ['0', '1', 'h', 'l', 'H', 'L', 'u', 'd', '.'] },
   { name: '时钟', items: ['p', 'n', 'P', 'N', '.'] },
   { name: '总线', items: ['=', '2', '3', '4', '5', '6', '7', '8', '9', 'x', '.'] },
   { name: '其他', items: ['x', 'z', '|', '.'] },
@@ -1599,11 +1599,11 @@ const CELLW = 40, NAMEW = 196;
 const NODE_LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DATA_CHARS = '=23456789';
 const CLOCK_CHARS = 'pnPN';
-const LEVEL_EDGE_CHARS = '01hlHLudUD';
+const LEVEL_EDGE_CHARS = '01hlHLud';
 /* 各通道类型的合法字符集参考（原用于滚轮状态环，滚轮已改为上/下变换 cellUp/cellDown；此处保留备用） */
 const WHEEL_CYCLES = {
   clock: ['p', 'n', 'P', 'N'],
-  signal: ['0', '1', 'h', 'l', 'H', 'L', 'u', 'd', 'U', 'D', 'z', 'x'],
+  signal: ['0', '1', 'h', 'l', 'H', 'L', 'u', 'd', 'z', 'x'],
   bus: ['=', '2', '3', '4', '5', '6', '7', '8', '9', 'x', 'z'],
 };
 /* 待初始化通道（只有第一格）不限类型：按笔刷分组顺序取三类元素的合集（间隙除外） */
@@ -1639,10 +1639,9 @@ const GLYPHS = [
   { c: 'p', name: '时钟' }, { c: 'n', name: '反相时钟' },
   { c: 'P', name: '时钟·箭头' }, { c: 'N', name: '反相时钟·箭头' },
   { c: 'u', name: '上升沿' }, { c: 'd', name: '下降沿' },
-  { c: 'U', name: '上升沿·带竖线' }, { c: 'D', name: '下降沿·带竖线' },
   { c: 'x', name: '不确定' }, { c: 'z', name: '高阻' },
-  { c: 'h', name: '高·无沿' }, { c: 'l', name: '低·无沿' },
-  { c: 'H', name: '高·带沿' }, { c: 'L', name: '低·带沿' },
+  { c: 'h', name: '高·直沿' }, { c: 'l', name: '低·直沿' },
+  { c: 'H', name: '高·直沿带箭头' }, { c: 'L', name: '低·直沿带箭头' },
   { c: '=', name: '数据' },
   { c: '2', name: '数据·白' }, { c: '3', name: '数据·黄' }, { c: '4', name: '数据·橙' }, { c: '5', name: '数据·蓝' },
   { c: '6', name: '数据·青' }, { c: '7', name: '数据·绿' }, { c: '8', name: '数据·紫' }, { c: '9', name: '数据·粉' },
@@ -1893,7 +1892,7 @@ function laneType(lane) {
 /* 拖动越界的上/下变换：按字符本身归类（基准字符已决定其类别），返回变换后的字符。
    时钟：上=大小写互切（相位不变 p↔P n↔N）；下=正负相切换（大小写不变 p↔n P↔N）。
    总线：上=数值+1（'=' 视为 1 只作起点，2..9 环形，9→2）；下=一律 x。
-   信号：0↔1（上1下0）、h/l、H/L、u/d、U/D 成对（上取高/前者，下取低/后者）。
+   信号：0↔1（上1下0）、h/l、H/L、u/d 成对（上取高/前者，下取低/后者）。
    x：上→2 下→0；z：上→1 下→0。未识别字符原样返回。 */
 const BUS_UP_RING = '23456789'; // '=' 起点上变换进入 2，之后环形回绕到 2
 function cellUp(g) {
@@ -1904,7 +1903,6 @@ function cellUp(g) {
     case 'h': return 'h'; case 'l': return 'h';
     case 'H': return 'H'; case 'L': return 'H';
     case 'u': return 'u'; case 'd': return 'u';
-    case 'U': return 'U'; case 'D': return 'U';
     case 'x': return '2'; case 'z': return '1';
     case '=': return '2';
   }
@@ -1922,7 +1920,6 @@ function cellDown(g) {
     case 'h': return 'l'; case 'l': return 'l';
     case 'H': return 'L'; case 'L': return 'L';
     case 'u': return 'd'; case 'd': return 'd';
-    case 'U': return 'D'; case 'D': return 'D';
     case 'x': return 'x'; case 'z': return '0';
   }
   if (g === '=' || BUS_UP_RING.includes(g)) return 'x'; // 总线下变换一律 x
@@ -2127,7 +2124,7 @@ function laneSVG(lane, colCount, color, cropX) {
   const yOf = lvl => lvl === 'hi' ? HI : lvl === 'lo' ? LO : MID;
   let lvl = null;
   const slots = lane.slots;
-  let t = 0, prevClock = null, prevClockArrowed = false, gapOverlays = null, prevG = null;
+  let t = 0, prevClock = null, prevClockNoLead = false, gapOverlays = null, prevG = null;
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
     const tri = document.createElementNS(NS, 'path');
@@ -2154,18 +2151,19 @@ function laneSVG(lane, colCount, color, cropX) {
     mk('M-3,22 C 2,22 2,-2 7,-2', null, color);
     (gapOverlays ||= []).push(gEl);
   };
-  const edgeInto = (x, target) => { if (lvl !== null && lvl !== target) V(x, yOf(lvl), target); };
-  const drawClock = (x0, kind, w, arrowed) => {
-    // 官方几何（pclk/nclk/Pclk/Nclk 标记）：翻转沿在拍起点、从基准轨垂直出入
-    // p: 起点上升沿+高前低后；n: 起点下降沿+低前高后；P/N 同形带箭头
+  const drawClock = (x0, kind, w, arrowed, noLead) => {
+    // 官方几何（pclk/nclk/Pclk/Nclk 砖）：拍起点一条贯穿低高的垂直沿，半拍处翻转
+    // p: 起点上升沿+高前低后；n: 起点下降沿+低前高后；P/N 同形，垂直沿上叠箭头
+    // noLead：官方 xclude 命中（hp/Hp、ln/Ln），只去掉起点垂直沿，半拍翻转照旧
     const x1 = x0 + w;
     const pos = (kind === 'p' || kind === 'P');
     const firstHalf = pos ? HI : LO, secondHalf = pos ? LO : HI;
-    if (lvl === null) { M(x0, pos ? LO : HI); d += `V${firstHalf}`; }
-    else edgeInto(x0, firstHalf);
+    if (!noLead) {
+      V(x0, LO, HI);
+      if (arrowed) arrowTri(x0, MID, pos ? 'up' : 'down');
+    }
     M(x0, firstHalf); d += `H${x0 + w / 2}V${secondHalf}`; Hline(x1);
     lvl = pos ? 'lo' : 'hi';
-    if (arrowed) arrowTri(x0, (firstHalf + secondHalf) / 2, pos ? 'up' : 'down');
   };
   let lastEnd = 0;
   while (t < len) {
@@ -2187,7 +2185,8 @@ function laneSVG(lane, colCount, color, cropX) {
     const x0 = pp.x, cw = pp.w, x1 = x0 + cw;
     lastEnd = x1;
     if (!s || s.glyph === '.') {
-      if (prevClock) drawClock(x0, prevClock, cw, prevClock === 'P' || prevClock === 'N');
+      // 官方把重复拍整砖复制，所以 xclude 抑制掉的起点垂直沿在延续拍里同样不画
+      if (prevClock) drawClock(x0, prevClock, cw, prevClock === 'P' || prevClock === 'N', prevClockNoLead);
       else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') Hline(x1);
       t++; continue;
     }
@@ -2195,7 +2194,9 @@ function laneSVG(lane, colCount, color, cropX) {
     const pg = prevG;
     prevG = g;
     if (g !== '|') prevClock = null;
-    if (g === 'x' || g === 'X') {
+    /* 大写 U/D 在官方引擎里没有对应砖（gen-wave-brick 落到 default 'xxx'），一律画成不确定框；
+       笔刷里已不提供，这里只为忠实呈现外部导入的 WaveJSON。 */
+    if (g === 'x' || g === 'X' || g === 'U' || g === 'D') {
       let e = t + 1;
       const gapPts = [];
       while (e < len && (!slots[e] || slots[e].glyph === '.' || slots[e].glyph === '|')) {
@@ -2267,39 +2268,56 @@ function laneSVG(lane, colCount, color, cropX) {
       lvl = null; t = e; continue;
     }
     switch (g) {
-      case '1': case 'H': case 'h': {
-        const target = HI, up = g === 'H';
+      case '1': {
+        const target = HI;
         if (lvl === null || lvl === target) { M(x0, target); }
         else {
           // 官方 0m1/1m0 几何：过渡固定占第一个基准子格（36px）的 15%~45%，不随 hscale/period 缩放
           M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`;
-          arrowTri(x0 + CELLW * .15, (yOf(lvl) + target) / 2, up ? 'up' : null);
         }
         Hline(x1); lvl = 'hi'; break;
       }
-      case '0': case 'L': case 'l': {
-        const target = LO, down = g === 'L';
+      case '0': {
+        const target = LO;
         if (lvl === null || lvl === target) { M(x0, target); }
-        else {
-          M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`;
-          arrowTri(x0 + CELLW * .15, (yOf(lvl) + target) / 2, down ? 'down' : null);
-        }
+        else { M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`; }
         Hline(x1); lvl = 'lo'; break;
       }
-      case 'p': case 'P': drawClock(x0, g, cw, g === 'P'); prevClock = g; break;
+      /* h/H、l/L 用的是官方时钟砖 pclk/Pclk、nclk/Nclk：拍起点一条贯穿低高的垂直沿 +
+         整拍平电平，H/L 再叠一个箭头——与 0/1 的斜坡过渡形状不同。
+         首拍退化成纯平线（官方首砖表 h/H→'111'、l/L→'000'，无沿无箭头）；
+         官方 xclude 另把 'nh'/'Nh' 抑制成 '111'、'pl'/'Pl' 抑制成 '000'（只针对小写 h/l）。 */
+      case 'h': case 'H': {
+        if (pg !== null && !(g === 'h' && (pg === 'n' || pg === 'N'))) {
+          V(x0, LO, HI);
+          if (g === 'H') arrowTri(x0, MID, 'up');
+        }
+        M(x0, HI); Hline(x1); lvl = 'hi'; break;
+      }
+      case 'l': case 'L': {
+        if (pg !== null && !(g === 'l' && (pg === 'p' || pg === 'P'))) {
+          V(x0, HI, LO);
+          if (g === 'L') arrowTri(x0, MID, 'down');
+        }
+        M(x0, LO); Hline(x1); lvl = 'lo'; break;
+      }
+      case 'p': case 'P':
+        // 官方 xclude 'hp'/'Hp'：高电平后的 p 不再画起点垂直沿（已经在高位）
+        prevClockNoLead = (g === 'p' && (pg === 'h' || pg === 'H'));
+        drawClock(x0, g, cw, g === 'P', prevClockNoLead);
+        prevClock = g; break;
       case 'n': case 'N':
-        // 官方 xclude 'ln'/'Ln'：低电平后的 n 上升沿被抑制，整拍保持低
-        if (pg === 'l' || pg === 'L') { M(x0, LO); Hline(x1); lvl = 'lo'; break; }
-        drawClock(x0, g, cw, g === 'N'); prevClock = g; break;
-      case 'u': case 'U': {
+        // 官方 xclude 'ln'/'Ln'：低电平后的 n 不再画起点垂直沿
+        prevClockNoLead = (g === 'n' && (pg === 'l' || pg === 'L'));
+        drawClock(x0, g, cw, g === 'N', prevClockNoLead);
+        prevClock = g; break;
+      case 'u': {
         // 官方造型：平-平滑爬升-圆滑到顶的 S 曲线
-        if (g === 'U' && lvl !== null && lvl !== 'lo') V(x0, yOf(lvl), LO);
         if (lvl === 'hi') { M(x0, HI); Hline(x1); }
         else { M(x0, LO); d += `H${x0 + CELLW * .075}C${x0 + CELLW * .175} ${LO},${x0 + CELLW * .25} ${HI},${x0 + CELLW * .5} ${HI}`; Hline(x1); }
         lvl = 'hi'; break;
       }
-      case 'd': case 'D': {
-        if (g === 'D' && lvl !== null && lvl !== 'hi') V(x0, yOf(lvl), HI);
+      case 'd': {
         if (lvl === 'lo') { M(x0, LO); Hline(x1); }
         else { M(x0, HI); d += `H${x0 + CELLW * .075}C${x0 + CELLW * .175} ${HI},${x0 + CELLW * .25} ${LO},${x0 + CELLW * .5} ${LO}`; Hline(x1); }
         lvl = 'lo'; break;
@@ -2311,7 +2329,7 @@ function laneSVG(lane, colCount, color, cropX) {
       case '|': {
         // 官方语义：'.' 与 '|' 均为重复器 —— 信号（含时钟）延续过间隙拍，符号叠加其上
         prevG = pg;
-        if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N');
+        if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N', prevClockNoLead);
         else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') { M(x0, yOf(lvl)); Hline(x1); }
         gapMark(x0 + cw / 2, MID - 11);
         break;
@@ -2342,14 +2360,19 @@ function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
 }
-/* 笔刷按钮小样 */
+/* 笔刷按钮小样。
+   电平类字符单画一拍会退化：首拍无前置电平，h/H/l/L 只剩平线，与 1/0 长得一样。
+   所以给这六个字符补一拍反向电平作前置，露出各自真正的过渡形状——
+   0/1 斜坡、h/l 垂直沿、H/L 垂直沿加箭头——再把视窗裁到跳变处。 */
+const SAMPLE_LEAD = { '0': '1', '1': '0', h: '0', H: '0', l: '1', L: '1' };
 function glyphSample(ch) {
   const fake = newLane('', []);
-  const map = { '0': '0', '1': '1', p: 'p', n: 'n', P: 'P', N: 'N', u: 'u', d: 'd', x: 'x', z: 'z', h: 'h', l: 'l', '=': '=', '|': '|' };
-  fake.slots[0] = { glyph: map[ch] || ch };
-  const svg = laneSVG(fake, 1, cssVar('--glyph-sample'));
+  const lead = SAMPLE_LEAD[ch];
+  if (lead) { fake.slots[0] = { glyph: lead }; fake.slots[1] = { glyph: ch }; }
+  else fake.slots[0] = { glyph: ch };
+  const svg = laneSVG(fake, lead ? 2 : 1, cssVar('--glyph-sample'));
   svg.setAttribute('width', 30); svg.setAttribute('height', 18);
-  svg.setAttribute('viewBox', '0 0 36 48');
+  svg.setAttribute('viewBox', (lead ? 22 : 0) + ' 0 36 48');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   return svg;
 }
@@ -4160,7 +4183,7 @@ function bindGrid() {
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
 
   /* 笔刷键盘快捷键：字符直切，Esc 回选择（输入框内不生效） */
-  const BRUSH_KEYS = '0123456789pnPNudUDxzhlHL=|.';
+  const BRUSH_KEYS = '0123456789pnPNudxzhlHL=|.';
   document.addEventListener('keydown', ev => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const t = ev.target;

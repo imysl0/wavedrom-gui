@@ -222,7 +222,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
   const yOf = lvl => lvl === 'hi' ? HI : lvl === 'lo' ? LO : MID;
   let lvl = null;
   const slots = lane.slots;
-  let t = 0, prevClock = null, gapPend = '', prevG = null, lastEnd = 0;
+  let t = 0, prevClock = null, prevClockNoLead = false, gapPend = '', prevG = null, lastEnd = 0;
 
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
@@ -236,16 +236,18 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
     g += '</g>';
     overlays += g;
   };
-  const edgeInto = (x, target) => { if (lvl !== null && lvl !== target) V(x, yOf(lvl), target); };
-  const drawClock = (x0, kind, w, arrowed) => {
+  const drawClock = (x0, kind, w, arrowed, noLead) => {
+    // 官方几何（pclk/nclk/Pclk/Nclk 砖）：拍起点一条贯穿低高的垂直沿，半拍处翻转
+    // noLead：官方 xclude 命中（hp/Hp、ln/Ln），只去掉起点垂直沿，半拍翻转照旧
     const x1 = x0 + w;
     const pos = (kind === 'p' || kind === 'P');
     const firstHalf = pos ? HI : LO, secondHalf = pos ? LO : HI;
-    if (lvl === null) { M(x0, pos ? LO : HI); d += `V${firstHalf}`; }
-    else edgeInto(x0, firstHalf);
+    if (!noLead) {
+      V(x0, LO, HI);
+      if (arrowed) arrowTri(x0, MID, pos ? 'up' : 'down');
+    }
     M(x0, firstHalf); d += `H${x0 + w / 2}V${secondHalf}`; Hline(x1);
     lvl = pos ? 'lo' : 'hi';
-    if (arrowed) arrowTri(x0, (firstHalf + secondHalf) / 2, pos ? 'up' : 'down');
   };
 
   while (t < len) {
@@ -266,7 +268,8 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
     const x0 = pp.x, cw = pp.w, x1 = x0 + cw;
     lastEnd = x1;
     if (!s || s.glyph === '.') {
-      if (prevClock) drawClock(x0, prevClock, cw, prevClock === 'P' || prevClock === 'N');
+      // 官方把重复拍整砖复制，所以 xclude 抑制掉的起点垂直沿在延续拍里同样不画
+      if (prevClock) drawClock(x0, prevClock, cw, prevClock === 'P' || prevClock === 'N', prevClockNoLead);
       else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') Hline(x1);
       t++; continue;
     }
@@ -275,7 +278,8 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
     prevG = g;
     if (g !== '|') prevClock = null;
 
-    if (g === 'x' || g === 'X') {
+    /* 大写 U/D 在官方引擎里没有对应砖（gen-wave-brick 落到 default 'xxx'），一律画成不确定框 */
+    if (g === 'x' || g === 'X' || g === 'U' || g === 'D') {
       let e = t + 1;
       const gapPts = [];
       while (e < len && (!slots[e] || slots[e].glyph === '.' || slots[e].glyph === '|')) {
@@ -315,7 +319,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
         const attrs = { x: x0 + w / 2, y: 29, 'text-anchor': 'middle', 'font-size': FONTS.dataLabel,
           'font-family': FONT_MONO, fill: isDigit ? '#1B2536' : color };
-        if (String(label).length * FONTS.dataLabel * 0.63 > w - 8) { attrs.textLength = w - 10; attrs.lengthAdjust = 'spacingAndGlyphs'; }
+        if (String(label).length * FONTS.dataLabel * 0.53 > w - 8) { attrs.textLength = w - 10; attrs.lengthAdjust = 'spacingAndGlyphs'; }
         out += tag('text', attrs, esc(String(label)));
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -323,30 +327,52 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
     }
 
     switch (g) {
-      case '1': case 'H': case 'h': {
-        const target = HI, up = g === 'H';
+      case '1': {
+        const target = HI;
         if (lvl === null || lvl === target) { M(x0, target); }
-        else { M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`; arrowTri(x0 + CELLW * .15, (yOf(lvl) + target) / 2, up ? 'up' : null); }
+        else { M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`; }
         Hline(x1); lvl = 'hi'; break;
       }
-      case '0': case 'L': case 'l': {
-        const target = LO, down = g === 'L';
+      case '0': {
+        const target = LO;
         if (lvl === null || lvl === target) { M(x0, target); }
-        else { M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`; arrowTri(x0 + CELLW * .15, (yOf(lvl) + target) / 2, down ? 'down' : null); }
+        else { M(x0, yOf(lvl)); d += `H${x0 + CELLW * .075}L${x0 + CELLW * .225} ${target}`; }
         Hline(x1); lvl = 'lo'; break;
       }
-      case 'p': case 'P': drawClock(x0, g, cw, g === 'P'); prevClock = g; break;
+      /* h/H、l/L 用的是官方时钟砖 pclk/Pclk、nclk/Nclk：拍起点一条贯穿低高的垂直沿 +
+         整拍平电平，H/L 再叠一个箭头——与 0/1 的斜坡过渡形状不同。
+         首拍退化成纯平线（官方首砖表 h/H→'111'、l/L→'000'）；
+         官方 xclude 另把 'nh'/'Nh' 抑制成 '111'、'pl'/'Pl' 抑制成 '000'（只针对小写 h/l）。 */
+      case 'h': case 'H': {
+        if (pg !== null && !(g === 'h' && (pg === 'n' || pg === 'N'))) {
+          V(x0, LO, HI);
+          if (g === 'H') arrowTri(x0, MID, 'up');
+        }
+        M(x0, HI); Hline(x1); lvl = 'hi'; break;
+      }
+      case 'l': case 'L': {
+        if (pg !== null && !(g === 'l' && (pg === 'p' || pg === 'P'))) {
+          V(x0, HI, LO);
+          if (g === 'L') arrowTri(x0, MID, 'down');
+        }
+        M(x0, LO); Hline(x1); lvl = 'lo'; break;
+      }
+      case 'p': case 'P':
+        // 官方 xclude 'hp'/'Hp'：高电平后的 p 不再画起点垂直沿（已经在高位）
+        prevClockNoLead = (g === 'p' && (pg === 'h' || pg === 'H'));
+        drawClock(x0, g, cw, g === 'P', prevClockNoLead);
+        prevClock = g; break;
       case 'n': case 'N':
-        if (pg === 'l' || pg === 'L') { M(x0, LO); Hline(x1); lvl = 'lo'; break; }
-        drawClock(x0, g, cw, g === 'N'); prevClock = g; break;
-      case 'u': case 'U': {
-        if (g === 'U' && lvl !== null && lvl !== 'lo') V(x0, yOf(lvl), LO);
+        // 官方 xclude 'ln'/'Ln'：低电平后的 n 不再画起点垂直沿
+        prevClockNoLead = (g === 'n' && (pg === 'l' || pg === 'L'));
+        drawClock(x0, g, cw, g === 'N', prevClockNoLead);
+        prevClock = g; break;
+      case 'u': {
         if (lvl === 'hi') { M(x0, HI); Hline(x1); }
         else { M(x0, LO); d += `H${x0 + CELLW * .075}C${x0 + CELLW * .175} ${LO},${x0 + CELLW * .25} ${HI},${x0 + CELLW * .5} ${HI}`; Hline(x1); }
         lvl = 'hi'; break;
       }
-      case 'd': case 'D': {
-        if (g === 'D' && lvl !== null && lvl !== 'hi') V(x0, yOf(lvl), HI);
+      case 'd': {
         if (lvl === 'lo') { M(x0, LO); Hline(x1); }
         else { M(x0, HI); d += `H${x0 + CELLW * .075}C${x0 + CELLW * .175} ${HI},${x0 + CELLW * .25} ${LO},${x0 + CELLW * .5} ${LO}`; Hline(x1); }
         lvl = 'lo'; break;
@@ -357,7 +383,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
         Hline(x1); lvl = 'mid'; break;
       case '|': {
         prevG = pg;
-        if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N');
+        if (prevClock) drawClock(x0, prevClock, W, prevClock === 'P' || prevClock === 'N', prevClockNoLead);
         else if (lvl === 'hi' || lvl === 'lo' || lvl === 'mid') { M(x0, yOf(lvl)); Hline(x1); }
         gapMark(x0 + cw / 2, MID - 11);
         break;
@@ -410,11 +436,10 @@ function tickLabels(val, len) {
 /* ============================================================================
  * Full diagram assembly (port of renderGrid + buildEditorSvg + renderMiniEdges)
  * ========================================================================== */
-function textW(s) {
-  // per-char width estimate, scaled to the configured signal-name size
-  const k = FONTS.signalName / 12.5;
+function textW(s, size = FONTS.signalName) {
+  // per-char width estimate at the given size (LXGW Mono: ~0.55em latin, 1em CJK)
   let w = 0;
-  for (const ch of s) w += (ch.charCodeAt(0) > 0x2e7f ? 11.5 : 6.8) * k;
+  for (const ch of s) w += (ch.charCodeAt(0) > 0x2e7f ? 1 : 0.55) * size;
   return w;
 }
 
@@ -453,12 +478,12 @@ function renderModern(source, opts = {}) {
       const label = (n.period && n.period > 1 ? '×' + n.period : '') + (n.phase ? ' φ' + n.phase : '');
       extra = 14 + label.length * 6;
     }
-    const nameW = Math.min(textW(n.name || ''), 96 * (FONTS.signalName / 12.5));
-    namew = Math.max(namew, Math.min(340, 64 + indent + nameW + extra));
+    const nameW = textW(n.name || '');
+    namew = Math.max(namew, Math.min(480, 70 + indent + nameW + extra));
     if (n.kind === 'group') walk(n.children, depth + 1);
   });
   walk(st.tree, 0);
-  namew = Math.round(Math.min(340, namew));
+  namew = Math.round(Math.min(480, namew));
 
   const win = gridWindow(st);
   const colCount = win.b - win.a;
@@ -685,20 +710,20 @@ function renderModern(source, opts = {}) {
     if (r.type === 'lane') {
       const idx = flat.indexOf(r.node);
       const color = C.ch[(idx < 0 ? 0 : idx) % 6];
-      nameLayer += tag('circle', { cx: 12 + ix + 4, cy, r: 4.5, fill: color });
-      if (r.node.name) nameLayer += tag('text', { x: 12 + ix + 14, y: cy + 4.5, 'font-size': FONTS.signalName, 'font-weight': 500, fill: C.text, 'font-family': FONT_MONO }, esc(r.node.name));
+      nameLayer += tag('circle', { cx: 22 + ix, cy, r: 4.5, fill: color });
+      if (r.node.name) nameLayer += tag('text', { x: 44 + ix, y: cy + 4.5, 'font-size': FONTS.signalName, 'font-weight': 500, fill: C.text, 'font-family': FONT_MONO }, esc(r.node.name));
       if ((r.node.period && r.node.period > 1) || r.node.phase) {
         const badge = (r.node.period && r.node.period > 1 ? '×' + r.node.period : '') + (r.node.phase ? ' φ' + r.node.phase : '');
-        nameLayer += tag('text', { x: 12 + ix + 16 + (r.node.name || '').length * (FONTS.signalName * 0.6), y: cy + 3.5, 'font-size': FONTS.ppBadge, 'font-weight': 600, fill: C.warnInk, 'font-family': FONT_MONO }, esc(badge));
+        nameLayer += tag('text', { x: namew - 8 - textW(badge, FONTS.ppBadge), y: cy + 3.5, 'font-size': FONTS.ppBadge, 'font-weight': 600, fill: C.warnInk, 'font-family': FONT_MONO }, esc(badge));
       }
     } else if (r.type === 'group') {
       // Fold triangle drawn as an SVG path (font glyph ▸ substitutes wrongly
       // in some rasterizers), then the group name text after it.
-      const triX = 12 + ix + 1, triY = cy, triS = FONTS.groupName * 0.42;
-      nameLayer += tag('path', { d: `M${triX} ${triY - triS}L${triX + triS} ${triY}L${triX} ${triY + triS}z`, fill: C.accText });
-      nameLayer += tag('text', { x: 12 + ix + FONTS.groupName * 0.55 + 6, y: cy + 4.5, 'font-size': FONTS.groupName, 'font-weight': 700, fill: C.accText, 'font-family': FONT_UI }, esc(r.node.name || ''));
+      const chevCx = 22 + ix;
+      nameLayer += tag('path', { d: `M${chevCx - 2.2} ${cy - 1.6}L${chevCx} ${cy + 1.6}L${chevCx + 2.2} ${cy - 1.6}`, fill: 'none', stroke: C.faint, 'stroke-width': 1.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+      nameLayer += tag('text', { x: 44 + ix, y: cy + 4.5, 'font-size': FONTS.groupName, 'font-weight': 700, fill: C.accText, 'font-family': FONT_UI }, esc(r.node.name || ''));
     } else {
-      nameLayer += tag('text', { x: 12 + ix, y: cy + 4, 'font-size': FONTS.spacer, fill: C.faint, 'font-family': FONT_UI }, '空白占位');
+      nameLayer += tag('text', { x: 31 + ix, y: cy + 4, 'font-size': FONTS.spacer, fill: C.faint, 'font-family': FONT_UI }, '空白占位');
     }
   }
 
