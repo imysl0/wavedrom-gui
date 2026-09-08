@@ -205,7 +205,6 @@ svg { display: block; }
    max-width 兜住极窄屏，box-sizing 让 padding 不额外撑宽。 */
 #m-settings .menu { width: 238px; max-width: calc(100vw - 16px); box-sizing: border-box; }
 .menu-sec { font-size: 11px; font-weight: 600; color: var(--faint); padding: 7px 10px 3px; letter-spacing: .04em; }
-.menu .drawer-back { font-weight: 600; color: var(--acc-text); }
 .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 2px 8px 4px; }
 .pos-grid button { width: auto; padding: 0; justify-content: center; height: 30px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); color: var(--muted); font-size: 14px; }
 .pos-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
@@ -306,74 +305,24 @@ svg { display: block; }
 /* ============ 工作区 ============ */
 .workspace { flex: 1; display: flex; min-height: 0; }
 
-/* ---- 左侧栏 ---- */
+/* ---- 左侧栏：通道与分组面板 ----
+   桌面 = 编辑区左栏常驻；手机 = ☰ 唤出的悬浮卡，可「固定」为左栏（html[data-side-dock]）。
+   宽度只要一列按钮：内容全部单列纵排。通道树已删除——重命名/拖拽排序/删除/分组
+   均由编辑网格行头承担，边与箭头/图表设置改为面板内的两颗弹窗按钮。 */
 .side {
-  flex: none; width: 296px;
+  flex: none; width: 84px;
   background: var(--panel-2);
   border-right: 1px solid var(--line);
   overflow-y: auto;
-  padding: 12px;
-  display: flex; flex-direction: column; gap: 14px;
+  padding: 7px;
+  display: flex; flex-direction: column; gap: 6px;
 }
-.side-section { background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--r-lg); }
-.side-section > summary, .side-section > .sec-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 12px;
-  font-size: 11.5px; font-weight: 600; letter-spacing: .05em;
-  color: var(--muted);
-  user-select: none;
-}
-.side-section > summary { cursor: pointer; list-style: none; }
-.side-section > summary::-webkit-details-marker { display: none; }
-.side-section > summary svg, .side-section > .sec-head svg { color: var(--faint); }
-.side-section > summary .chev { margin-left: auto; transition: transform .15s ease; }
-.side-section[open] > summary .chev { transform: rotate(90deg); }
-.sec-body { padding: 2px 10px 10px; }
+.side .add-lane-btns { grid-template-columns: 1fr; gap: 4px; margin: 0; } /* 单列纵排 */
+.side .add-lane-btns .btn { height: 24px; padding: 0 4px; font-size: 11.5px; min-height: 0; }
+.side-openers { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.side-openers .btn { justify-content: center; height: 24px; padding: 0 4px; font-size: 11.5px; min-width: 0; min-height: 0; }
 
-/* 结构树 */
-.tree { display: flex; flex-direction: column; gap: 2px; }
-.tree-row {
-  display: flex; align-items: center; gap: 7px;
-  height: 32px; padding: 0 6px;
-  border-radius: var(--r-sm);
-  color: var(--text);
-}
-.tree-row:hover { background: var(--raise); }
-.tree-row .tw-color { width: 8px; height: 8px; border-radius: 50%; flex: none; margin: 0 5px; /* 占位 18px：与分组 caret 同宽同中心 */ }
-.tree-row .tw-name {
-  flex: 1; min-width: 0;
-  font: 500 12.5px var(--font-mono);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.tree-row input.tw-name-input {
-  flex: 1; min-width: 0;
-  background: transparent; border: 1px solid transparent; border-radius: 4px;
-  font: 500 12.5px var(--font-mono); color: var(--text);
-  padding: 1px 4px;
-}
-.tree-row input.tw-name-input:hover { border-color: var(--line); }
-.tree-row input.tw-name-input:focus { outline: none; border-color: var(--acc); background: var(--panel-2); }
-.tree-row.group > .tw-name { font-family: var(--font-ui); font-weight: 600; }
-.tree-row .tw-kind { font-size: 10px; color: var(--faint); flex: none; }
-.tree-row .lane-actions { display: none; align-items: center; gap: 1px; flex: none; }
-.tree-row:hover .lane-actions, .tree-row:focus-within .lane-actions { display: inline-flex; }
-.tree-row .lane-actions .icon-btn { width: 22px; height: 22px; }
-html[data-tree-tools="always"] .tree-row .lane-actions { display: inline-flex; }
-#treeToolsBtn { margin-left: auto; }
-#treeToolsBtn + .chev { margin-left: 4px; }
-#treeToolsBtn .ic-always { display: none; }
-html[data-tree-tools="always"] #treeToolsBtn .ic-hover { display: none; }
-html[data-tree-tools="always"] #treeToolsBtn .ic-always { display: block; }
-#treeCollapseBtn { margin-left: 4px; }
-#treeCollapseBtn .ic-fold { display: none; }
-html[data-tree-collapsed="1"] #treeCollapseBtn .ic-fold { display: block; }
-html[data-tree-collapsed="1"] #treeCollapseBtn .ic-unfold { display: none; }
-html[data-tree-collapsed="1"] #treeCollapseBtn { color: var(--acc-text); }
-/* 通道树折叠：只保留上方添加按钮 */
-html[data-tree-collapsed="1"] .tree { display: none; }
-.tree-empty { color: var(--faint); font-size: 12px; padding: 10px 6px; }
-
-/* 行拖拽排序（结构树行 + 网格行头共用） */
+/* 行拖拽排序（网格行头） */
 .drag-grip {
   display: inline-flex; align-items: center; justify-content: center;
   width: 15px; height: 22px; flex: none;
@@ -381,19 +330,17 @@ html[data-tree-collapsed="1"] .tree { display: none; }
   touch-action: none; /* 触摸从把手拖拽排序不被页面滚动打断 */
   opacity: 0; transition: opacity .12s ease, color .12s ease;
 }
-/* 编辑区：把手悬浮在名称格左缘，不占列宽（结构树把手保持占位） */
+/* 编辑区：把手悬浮在名称格左缘，不占列宽 */
 .lane-head .drag-grip {
   position: absolute; left: 2px; top: 50%; transform: translateY(-50%);
   z-index: 2; background: var(--panel); border: 1px solid var(--line);
 }
-.tree-row:hover .drag-grip, .lane-row:hover .drag-grip,
-.tree-row:focus-within .drag-grip, .lane-row:focus-within .drag-grip { opacity: 1; }
-html[data-tree-tools="always"] .tree-row .drag-grip { opacity: 1; }
+.lane-row:hover .drag-grip, .lane-row:focus-within .drag-grip { opacity: 1; }
 .drag-grip:hover { color: var(--text); border-color: var(--acc); }
 body.dnd-dragging { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 body.dnd-dragging .drag-grip { cursor: grabbing; }
-body.dnd-dragging .tree-row .lane-actions, body.dnd-dragging .lane-head .lane-actions { display: none !important; }
-body.dnd-dragging .tree-row, body.dnd-dragging .lane-head { cursor: grabbing; }
+body.dnd-dragging .lane-head .lane-actions { display: none !important; }
+body.dnd-dragging .lane-head { cursor: grabbing; }
 .dnd-src { opacity: .4; }
 .dnd-ghost {
   position: fixed; z-index: 300; pointer-events: none;
@@ -898,6 +845,11 @@ html:not([data-theme]) #wv0 svg { filter: invert(0.91) hue-rotate(180deg) contra
   padding: 18px;
 }
 .modal h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.modal h3 .pop-close { margin-left: auto; }
+/* 侧栏迁移弹窗（边与箭头/图表设置）：内容可能高于视口，正文区内部滚动（触屏可拖动滚） */
+.modal-body { max-height: min(72vh, 620px); overflow-y: auto; overscroll-behavior: contain; }
+.modal-mask.side-pop { z-index: 140; } /* 高于手机抽屉(130)/遮罩(129)，面板打开时也可叠加弹出 */
+#edgeMask .modal, #cfgMask .modal { width: min(430px, 92vw); }
 .ver-badge {
   flex: none;
   font: 600 10px var(--font-mono); color: var(--faint);
@@ -1002,60 +954,33 @@ header .ver-badge.ver-link:hover .ver-pop, header .ver-badge.ver-link:focus-visi
 html[data-trace="glow"] .wtrace { filter: drop-shadow(0 0 2.5px currentColor); }
 
 /* 响应式 */
-@media (max-width: 1360px) { .right-col { width: 400px; } .side { width: 270px; } }
-/* 窄屏：侧栏收进左侧抽屉，顶栏 ☰ 唤出 */
-#drawerBtn { display: none; }
-#sideDockBtn { display: none; } /* 仅手机/简约模式显示（见 html[data-mobile]） */
-#drawerMask { position: fixed; inset: 0; z-index: 129; background: var(--mask); display: none; }
+@media (max-width: 1360px) { .right-col { width: 400px; } }
+/* 手机模式编辑工具栏的 ◫：显示/隐藏「通道与分组」面板（桌面侧栏常驻，按钮由 CSS 隐藏） */
+#sideDockBtn { display: none; }
 /* 手机布局：视口≤800px（自动模式）或强制「简约模式」时生效——由 JS 依 isMobile() 设置 html[data-mobile] */
 html[data-mobile] {
   body { overflow: auto; }
   .workspace { flex-direction: column; overflow: visible; }
-  #drawerBtn { display: inline-flex; }
-  .side {
-    position: fixed; left: 0; top: 0; bottom: 0; z-index: 130;
-    width: min(86vw, 360px) !important;
-    flex-direction: column; overflow-y: auto;
-    transform: translateX(-105%);
-    transition: transform .22s cubic-bezier(.16, 1, .3, 1);
-    box-shadow: var(--shadow-pop);
-  }
-  .side.drawer-open { transform: none; }
-  /* 侧栏固定钮：手机/简约模式显示，独占一行（不遮挡分区标题/内容）；固定态高亮 */
-  #sideDockBtn { display: flex; align-self: flex-end; width: 30px; height: 26px; margin-bottom: 2px; flex: none; }
+  #sideDockBtn { display: inline-flex; }
   #sideDockBtn.on { color: var(--acc-text); border-color: var(--acc); background: var(--acc-veil); }
-  /* 固定态：workspace 用网格——第 1 行 [侧栏 | 编辑区]，第 2 行笔刷栏全宽贯通两者下方 */
+  /* 面板默认隐藏；◫ 开启后固定为编辑区左栏——workspace 变网格：
+     第 1 行 [面板 | 编辑区]，第 2 行笔刷栏全宽贯通两者下方 */
+  .side { display: none; }
   &[data-side-dock] .workspace {
     display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto;
     align-items: stretch;
   }
-  &[data-side-dock] .side { grid-row: 1; grid-column: 1; }
-  &[data-side-dock] .main-col { grid-row: 1; grid-column: 2; min-height: 0; }
-  &[data-side-dock] #palette { grid-row: 2; grid-column: 1 / -1; } /* 笔刷栏横跨两列 */
-  &[data-side-dock] #brushFan { grid-row: 2; grid-column: 1 / -1; }
   &[data-side-dock] .side {
-    position: relative !important; transform: none !important;
-    z-index: auto; box-shadow: none; border-right: 1px solid var(--line);
+    display: flex; grid-row: 1; grid-column: 1; align-self: stretch;
+    border-right: 1px solid var(--line);
   }
-  &[data-side-dock] #drawerMask { display: none !important; } /* 固定态无遮罩 */
-  &[data-side-dock] .side:not([data-drawer-sec]) { display: none; } /* 未选分区则不占位 */
-  /* 分区抽屉：选哪个分区只显示哪个，并各自套用宽度 */
-  .side[data-drawer-sec] .side-section { display: none; }
-  .side[data-drawer-sec="tree"] .side-section[data-sec="tree"],
-  .side[data-drawer-sec="edge"] .side-section[data-sec="edge"],
-  .side[data-drawer-sec="cfg"]  .side-section[data-sec="cfg"] { display: block; }
-  .side[data-drawer-sec="edge"] { width: min(86vw, 280px) !important; }  /* 边与箭头 ≤280px */
-  .side[data-drawer-sec="cfg"]  { width: min(86vw, 280px) !important; }  /* 图表设置 ≤280px */
-  /* 通道与分组：只留“添加按钮排”，一列、尽量窄；隐藏树与整条标题栏 */
-  .side[data-drawer-sec="tree"] { width: max-content !important; min-width: 0; }
-  .side[data-drawer-sec="tree"] #tree,
-  .side[data-drawer-sec="tree"] .side-section[data-sec="tree"] > summary { display: none; }
-  .side[data-drawer-sec="tree"] .add-lane-btns {
-    grid-template-columns: 1fr; margin: 9px 0 0; /* 单列纵排 */
-  }
-  .side[data-drawer-sec="tree"] .add-lane-btns .btn { white-space: nowrap; }
-  .side-section { flex: none; }
-  #drawerMask.open { display: block; }
+  &[data-side-dock] .main-col { grid-row: 1; grid-column: 2; min-height: 0; }
+  &[data-side-dock] #palette,
+  &[data-side-dock] #brushFan { grid-row: 2; grid-column: 1 / -1; } /* 笔刷栏横跨两列 */
+  /* 编辑工具栏收紧：间距、内边距、拍数步进一并缩窄 */
+  .editor-toolbar { flex-wrap: wrap; gap: 4px 5px; padding: 5px 8px; }
+  .col-stepper { gap: 2px; margin-left: 2px; }
+  .col-stepper .btn { padding: 0 7px; font-size: 11.5px; }
   .main-col { flex-direction: column; flex: 1 1 auto; min-height: calc(100vh - 104px); min-height: calc(100dvh - 104px); }
   .split { display: none; }
   .editor-col { flex: 1 1 auto; min-height: 0; } /* 高度随内容收缩，不留无用空白 */
@@ -1076,7 +1001,7 @@ html[data-mobile] {
   .preview-stage { min-height: 320px; }
   .code-wrap textarea { min-height: 240px; }
   #brushCol.on { position: fixed; right: 8px; top: 56px; bottom: 12px; z-index: 40; border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
-  /* 手机/窄屏：顶栏横向收纳，工具栏换行，笔刷横滑 */
+  /* 手机/窄屏：顶栏横向收纳，笔刷横滑 */
   .topbar { overflow-x: auto; scrollbar-width: none; padding: 0 8px; gap: 6px; }
   .topbar::-webkit-scrollbar { display: none; }
   .topbar > * { flex: none; }
@@ -1097,7 +1022,6 @@ html[data-mobile] {
     height: auto; line-height: 1.2; align-self: center; border-color: var(--line-soft);
   }
   .topbar #verBadge .ver-pop { display: none !important; } /* 手机顶栏窄且会裁剪，去掉版本提示气泡 */
-  .editor-toolbar { flex-wrap: wrap; row-gap: 6px; }
   .editor-toolbar .hint { display: none; }
   .chain-title .ct-full { display: none; }
   .chain-title .ct-short { display: inline; }
@@ -1142,10 +1066,10 @@ html[data-mobile] {
 /* 触屏（粗指针）：放大触控目标，悬停类控件常显 */
 @media (pointer: coarse) {
   .topbar .icon-btn { width: 36px !important; height: 36px !important; }
-  .topbar .btn, .add-lane-btns .btn, .editor-toolbar .btn { min-height: 36px; }
+  .topbar .btn, .add-lane-btns .btn, .editor-toolbar .btn { min-height: 32px; }
   .g-caret { width: 18px; height: 18px; }
-  .tree-row .drag-grip, .lane-head .drag-grip { opacity: 1; }
-  .tree-row .lane-actions, .lane-head .lane-actions { display: inline-flex; }
+  .lane-head .drag-grip { opacity: 1; }
+  .lane-head .lane-actions { display: inline-flex; }
 }
 /* 波形单元格：触摸单指绘制不被原生滚动打断（touch-action 只影响触摸，桌面零影响） */
 .cell { touch-action: none; }
@@ -1157,26 +1081,6 @@ html[data-mobile] {
 </head>
 <body>
 <header class="topbar">
-  <div class="menu-wrap" id="m-drawer">
-    <button class="icon-btn" id="drawerBtn" title="打开侧栏" aria-label="打开侧栏" aria-haspopup="true">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
-    </button>
-    <div class="menu" id="drawerMenu" role="menu">
-      <div class="menu-sec">侧栏</div>
-      <button data-drawer-sec="tree" role="menuitem">通道与分组</button>
-      <button data-drawer-sec="edge" role="menuitem">边与箭头</button>
-      <button data-drawer-sec="cfg" role="menuitem">图表设置</button>
-      <div class="sep"></div>
-      <div class="menu-sec">更多</div>
-      <button data-drawer-sub="examples" role="menuitem">示例 ›</button>
-      <button data-drawer-sub="view" role="menuitem">视图 ›</button>
-      <button data-drawer-sub="font" role="menuitem">界面字体 ›</button>
-      <button data-drawer-sub="help" role="menuitem">帮助 ›</button>
-      <button data-drawer-act="toggle-theme" role="menuitem">切换主题</button>
-      <button data-drawer-act="toggle-trace" role="menuitem">切换轨迹样式</button>
-      <button data-drawer-act="open-about" role="menuitem">关于</button>
-    </div>
-  </div>
   <div class="brand">
     <svg class="mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
       <path d="M1 14h4V6h4v10h4V6h4v8h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1218,74 +1122,30 @@ html[data-mobile] {
 </header>
 
 <main class="workspace">
-  <aside class="side">
-    <button class="icon-btn" id="sideDockBtn" title="固定为编辑区左栏" aria-label="固定侧栏为编辑区左栏" aria-pressed="false">
-      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M6.5 2.5v11"/></svg>
-    </button>
-    <details class="side-section" data-sec="tree" open>
-      <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>通道与分组
-        <button class="icon-btn" id="treeToolsBtn" title="行内小工具：总是显示（点击改为悬停显示）" aria-label="切换行内小工具显示方式">
-          <svg class="ic-hover" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="7.5" r="1.3" fill="currentColor"/><circle cx="8" cy="7.5" r="1.3" fill="currentColor"/><circle cx="13" cy="7.5" r="1.3" fill="currentColor"/><path d="M2.5 12.6h11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2 2" opacity=".55"/></svg>
-          <svg class="ic-always" width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="7" r="1.3" fill="currentColor"/><circle cx="8" cy="7" r="1.3" fill="currentColor"/><circle cx="13" cy="7" r="1.3" fill="currentColor"/><path d="M2.5 12.2h11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
-        </button>
-        <button class="icon-btn" id="treeCollapseBtn" title="折叠通道树（只保留添加按钮）" aria-label="折叠或展开通道树" aria-pressed="false">
-          <svg class="ic-unfold" width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 9.5 8 5l4.5 4.5M3.5 13.5 8 9l4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <svg class="ic-fold" width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 6.5 8 11l4.5-4.5M3.5 2.5 8 7l4.5-4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <svg class="chev" width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 2.5 6.5 5 3 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </summary>
-      <div class="sec-body">
-        <div class="add-lane-btns">
-          <button class="btn" data-act="add-bit" title="添加一条数字信号通道">＋信号</button>
-          <button class="btn" data-act="add-clock" title="添加时钟通道，自动填充 8 拍时钟">＋时钟</button>
-          <button class="btn" data-act="add-bus" title="添加总线通道，可填写数据标签">＋总线</button>
-          <button class="btn" data-act="add-spacer" title="添加空白占位通道">＋占位</button>
-          <button class="btn" data-act="add-group" title="添加分组，把相邻通道收进组里">＋分组</button>
-        </div>
-        <div class="tree" id="tree"></div>
-      </div>
-    </details>
-
-    <details class="side-section" data-sec="edge" open>
-      <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg>边与箭头
-        <svg class="chev" width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 2.5 6.5 5 3 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </summary>
-      <div class="sec-body">
-        <div class="edge-hint">先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。</div>
-        <div class="edge-list" id="edgeList"></div>
-        <div class="add-lane-btns"><button class="btn" data-act="add-edge">＋添加箭头</button></div>
-      </div>
-    </details>
-
-    <details class="side-section" data-sec="cfg">
-      <summary><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表设置
-        <svg class="chev" width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 2.5 6.5 5 3 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </summary>
-      <div class="sec-body" id="cfgBody">
-        <div class="cfg-group">标题区</div>
-        <div class="field"><label for="headText">标题文字</label><input type="text" id="headText" placeholder="如：DDR 读时序"></div>
-        <div class="field"><label for="headTick">刻度（0 起）</label><input type="text" id="headTick" placeholder="0、5 2、a, b, c"></div>
-        <div class="field"><label for="headTock">刻度（倒标）</label><input type="text" id="headTock" placeholder="9、5 2、a, b, c"></div>
-        <div class="field"><label for="headEvery">隔几拍标一次</label><input type="number" id="headEvery" min="1" step="1" placeholder="—"></div>
-        <div class="cfg-group">底部区</div>
-        <div class="field"><label for="footText">底部文字</label><input type="text" id="footText" placeholder="备注、说明"></div>
-        <div class="field"><label for="footTick">刻度（0 起）</label><input type="text" id="footTick" placeholder="0、5 2、a, b, c"></div>
-        <div class="field"><label for="footTock">刻度（倒标）</label><input type="text" id="footTock" placeholder="9、5 2、a, b, c"></div>
-        <div class="cfg-group">波形</div>
-        <div class="field"><label for="hscale">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
-        <div class="field"><label for="skin">皮肤</label><select id="skin"><option value="default">default（标准）</option><option value="narrow">narrow（紧凑）</option></select></div>
-        <div class="cfg-group">裁剪</div>
-        <div class="field"><label for="hbMin">起始拍</label><input type="number" id="hbMin" min="0" step="1" placeholder="—（不裁剪）"></div>
-        <div class="field"><label for="hbMax">结束拍</label><input type="number" id="hbMax" min="0" step="1" placeholder="—（不裁剪）"></div>
-        <div class="field"><label></label><span style="font-size:11px;color:var(--faint)">预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。</span></div>
-      </div>
-    </details>
+  <aside class="side" aria-label="通道与分组">
+    <div class="add-lane-btns">
+      <button class="btn" data-act="add-bit" title="添加一条数字信号通道">＋信号</button>
+      <button class="btn" data-act="add-clock" title="添加时钟通道，自动填充 8 拍时钟">＋时钟</button>
+      <button class="btn" data-act="add-bus" title="添加总线通道，可填写数据标签">＋总线</button>
+      <button class="btn" data-act="add-spacer" title="添加空白占位通道">＋占位</button>
+      <button class="btn" data-act="add-group" title="添加分组，把相邻通道收进组里">＋分组</button>
+    </div>
+    <div class="side-openers">
+      <button class="btn" data-act="open-edge-pop" title="放置节点后在弹窗里连线（箭头列表与添加）">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg>节点
+      </button>
+      <button class="btn" data-act="open-cfg-pop" title="标题、刻度、缩放、皮肤、裁剪等图表参数">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表
+      </button>
+    </div>
   </aside>
 
-  <div class="split v" id="splitSide" title="拖动调整侧栏宽度 · 双击重置"></div>
   <div class="main-col">
   <section class="editor-col">
     <div class="editor-toolbar">
+      <button class="icon-btn" id="sideDockBtn" title="显示通道与分组面板" aria-label="显示或隐藏通道与分组面板" aria-pressed="false">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M6.5 2.5v11"/></svg>
+      </button>
       <button class="icon-btn" id="undoBtn" title="撤销 (Ctrl+Z)" aria-label="撤销" disabled>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </button>
@@ -1349,7 +1209,6 @@ html[data-mobile] {
 
 <div class="popover" id="cellPop" role="dialog" aria-label="单元格状态"></div>
 <div class="popover" id="morePop" role="menu" aria-label="更多操作"></div>
-<div id="drawerMask"></div>
 
 <div class="modal-mask" id="pasteMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="粘贴 WaveJSON">
@@ -1415,6 +1274,45 @@ html[data-mobile] {
   </div>
 </div>
 
+<div class="modal-mask side-pop" id="edgeMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="边与箭头">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg>边与箭头
+      <button class="icon-btn pop-close" data-act="edge-close" title="关闭" aria-label="关闭边与箭头"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </h3>
+    <div class="modal-body">
+      <div class="edge-hint">先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。</div>
+      <div class="edge-list" id="edgeList"></div>
+      <div class="add-lane-btns"><button class="btn" data-act="add-edge">＋添加箭头</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask side-pop" id="cfgMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="图表设置">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表设置
+      <button class="icon-btn pop-close" data-act="cfg-close" title="关闭" aria-label="关闭图表设置"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </h3>
+    <div class="modal-body" id="cfgBody">
+      <div class="cfg-group">标题区</div>
+      <div class="field"><label for="headText">标题文字</label><input type="text" id="headText" placeholder="如：DDR 读时序"></div>
+      <div class="field"><label for="headTick">刻度（0 起）</label><input type="text" id="headTick" placeholder="0、5 2、a, b, c"></div>
+      <div class="field"><label for="headTock">刻度（倒标）</label><input type="text" id="headTock" placeholder="9、5 2、a, b, c"></div>
+      <div class="field"><label for="headEvery">隔几拍标一次</label><input type="number" id="headEvery" min="1" step="1" placeholder="—"></div>
+      <div class="cfg-group">底部区</div>
+      <div class="field"><label for="footText">底部文字</label><input type="text" id="footText" placeholder="备注、说明"></div>
+      <div class="field"><label for="footTick">刻度（0 起）</label><input type="text" id="footTick" placeholder="0、5 2、a, b, c"></div>
+      <div class="field"><label for="footTock">刻度（倒标）</label><input type="text" id="footTock" placeholder="9、5 2、a, b, c"></div>
+      <div class="cfg-group">波形</div>
+      <div class="field"><label for="hscale">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
+      <div class="field"><label for="skin">皮肤</label><select id="skin"><option value="default">default（标准）</option><option value="narrow">narrow（紧凑）</option></select></div>
+      <div class="cfg-group">裁剪</div>
+      <div class="field"><label for="hbMin">起始拍</label><input type="number" id="hbMin" min="0" step="1" placeholder="—（不裁剪）"></div>
+      <div class="field"><label for="hbMax">结束拍</label><input type="number" id="hbMax" min="0" step="1" placeholder="—（不裁剪）"></div>
+      <div class="field"><label></label><span style="font-size:11px;color:var(--faint)">预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。</span></div>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="fileInput" accept=".json,.txt,.svg,.png,application/json,image/svg+xml,image/png" hidden>
 <div id="dropZone" aria-hidden="true">
   <div class="dz-card">
@@ -1471,7 +1369,7 @@ function applyViewMode() {
   else delete document.documentElement.dataset.mobile;
 }
 applyViewMode();
-/* ---------- 侧栏固定（手机/简约模式）：固定后分区以编辑区左栏形式常驻，取消则恢复悬浮 ---------- */
+/* ---------- 侧栏固定（手机模式）：固定后「通道与分组」以编辑区左栏形式常驻，取消则恢复悬浮抽屉 ---------- */
 function sideDock() { return localStorage.getItem('wdgui-side-dock') === '1'; }
 /* 固定态：把笔刷栏移到 .workspace 直属层，作为「固定栏+编辑区」共同下方的全宽底栏；取消则移回编辑区内 */
 function relocatePalette(dock) {
@@ -1483,21 +1381,21 @@ function relocatePalette(dock) {
   else { editor.appendChild(pal); if (fan) editor.appendChild(fan); }   // 移回编辑区底部
 }
 function applySideDock() {
-  const on = sideDock() && isMobile(); // 仅手机/简约模式下的固定才生效
+  const on = sideDock() && isMobile(); // 仅手机模式下的面板显示才生效
   if (on) document.documentElement.dataset.sideDock = '';
   else delete document.documentElement.dataset.sideDock;
   relocatePalette(on);
   const b = document.getElementById('sideDockBtn');
-  if (b) { b.classList.toggle('on', sideDock()); b.setAttribute('aria-pressed', String(sideDock()));
-    b.title = sideDock() ? '取消固定（恢复悬浮抽屉）' : '固定为编辑区左栏'; }
+  if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    b.title = on ? '隐藏通道与分组面板' : '显示通道与分组面板'; }
 }
 /* 切换视图模式偏好（auto/simple）并即时生效 */
 function setViewModePref(mode) {
   localStorage.setItem('wdgui-viewmode', mode === 'simple' ? 'simple' : 'auto');
   applyViewMode();
-  applySideDock();          // 有效手机态变了→修正固定态与笔刷栏归属（避免离开手机态后 palette 仍挂在 workspace）
+  applySideDock();          // 有效手机态变了→修正面板显隐与笔刷栏归属（避免离开手机态后 palette 仍挂在 workspace）
   renderBrushUI();          // 笔刷分组/形态随手机态切换
-  if (!isMobile()) { closeBrushFly(); const s = $('.side'); s.classList.remove('drawer-open'); delete s.dataset.drawerSec; $('#drawerMask').classList.remove('open'); }
+  if (!isMobile()) closeBrushFly();
   state.autoFit = true; renderPreview();
 }
 /* 界面字体 / 数据·代码字体（独立选择，JS 写入 CSS 变量） */
@@ -1532,13 +1430,6 @@ if (legacyFont && !localStorage.getItem('wdgui-uifont')) {
 if (!FONT_STACKS[state_font.ui]) state_font.ui = 'lxgw-mono';
 if (!FONT_STACKS[state_font.data]) state_font.data = 'lxgw-mono';
 applyFonts();
-/* 波形轨迹样式开关（设置菜单与手机抽屉共用） */
-function toggleTrace() {
-  const t = document.documentElement.dataset.trace === 'glow' ? 'slim' : 'glow';
-  document.documentElement.dataset.trace = t;
-  localStorage.setItem('wdgui-trace', t);
-  renderGrid();
-}
 function applyFonts() {
   document.documentElement.style.setProperty('--font-ui', FONT_STACKS[state_font.ui].ui);
   document.documentElement.style.setProperty('--font-mono', FONT_STACKS[state_font.data].mono);
@@ -2641,7 +2532,6 @@ const collapsedGroups = new Set(); // 会话内折叠的分组 id（编辑区与
 function toggleGroupCollapse(id) {
   if (collapsedGroups.has(id)) collapsedGroups.delete(id); else collapsedGroups.add(id);
   renderGrid();
-  renderTree();
 }
 
 function renderGrid() {
@@ -2897,25 +2787,6 @@ function renderMiniEdges() {
   inner.appendChild(svg);
 }
 function indentEl(depth) { return h('span', { class: 'indent', style: `width:${depth * 14}px` }); }
-function rowActions(node, kind, inTree) {
-  const wrap = h('div', { class: 'lane-actions' });
-  const mk = (ic, title, fn, cls) => {
-    const b = h('button', { class: 'icon-btn' + (cls ? ' ' + cls : ''), title, 'aria-label': title });
-    b.appendChild(icon(ic, 13));
-    b.addEventListener('click', ev => { ev.stopPropagation(); fn(b); });
-    return b;
-  };
-  wrap.appendChild(mk(IC.up, '上移', () => moveNode(node, -1)));
-  wrap.appendChild(mk(IC.down, '下移', () => moveNode(node, 1)));
-  if (!inTree) {
-    if (kind === 'group') wrap.appendChild(mk(IC.subgroup, '添加子分组', () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
-    wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
-    return wrap;
-  }
-  wrap.appendChild(mk(IC.more, '更多操作', btn => openMoreMenu(node, kind, btn)));
-  wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
-  return wrap;
-}
 /* 编辑区行头右侧悬浮操作（⋯/🗑）：悬停显示，占位行没有菜单只给删除 */
 function laneHeadActions(node, kind) {
   const wrap = h('div', { class: 'lane-actions' });
@@ -3058,50 +2929,6 @@ function buildEmptyState() {
     h('div', { class: 'row' },
       (() => { const b = h('button', { class: 'btn primary' }, '＋ 添加一条信号'); b.addEventListener('click', () => addLane('bit')); return b; })(),
       (() => { const b = h('button', { class: 'btn' }, '载入示例'); b.addEventListener('click', () => loadExample(1)); return b; })()));
-}
-
-/* ---------- 渲染：结构树 ---------- */
-function renderTree() {
-  const treeEl = $('#tree');
-  treeEl.textContent = '';
-  if (!state.tree.length) { treeEl.appendChild(h('div', { class: 'tree-empty' }, '还没有通道。用下面的按钮添加，或载入一个示例。')); return; }
-  const build = (list, depth) => {
-    list.forEach(node => {
-      const row = h('div', { class: 'tree-row' + (node.kind === 'group' ? ' group' : ''), style: `padding-left:${6 + depth * 14}px` });
-      row.dataset.nodeId = node.id;
-      row.appendChild(dndGrip());
-      attachRowDnD(row, node.id, treeEl);
-      if (node.kind === 'group') {
-        const collapsed = collapsedGroups.has(node.id);
-        const caret = h('button', { class: 'g-caret', title: collapsed ? '展开分组' : '折叠分组', 'aria-label': (collapsed ? '展开分组：' : '折叠分组：') + (node.name || '分组') });
-        caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 11));
-        caret.addEventListener('click', ev => { ev.stopPropagation(); toggleGroupCollapse(node.id); });
-        row.appendChild(caret);
-        row.appendChild(h('span', { class: 'tw-name', title: node.name }, node.name));
-        row.appendChild(h('span', { class: 'tw-kind' }, `组·${node.children.length}`));
-        row.appendChild(rowActions(node, 'group', true));
-      } else if (node.kind === 'spacer') {
-        row.appendChild(h('span', { class: 'tw-color', style: 'background:transparent;border:1px dashed var(--faint)' }));
-        row.appendChild(h('span', { class: 'tw-name', style: 'color:var(--faint)' }, '空白占位'));
-        row.appendChild(rowActions(node, 'spacer', true));
-      } else {
-        row.appendChild(h('span', { class: 'tw-color', style: 'background:' + laneColor(node) }));
-        const nameInp = h('input', {
-          class: 'tw-name-input', value: node.name,
-          'aria-label': '通道名称', title: node.name ? node.name + '（点击可修改）' : '点击修改名称',
-        });
-        nameInp.addEventListener('change', () => { node.name = nameInp.value.trim(); update(true); });
-        nameInp.addEventListener('keydown', ev => { if (ev.key === 'Enter') nameInp.blur(); });
-        row.appendChild(nameInp);
-        const bits = laneWaveStr(node).length;
-        row.appendChild(h('span', { class: 'tw-kind' }, bits ? bits + '拍' : '空'));
-        row.appendChild(rowActions(node, 'lane', true));
-      }
-      treeEl.appendChild(row);
-      if (node.kind === 'group' && !collapsedGroups.has(node.id)) build(node.children, depth + 1);
-    });
-  };
-  build(state.tree, 0);
 }
 
 /* ---------- 渲染：箭头 ---------- */
@@ -3285,7 +3112,7 @@ function update(structureChanged) {
   renderCode();
   clearTimeout(previewTimer);
   previewTimer = setTimeout(renderPreview, 50);
-  if (structureChanged) { renderTree(); renderEdges(); }
+  if (structureChanged) renderEdges();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(persist, 400);
 }
@@ -4326,7 +4153,7 @@ function bindGrid() {
     if (bp && !ev.target.closest('.fan-box') && !bp.contains(ev.target)) bp.remove();
     if (setPopEl && !setPopEl.contains(ev.target) && !(ev.target.closest && ev.target.closest('.set-row'))) closeSetPop();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closeSetPop(); closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); if (localStorage.getItem('wdgui-side-dock') !== '1') { $('.side').classList.remove('drawer-open'); delete $('.side').dataset.drawerSec; } $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closeSetPop(); closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); $('#edgeMask').classList.remove('open'); $('#cfgMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
@@ -4363,15 +4190,6 @@ function bindGrid() {
 }
 
 /* ---------- 交互：结构操作 ---------- */
-function moveNode(node, dir) {
-  const loc = findLoc(node.id);
-  if (!loc) return;
-  const ni = loc.index + dir;
-  if (ni < 0 || ni >= loc.list.length) { toast(dir < 0 ? '已经在最上了' : '已经在最下了'); return; }
-  loc.list.splice(loc.index, 1);
-  loc.list.splice(ni, 0, node);
-  update(true);
-}
 function dupLane(lane) {
   const loc = findLoc(lane.id);
   const copy = newLane(lane.name + '_copy', lane.slots.map(s => s ? { glyph: s.glyph, label: s.label } : null));
@@ -4417,9 +4235,9 @@ function delNode(node) {
   }
   update(true);
 }
-/* ---------- 行拖拽排序（结构树行 + 网格行头共用） ----------
+/* ---------- 行拖拽排序（网格行头） ----------
    把节点拖到目标行的上/下沿 = 同级插入其前/后；拖到分组行中部 = 移入该组末尾。
-   仅在发起侧的同一容器（#tree 或 #gridInner）内识别落点，跨容器拖动无效。 */
+   仅在发起侧的同一容器（#gridInner）内识别落点。 */
 const rowDnd = {
   pending: false, active: false, srcId: null, srcEl: null, container: null,
   startX: 0, startY: 0, offX: 0, offY: 0, lastX: 0, lastY: 0,
@@ -4429,7 +4247,7 @@ function dndGrip() {
   return h('span', { class: 'drag-grip', title: '拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）', 'aria-hidden': 'true' },
     icon('<path d="M5.5 4v.01M10.5 4v.01M5.5 8v.01M10.5 8v.01M5.5 12v.01M10.5 12v.01" stroke-width="2.1"/>', 13));
 }
-/* handle = 可拖起的元素（树行 / 网格行头）；从输入框、按钮、行内小工具上按下不触发拖拽 */
+/* handle = 可拖起的元素（网格行头）；从输入框、按钮上按下不触发拖拽 */
 function attachRowDnD(handle, nodeId, container) {
   handle.addEventListener('pointerdown', ev => {
     if (ev.button !== 0) return;
@@ -4596,42 +4414,6 @@ function closeMenus() {
     m.style.position = m.style.top = m.style.left = m.style.right = ''; // 清除 fixed 定位残留
   });
 }
-function buildFontMenu(menu) {
-  menu.textContent = '';
-  const mkSection = (title) => {
-    menu.appendChild(h('div', { class: 'menu-sec' }, title));
-  };
-  const mkItem = (section, key, label, desc) => {
-    const active = state_font[section] === key;
-    const b = h('button', { 'data-fsec': section, 'data-fkey': key, class: active ? 'active' : '' });
-    b.appendChild(h('span', { class: 'f-label' }, label));
-    b.appendChild(h('span', { class: 'kbd' }, desc));
-    if (active) {
-      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
-      ck.setAttribute('class', 'check');
-      b.appendChild(ck);
-    }
-    b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      state_font[section] = key;
-      localStorage.setItem(section === 'ui' ? 'wdgui-uifont' : 'wdgui-dfont', key);
-      applyFonts();
-      buildFontMenu(menu);
-    });
-    return b;
-  };
-  mkSection('界面字体');
-  menu.appendChild(mkItem('ui', 'lxgw-mono', '霞鹜文楷等宽', 'LXGW WenKai Mono'));
-  menu.appendChild(mkItem('ui', 'lxgw', '霞鹜文楷', 'LXGW WenKai'));
-  menu.appendChild(mkItem('ui', 'plex', 'IBM Plex Sans', 'Plex Sans'));
-  menu.appendChild(mkItem('ui', 'system', '系统字体', 'system-ui'));
-  menu.appendChild(h('div', { class: 'sep' }));
-  mkSection('数据·代码字体');
-  menu.appendChild(mkItem('data', 'lxgw-mono', '霞鹜文楷等宽', 'LXGW WenKai Mono'));
-  menu.appendChild(mkItem('data', 'lxgw', '霞鹜文楷', 'LXGW WenKai'));
-  menu.appendChild(mkItem('data', 'plex', 'JetBrains Mono', 'JetBrains Mono'));
-  menu.appendChild(mkItem('data', 'system', '系统字体', 'system-ui'));
-}
 /* 菜单里的互斥选项：多列方格（与节点位置九宫格同一套视觉），
    选中态用描边+底色表达，省掉右侧对勾，横向排布更紧凑也更好扫。
    items 每项为 [值, 按钮文字, 可选的完整说明（用作 title/aria）]。
@@ -4647,39 +4429,6 @@ function menuOptGrid(menu, cols, items, isActive, onPick) {
   });
   menu.appendChild(g);
   return g;
-}
-function buildViewMenu(menu) {
-  menu.textContent = '';
-  const root = document.documentElement;
-  const addCheck = b => {
-    const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
-    ck.setAttribute('class', 'check');
-    b.appendChild(ck);
-  };
-  const addItem = (label, active, onClick) => {
-    const b = h('button', { class: active ? 'active' : '' }, label);
-    if (active) addCheck(b);
-    b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      onClick();
-      closeMenus();
-    });
-    menu.appendChild(b);
-  };
-  /* 互斥选项走多列网格；下面「窗口显示」是各自独立的开关，保持可勾选的行式列表 */
-  const optGrid = (cols, items, isActive, onPick) =>
-    menuOptGrid(menu, cols, items, isActive, v => { onPick(v); closeMenus(); });
-  menu.appendChild(h('div', { class: 'menu-sec' }, '视图模式'));
-  optGrid(2, [['auto', '自动', '自动：按屏宽判断桌面/手机布局'], ['simple', '简约模式', '简约模式：固定使用手机版布局']],
-    v => viewMode() === v, v => setViewModePref(v));
-  menu.appendChild(h('div', { class: 'sep' }));
-  menu.appendChild(h('div', { class: 'menu-sec' }, '布局方向'));
-  optGrid(2, [['side', '预览在右侧'], ['below', '预览在下方']],
-    v => root.dataset.view === v, v => setViewMode(v));
-  menu.appendChild(h('div', { class: 'sep' }));
-  menu.appendChild(h('div', { class: 'menu-sec' }, '窗口显示'));
-  addItem('显示实时预览', root.dataset.showPreview !== '0', () => setPaneVisibility('preview', root.dataset.showPreview !== '0' ? '0' : '1'));
-  addItem('显示 WaveJSON 代码', root.dataset.showCode !== '0', () => setPaneVisibility('code', root.dataset.showCode !== '0' ? '0' : '1'));
 }
 function setViewMode(view) {
   if (view !== 'side' && view !== 'below') return;
@@ -4944,14 +4693,6 @@ function settingsSliderCell(label, opts) {
   cell.appendChild(sl);
   return cell;
 }
-function buildHelpMenu(menu) {
-  menu.textContent = '';
-  const b = h('button', null,
-    icon('<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>', 14),
-    '快捷键');
-  b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); handleAct('open-shortcut'); });
-  menu.appendChild(b);
-}
 /* 菜单 fixed 定位：脱离顶栏滚动容器的裁剪，按按钮位置弹出并钳制在视口内 */
 function positionMenu(wrap, menu) {
   const b = wrap.querySelector(':scope > button').getBoundingClientRect();
@@ -4991,26 +4732,6 @@ function bindMenus() {
     if (!KEEP_MENU_ACTS.includes(b.dataset.act)) closeMenus();
     handleAct(b.dataset.act, b);
   }));
-}
-function buildExampleMenu(menu) {
-  menu.textContent = '';
-  EXAMPLES.forEach((ex, i) => {
-    if (ex.tut) return;
-    const b = h('button', { 'data-i': i }, icon('<path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/>', 13), ex.name);
-    b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); loadExample(i); });
-    menu.appendChild(b);
-  });
-  menu.appendChild(h('div', { class: 'sep' }));
-  EXAMPLES.forEach((ex, i) => {
-    if (!ex.tut) return;
-    const b = h('button', { 'data-i': i }, icon('<path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/>', 13), ex.name);
-    b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); loadExample(i); });
-    menu.appendChild(b);
-  });
-  menu.appendChild(h('div', { class: 'sep' }));
-  const clr = h('button', null, icon(IC.trash, 13), '空白文档');
-  clr.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); adoptState(parseDoc({ signal: [] })); syncSettings(); update(true); toast('已新建空白文档'); });
-  menu.appendChild(clr);
 }
 function loadExample(i) {
   adoptState(parseDoc(JSON.parse(JSON.stringify(EXAMPLES[i].json))));
@@ -5446,7 +5167,6 @@ function handleAct(act, btn) {
       }
       state.edges.push({ from, to, spec: '->', label: '' });
       update(true);
-      document.querySelector('.side details:nth-of-type(2)').open = true;
       break;
     }
     case 'apply-code': {
@@ -5486,6 +5206,10 @@ function handleAct(act, btn) {
     case 'about-repo': window.open('https://cnb.cool/linshi-2026/wavedrom-gui', '_blank'); break;
     case 'open-shortcut': $('#shortcutMask').classList.add('open'); break;
     case 'shortcut-close': $('#shortcutMask').classList.remove('open'); break;
+    case 'open-edge-pop': renderEdges(); $('#edgeMask').classList.add('open'); break;
+    case 'edge-close': $('#edgeMask').classList.remove('open'); break;
+    case 'open-cfg-pop': $('#cfgMask').classList.add('open'); break;
+    case 'cfg-close': $('#cfgMask').classList.remove('open'); break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
       download(exportBaseName() + '.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
@@ -5634,12 +5358,7 @@ window.addEventListener('mouseup', () => {
 function bindSplitters() {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   let drag = null;
-  const splitSide = $('#splitSide'), splitMain = $('#splitMain');
-  splitSide.addEventListener('mousedown', ev => {
-    drag = { kind: 'side', start: ev.clientX, size: $('.side').getBoundingClientRect().width };
-    splitSide.classList.add('dragging'); document.body.classList.add('col-resizing');
-    ev.preventDefault();
-  });
+  const splitMain = $('#splitMain');
   splitMain.addEventListener('mousedown', ev => {
     const below = document.documentElement.dataset.view === 'below';
     drag = {
@@ -5653,10 +5372,7 @@ function bindSplitters() {
   });
   window.addEventListener('mousemove', ev => {
     if (!drag) return;
-    if (drag.kind === 'side') {
-      const w = clamp(drag.size + ev.clientX - drag.start, 210, 560);
-      $('.side').style.width = w + 'px'; state.sizes.side = w;
-    } else if (drag.kind === 'mainV') {
+    if (drag.kind === 'mainV') {
       const w = clamp(drag.size - (ev.clientX - drag.start), 300, 1000);
       $('.right-col').style.width = w + 'px'; state.sizes.right = w;
     } else {
@@ -5669,11 +5385,10 @@ function bindSplitters() {
     if (!drag) return;
     drag = null;
     document.body.classList.remove('col-resizing', 'row-resizing');
-    splitSide.classList.remove('dragging'); splitMain.classList.remove('dragging');
+    splitMain.classList.remove('dragging');
     saveSizes();
     state.autoFit = true; renderPreview();
   });
-  splitSide.addEventListener('dblclick', () => { $('.side').style.width = ''; delete state.sizes.side; saveSizes(); });
   splitMain.addEventListener('dblclick', () => { $('.right-col').style.width = ''; $('.right-col').style.height = ''; delete state.sizes.right; delete state.sizes.mainH; saveSizes(); state.autoFit = true; renderPreview(); });
 }
 
@@ -5681,7 +5396,7 @@ function bindSplitters() {
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   localStorage.setItem('wdgui-theme', t);
-  renderGrid(); renderTree(); renderEdges(); renderBrushUI(); renderPreview();
+  renderGrid(); renderEdges(); renderBrushUI(); renderPreview();
 }
 
 /* ---------- WaveSkin 字体规则作用域化 ----------
@@ -5739,113 +5454,23 @@ function init() {
   }
   if (!restored) adoptState(parseDoc(JSON.parse(JSON.stringify(EXAMPLES[1].json))));
 
-  const applyTreeTools = () => {
-    const mode = localStorage.getItem('wdgui-tree-tools') === 'hover' ? 'hover' : 'always';
-    document.documentElement.dataset.treeTools = mode;
-    const b = $('#treeToolsBtn');
-    if (b) b.title = mode === 'always' ? '行内小工具：总是显示（点击改为悬停显示）' : '行内小工具：悬停显示（点击改为总是显示）';
-  };
-  applyTreeTools();
-  $('#treeToolsBtn').addEventListener('click', ev => {
-    ev.stopPropagation(); ev.preventDefault();
-    const next = document.documentElement.dataset.treeTools === 'always' ? 'hover' : 'always';
-    localStorage.setItem('wdgui-tree-tools', next);
-    applyTreeTools();
-    toast(next === 'always' ? '行内小工具：总是显示' : '行内小工具：悬停显示');
-  });
-
-  /* 通道树折叠：折叠后只保留上方的添加按钮 */
-  const applyTreeCollapse = () => {
-    const c = localStorage.getItem('wdgui-tree-collapsed') === '1';
-    if (c) document.documentElement.dataset.treeCollapsed = '1';
-    else delete document.documentElement.dataset.treeCollapsed;
-    const b = $('#treeCollapseBtn');
-    if (b) {
-      b.title = c ? '展开通道树' : '折叠通道树（只保留添加按钮）';
-      b.setAttribute('aria-pressed', String(c));
-    }
-  };
-  applyTreeCollapse();
   applyHeadActions();
-  $('#treeCollapseBtn').addEventListener('click', ev => {
-    ev.stopPropagation(); ev.preventDefault();
-    const c = localStorage.getItem('wdgui-tree-collapsed') === '1';
-    localStorage.setItem('wdgui-tree-collapsed', c ? '0' : '1');
-    applyTreeCollapse();
-  });
 
-  /* 窄屏抽屉：顶栏按钮弹出分区菜单，选哪个只显示哪个分区（宽度按分区各异） */
-  const closeDrawer = () => { const s = $('.side'); s.classList.remove('drawer-open'); delete s.dataset.drawerSec; $('#drawerMask').classList.remove('open'); };
-  const drawerMenu = $('#drawerMenu');
-  const openDrawerSec = sec => {
-    const side = $('.side');
-    side.dataset.drawerSec = sec; // CSS 据此只显示对应分区并套用宽度
-    const det = side.querySelector(`.side-section[data-sec="${sec}"]`);
-    if (det) det.open = true; // 展开被选中分区（防其处于折叠态）
-    side.classList.add('drawer-open');
-    if (!sideDock()) $('#drawerMask').classList.add('open'); // 固定态是在流内左栏，无需遮罩
-  };
-  /* 侧栏固定钮：切换 wdgui-side-dock；固定后分区常驻为编辑区左栏，取消则恢复悬浮 */
+  /* 手机模式「通道与分组」面板：编辑工具栏 ◫ 显示/隐藏（隐藏时编辑区全宽），偏好持久化 */
   applySideDock();
-  if (sideDock() && isMobile() && !$('.side').dataset.drawerSec) openDrawerSec('tree'); // 加载时已固定→自动展开默认分区
-  const sideDockBtn = $('#sideDockBtn');
-  if (sideDockBtn) sideDockBtn.addEventListener('click', ev => {
+  $('#sideDockBtn').addEventListener('click', ev => {
     ev.stopPropagation();
-    const on = !sideDock();
-    localStorage.setItem('wdgui-side-dock', on ? '1' : '0');
+    localStorage.setItem('wdgui-side-dock', sideDock() ? '0' : '1');
     applySideDock();
-    if (on) { if (!$('.side').dataset.drawerSec) openDrawerSec('tree'); $('#drawerMask').classList.remove('open'); }
-    else if ($('.side').classList.contains('drawer-open')) $('#drawerMask').classList.add('open'); // 取消固定后若仍展开→补上遮罩恢复悬浮语义
-    else closeDrawer();
     state.autoFit = true; renderPreview();
   });
-  $('#drawerBtn').addEventListener('click', ev => {
-    ev.stopPropagation();
-    // 固定态：☰ 仍弹分区菜单以切换左栏显示的分区；非固定且已展开时作“关闭”用
-    if (!sideDock() && $('.side').classList.contains('drawer-open')) { closeDrawer(); return; }
-    const open = !drawerMenu.classList.contains('open');
-    closeMenus();
-    if (open) { restoreDrawerBase(); drawerMenu.classList.add('open'); positionMenu($('#m-drawer'), drawerMenu); }
-  });
-  /* 抽屉菜单里“更多”项：子菜单就地展开（复用顶栏各 builder），直接动作则触发对应按钮 */
-  const drawerBaseHTML = drawerMenu.innerHTML; // 记住基础菜单，便于从子菜单返回
-  const DRAWER_SUB = { examples: buildExampleMenu, view: buildViewMenu, font: buildFontMenu, help: buildHelpMenu };
-  const DRAWER_SUB_LABEL = { examples: '示例', view: '视图', font: '界面字体', help: '帮助' };
-  const restoreDrawerBase = () => { drawerMenu.innerHTML = drawerBaseHTML; bindDrawerMenu(); };
-  function bindDrawerMenu() {
-    drawerMenu.querySelectorAll('[data-drawer-sec]').forEach(b => b.addEventListener('click', ev => {
-      ev.stopPropagation(); closeMenus(); openDrawerSec(b.dataset.drawerSec);
-    }));
-    drawerMenu.querySelectorAll('[data-drawer-sub]').forEach(b => b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      const key = b.dataset.drawerSub;
-      drawerMenu.innerHTML = '';
-      const back = h('button', { class: 'drawer-back' }, '‹ 返回');
-      back.addEventListener('click', e2 => { e2.stopPropagation(); restoreDrawerBase(); positionMenu($('#m-drawer'), drawerMenu); });
-      drawerMenu.appendChild(back);
-      drawerMenu.appendChild(h('div', { class: 'menu-sec' }, DRAWER_SUB_LABEL[key]));
-      const sub = h('div'); DRAWER_SUB[key](sub); // builder 直接写入临时容器
-      while (sub.firstChild) drawerMenu.appendChild(sub.firstChild);
-      positionMenu($('#m-drawer'), drawerMenu); // 内容变化后重新定位、钳制视口
-    }));
-    drawerMenu.querySelectorAll('[data-drawer-act]').forEach(b => b.addEventListener('click', ev => {
-      ev.stopPropagation(); closeMenus();
-      const act = b.dataset.drawerAct;
-      if (act === 'toggle-theme') applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
-      else if (act === 'toggle-trace') toggleTrace();
-      else handleAct(act); // open-about 等
-    }));
-  }
-  bindDrawerMenu();
-  $('#drawerMask').addEventListener('click', closeDrawer);
-  /* 视口跨越 800px 时：重算有效手机态、刷新笔刷 UI；回到桌面宽且非简约模式则收起抽屉 */
-  const onNarrowChange = () => { applyViewMode(); applySideDock(); renderBrushUI(); if (!isMobile()) closeDrawer(); };
+  /* 视口跨越 800px 时：重算有效手机态、修正面板显隐与笔刷栏归属、刷新笔刷 UI */
+  const onNarrowChange = () => { applyViewMode(); applySideDock(); renderBrushUI(); };
   if (VIEWMODE_MQ.addEventListener) VIEWMODE_MQ.addEventListener('change', onNarrowChange);
   else VIEWMODE_MQ.addListener(onNarrowChange);
 
   window.addEventListener('resize', () => { if (state_brush.mode === 'panel') layoutBrushGrid(); });
   try { state.sizes = JSON.parse(localStorage.getItem('wdgui-splits')) || {}; } catch (e) { state.sizes = {}; }
-  if (state.sizes.side) $('.side').style.width = state.sizes.side + 'px';
   applyPanes();
   applySizes();
   bindSplitters();
@@ -5899,6 +5524,9 @@ function init() {
   $('#pasteMask').addEventListener('mousedown', ev => { if (ev.target === $('#pasteMask')) handleAct('paste-cancel'); });
   $('#aboutMask').addEventListener('mousedown', ev => { if (ev.target === $('#aboutMask')) handleAct('about-close'); });
   $('#shortcutMask').addEventListener('mousedown', ev => { if (ev.target === $('#shortcutMask')) handleAct('shortcut-close'); });
+  /* 侧栏迁移弹窗：点遮罩空白处关闭 */
+  [['#edgeMask', 'edge-close'], ['#cfgMask', 'cfg-close']].forEach(([sel, act]) =>
+    $(sel).addEventListener('mousedown', ev => { if (ev.target === $(sel)) handleAct(act); }));
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && $('#pasteMask').classList.contains('open') && (ev.ctrlKey || ev.metaKey)) handleAct('paste-ok');
   });
@@ -5918,7 +5546,6 @@ function init() {
   syncCodeMode();
 
   syncSettings();
-  renderTree();
   renderEdges();
   renderGrid();
   renderCode();
