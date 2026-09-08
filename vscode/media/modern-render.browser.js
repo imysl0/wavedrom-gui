@@ -536,7 +536,7 @@ function renderModern(source, opts = {}) {
   const nodePos = opts.nodePos && NODE_POS_KEYS[opts.nodePos] ? opts.nodePos : 'lm';
   const nodeScale = Math.max(0.4, Math.min(2, opts.nodeScale || 1));
   const nodeInset = Number.isFinite(opts.nodeInset) ? Math.max(0, Math.min(9, opts.nodeInset)) : NODE_INSET_DEF;
-  const nodeMode = ['letter', 'bare', 'dot'].includes(opts.nodeMode) ? opts.nodeMode : 'letter';
+  const nodeMode = ['letter', 'bare', 'dot'].includes(opts.nodeMode) ? opts.nodeMode : 'bare';
   const gw = CELLW * (st.hscale || 1);
 
   if (!st.tree.length) {

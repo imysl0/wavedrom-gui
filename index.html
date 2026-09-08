@@ -1572,7 +1572,7 @@ const NODE_POS_KEYS = {
 const state_node = {
   pos: localStorage.getItem('wdgui-node-pos') || 'lm',
   scale: Math.max(0.4, Math.min(2, parseFloat(localStorage.getItem('wdgui-node-scale')) || 1)),
-  mode: localStorage.getItem('wdgui-node-mode') || 'letter', // letter=圆圈+字母；bare=仅字母（白底无圈）；dot=只画小圆点
+  mode: localStorage.getItem('wdgui-node-mode') || 'bare', // bare=仅字母（微透明底衬，默认）；letter=圆圈+字母；dot=只画小圆点
   /* 靠边位置（左/右三列）的横向内缩量，单位 px，0–9 可调。
      小内缩让圆标贴近垂直沿（h/l/H/L、时钟），大内缩让它留在格内、不压数据框边框与沿上箭头。 */
   inset: NODE_INSET_DEF,
@@ -1583,7 +1583,7 @@ const state_node = {
 }
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
 const NODE_MODES = ['letter', 'bare', 'dot'];
-if (!NODE_MODES.includes(state_node.mode)) state_node.mode = 'letter';
+if (!NODE_MODES.includes(state_node.mode)) state_node.mode = 'bare';
 /* 标签保持：在数据字符（= 2-9）间换色不清除数据标签；途经 x/z 时把标签暂存，
    切回数据字符即恢复，暂存随该格脱离选中而失效。关闭则沿用旧行为（换字符即清标签）。 */
 let keepLabel = localStorage.getItem('wdgui-keep-label') !== 'off';
@@ -4698,7 +4698,7 @@ function buildSettingsMenu(menu) {
   /* 文字选项统一走多列网格（与上面的节点位置九宫格同一套视觉） */
   const optGrid = (cols, items, isActive, onPick) => menuOptGrid(menu, cols, items, isActive, onPick);
   sec('节点显示模式');
-  optGrid(3, [['letter', '圈+字母'], ['bare', '仅字母'], ['dot', '点']], v => state_node.mode === v, v => {
+  optGrid(3, [['bare', '仅字母'], ['letter', '圈+字母'], ['dot', '点']], v => state_node.mode === v, v => {
     state_node.mode = v;
     localStorage.setItem('wdgui-node-mode', v);
     buildSettingsMenu(menu);
