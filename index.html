@@ -223,33 +223,39 @@ svg { display: block; }
 }
 .opt-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
 .opt-grid button.active { border-color: var(--acc); background: var(--acc-veil); color: var(--acc-text); }
-.scale-row { display: flex; align-items: center; gap: 8px; padding: 2px 10px 8px; }
-.scale-row input[type="range"] {
+.slider-cell input[type="range"] {
   flex: 1; min-width: 0; height: 18px;
   -webkit-appearance: none; appearance: none;
   background: transparent; color: var(--acc);
 }
-.scale-row input[type="range"]::-webkit-slider-runnable-track {
+.slider-cell input[type="range"]::-webkit-slider-runnable-track {
   height: 4px; border-radius: 2px;
   background: linear-gradient(to right, var(--acc) 0 var(--fill, 50%), var(--line) var(--fill, 50%) 100%);
 }
-.scale-row input[type="range"]::-webkit-slider-thumb {
+.slider-cell input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 14px; height: 14px; border-radius: 50%;
   background: var(--acc); border: 2px solid var(--panel);
   box-shadow: 0 1px 4px rgba(2, 8, 20, .3);
   margin-top: -5px;
 }
-.scale-row input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
-.scale-row input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--acc); }
-.scale-row input[type="range"]::-moz-range-thumb {
+.slider-cell input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+.slider-cell input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--acc); }
+.slider-cell input[type="range"]::-moz-range-thumb {
   width: 12px; height: 12px; border-radius: 50%;
   background: var(--acc); border: 2px solid var(--panel);
 }
 .scale-val { flex: none; width: 40px; text-align: right; font: 600 11.5px var(--font-mono); color: var(--acc-text); }
-/* 不适用的滑块（如节点水平居中时的边距）：整行压暗并禁用交互 */
-.scale-row.dim { opacity: .45; }
-.scale-row.dim input[type="range"] { cursor: not-allowed; }
+/* 两个数值滑块并排：各占一半宽，标题与数值同处一行小标签，滑块独占下一行
+   （238px 的菜单里横排「标签+滑块+数值」会把滑块挤到只剩几十像素） */
+.slider-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; padding: 2px 10px 8px; }
+.slider-cell { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.slider-cap { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--faint); }
+.slider-cap .scale-val { width: auto; }
+.slider-cell input[type="range"] { width: 100%; min-width: 0; }
+/* 不适用的滑块（如节点水平居中时的边距）：整列压暗并禁用交互 */
+.slider-cell.dim { opacity: .45; }
+.slider-cell.dim input[type="range"] { cursor: not-allowed; }
 
 /* ============ 工作区 ============ */
 .workspace { flex: 1; display: flex; min-height: 0; }
@@ -4693,49 +4699,49 @@ function buildSettingsMenu(menu) {
     if (!keepLabel) labelStash = null;
     buildSettingsMenu(menu);
   });
-  sec('节点比例');
-  const srow = h('div', { class: 'scale-row' });
-  const slider = h('input', { type: 'range', min: '50', max: '150', step: '5', value: String(Math.round(state_node.scale * 100)), 'aria-label': '节点显示比例' });
-  const val = h('span', { class: 'scale-val' }, Math.round(state_node.scale * 100) + '%');
-  const syncFill = () => slider.style.setProperty('--fill', (+slider.value - 50) + '%');
-  syncFill();
-  slider.addEventListener('input', () => {
-    const v = +slider.value;
-    state_node.scale = v / 100;
-    val.textContent = v + '%';
-    syncFill();
-    localStorage.setItem('wdgui-node-scale', String(v / 100));
-    scheduleUpdate();
-  });
-  srow.appendChild(slider);
-  srow.appendChild(val);
-  menu.appendChild(srow);
-  /* 靠边节点的横向内缩：只影响左/右两列的六种位置（上中/正中/下中是水平居中，与内缩无关） */
+  /* 节点比例 / 节点边距并排两列：都是数值微调，共用一行小标题省掉一段纵向空间。
+     边距只影响左/右两列的六种位置（上中/正中/下中水平居中，与内缩无关），
+     不适用时该列压暗禁用。 */
   const edgePos = state_node.pos[0] === 'l' || state_node.pos[0] === 'r';
-  sec('节点边距');
-  const irow = h('div', { class: 'scale-row' + (edgePos ? '' : ' dim') });
-  const islider = h('input', {
-    type: 'range', min: '0', max: '9', step: '1', value: String(state_node.inset),
-    'aria-label': '靠边节点的横向内缩（px）',
+  const sliderCell = (label, opts) => {
+    const cell = h('div', { class: 'slider-cell' + (opts.dim ? ' dim' : '') });
+    cell.appendChild(h('div', { class: 'slider-cap' },
+      h('span', null, label),
+      h('span', { class: 'scale-val' }, opts.fmt(opts.value))));
+    const sl = h('input', {
+      type: 'range', min: String(opts.min), max: String(opts.max), step: String(opts.step),
+      value: String(opts.value), 'aria-label': opts.aria, title: opts.title,
+    });
+    if (opts.dim) sl.disabled = true;
+    const valEl = cell.querySelector('.scale-val');
+    const fill = () => sl.style.setProperty('--fill', ((+sl.value - opts.min) / (opts.max - opts.min) * 100) + '%');
+    fill();
+    sl.addEventListener('input', () => {
+      const v = +sl.value;
+      valEl.textContent = opts.fmt(v);
+      fill();
+      opts.onInput(v);
+      scheduleUpdate();
+    });
+    cell.appendChild(sl);
+    return cell;
+  };
+  sec('节点比例与边距');
+  const srow = h('div', { class: 'slider-duo' });
+  srow.appendChild(sliderCell('比例', {
+    min: 50, max: 150, step: 5, value: Math.round(state_node.scale * 100),
+    fmt: v => v + '%', aria: '节点显示比例', title: '节点圆标的整体大小',
+    onInput: v => { state_node.scale = v / 100; localStorage.setItem('wdgui-node-scale', String(v / 100)); },
+  }));
+  srow.appendChild(sliderCell('边距', {
+    min: 0, max: 9, step: 1, value: state_node.inset, dim: !edgePos,
+    fmt: v => v + 'p', aria: '靠边节点的横向内缩（px）',
     title: edgePos
       ? '小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头'
       : '当前节点位置水平居中，边距不生效（选左/右类位置后可调）',
-  });
-  if (!edgePos) islider.disabled = true;
-  const ival = h('span', { class: 'scale-val' }, state_node.inset + 'p');
-  const isyncFill = () => islider.style.setProperty('--fill', (+islider.value / 9 * 100) + '%');
-  isyncFill();
-  islider.addEventListener('input', () => {
-    const v = +islider.value;
-    state_node.inset = v;
-    ival.textContent = v + 'p';
-    isyncFill();
-    localStorage.setItem('wdgui-node-inset', String(v));
-    scheduleUpdate();
-  });
-  irow.appendChild(islider);
-  irow.appendChild(ival);
-  menu.appendChild(irow);
+    onInput: v => { state_node.inset = v; localStorage.setItem('wdgui-node-inset', String(v)); },
+  }));
+  menu.appendChild(srow);
   sec('笔刷栏默认样式');
   optGrid(3, BRUSH_DEFAULTS, v => state_brush.def === v, v => {
     state_brush.def = v;
