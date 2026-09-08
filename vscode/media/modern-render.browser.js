@@ -28,6 +28,7 @@ const C = {
 };
 const DIGIT_FILLS = { 2: '#ffffff', 3: '#ffffb4', 4: '#ffe0b9', 5: '#b9e0ff', 6: '#ccfdfe', 7: '#cdfdc5', 8: '#f0c1fb', 9: '#f5c2c0' };
 const DATA_CHARS = '=23456789';
+const NODE_INSET_DEF = 4; // 靠边节点的默认横向内缩（px），与 index.html 保持一致
 const NODE_POS_KEYS = {
   lt: [0, 0], tm: [.5, 0], rt: [1, 0],
   lm: [0, .5], c: [.5, .5], rm: [1, .5],
@@ -196,9 +197,10 @@ function laneCharPositions(lane, gw) {
   return positions;
 }
 
-function nodeAnchorXY(bx, bw, pos, scale) {
+function nodeAnchorXY(bx, bw, pos, scale, inset) {
   const [fx, fy] = NODE_POS_KEYS[pos] || NODE_POS_KEYS.lm;
-  const nIn = 9 * scale, vIn = Math.max(8, 6.5 * scale + 1.5);
+  const nIn = (inset === undefined ? NODE_INSET_DEF : inset) * scale;
+  const vIn = Math.max(8, 6.5 * scale + 1.5);
   return [
     fx === 0 ? bx + nIn : fx === 1 ? bx + bw - nIn : bx + bw / 2,
     fy === 0 ? vIn : fy === 1 ? LANE_H - vIn : MID,
@@ -217,7 +219,7 @@ const liftedNodeY = scale => Math.max(nodeMarkerR(scale), LABEL_BAND[0] - nodeMa
      - 节点压在标签行上时，先让出它占的那一侧；
      - 让完仍放得下标签 → 记进 ranges，标签在剩余区间居中；
      - 放不下（窄框）→ 该框内的节点记进 lift，抬到框上沿，标签仍按整框居中。 */
-function planLaneNodes(lane, gw, pos, scale, fs) {
+function planLaneNodes(lane, gw, pos, scale, fs, inset) {
   const ranges = new Map(), lift = new Set();
   const positions = laneCharPositions(lane, gw);
   const slots = lane.slots, len = laneLen(lane);
@@ -240,7 +242,7 @@ function planLaneNodes(lane, gw, pos, scale, fs) {
         if (!lane.nodeByT[k]) continue;
         const pk = positions[k];
         if (!pk) continue;
-        const [nx, ny] = nodeAnchorXY(pk.x, pk.w, pos, scale);
+        const [nx, ny] = nodeAnchorXY(pk.x, pk.w, pos, scale, inset);
         if (ny + mr <= LABEL_BAND[0] || ny - mr >= LABEL_BAND[1]) continue; // 不在标签行上
         hit = true;
         if (nx < mid) lo = Math.max(lo, nx + mr + 2);
@@ -262,7 +264,7 @@ function planLaneNodes(lane, gw, pos, scale, fs) {
  * laneSVG: the self-drawn mini waveform (faithful port of index.html laneSVG)
  * Returns { inner: <svg-body string>, width }. `color` is the trace color.
  * ========================================================================== */
-function laneSVG(lane, gw, color, nodePos, nodeScale) {
+function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset) {
   const W = gw * (lane.period || 1), len = laneLen(lane);
   const positions = laneCharPositions(lane, gw);
   const nodeR = 6.5 * nodeScale;
@@ -276,7 +278,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
   let lvl = null;
   const slots = lane.slots;
   let t = 0, prevClock = null, prevClockNoLead = false, gapPend = '', prevG = null, lastEnd = 0;
-  const nodePlan = planLaneNodes(lane, gw, nodePos, nodeScale, FONTS.dataLabel);
+  const nodePlan = planLaneNodes(lane, gw, nodePos, nodeScale, FONTS.dataLabel, nodeInset);
 
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
@@ -460,7 +462,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale) {
     const pk = positions[+k];
     const bx = pk ? pk.x : (+k - (lane.phase || 0)) * W;
     const bw = pk ? pk.w : W;
-    const [nx, ny0] = nodeAnchorXY(bx, bw, nodePos, nodeScale);
+    const [nx, ny0] = nodeAnchorXY(bx, bw, nodePos, nodeScale, nodeInset);
     /* 窄数据框让不出横向空间时，把圆标抬到框上沿，避开标签行而不遮字 */
     const ny = nodePlan.lift.has(+k) ? liftedNodeY(nodeScale) : ny0;
     body += tag('circle', { cx: nx, cy: ny, r: nodeR, fill: C.nodeFill, stroke: C.nodeLine, 'stroke-width': 1.3 });
@@ -519,6 +521,7 @@ function renderModern(source, opts = {}) {
   const st = parseDoc(source || {});
   const nodePos = opts.nodePos && NODE_POS_KEYS[opts.nodePos] ? opts.nodePos : 'lm';
   const nodeScale = Math.max(0.4, Math.min(2, opts.nodeScale || 1));
+  const nodeInset = Number.isFinite(opts.nodeInset) ? Math.max(0, Math.min(9, opts.nodeInset)) : NODE_INSET_DEF;
   const gw = CELLW * (st.hscale || 1);
 
   if (!st.tree.length) {
@@ -643,7 +646,7 @@ function renderModern(source, opts = {}) {
       content += tag('line', { x1: 0, y1: r.y + r.h, x2: W, y2: r.y + r.h, stroke: C.lineSoft });
       const idx = flat.indexOf(lane);
       const color = C.ch[(idx < 0 ? 0 : idx) % 6];
-      const body = laneSVG(lane, gw, color, nodePos, nodeScale);
+      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset);
       // translate into place: lane track starts at namew, minus crop offset winX
       content += `<g transform="translate(${namew - winX}, ${r.y})">${body}</g>`;
     } else if (r.type === 'group' || r.type === 'spacer') {
@@ -660,7 +663,7 @@ function renderModern(source, opts = {}) {
     const col = C.info;
     const planCache = new Map();
     const planOf = l => {
-      if (!planCache.has(l)) planCache.set(l, planLaneNodes(l, gw, nodePos, nodeScale, FONTS.dataLabel));
+      if (!planCache.has(l)) planCache.set(l, planLaneNodes(l, gw, nodePos, nodeScale, FONTS.dataLabel, nodeInset));
       return planCache.get(l);
     };
     const pos = letter => {
@@ -671,7 +674,7 @@ function renderModern(source, opts = {}) {
       const lw = gw * (n.lane.period || 1);
       const lp = laneCharPositions(n.lane, gw)[n.t];
       const bx = lp ? lp.x : (n.t - (n.lane.phase || 0)) * lw;
-      const [ax, ay0] = nodeAnchorXY(bx, lp ? lp.w : lw, nodePos, nodeScale);
+      const [ax, ay0] = nodeAnchorXY(bx, lp ? lp.w : lw, nodePos, nodeScale, nodeInset);
       /* 与通道本体用同一份避让方案，否则箭头会指向节点被抬走前的旧位置 */
       const ay = planOf(n.lane).lift.has(n.t) ? liftedNodeY(nodeScale) : ay0;
       return { x: namew - winX + ax, y: ry.y + ay };

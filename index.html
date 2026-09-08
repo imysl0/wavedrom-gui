@@ -247,6 +247,9 @@ svg { display: block; }
   background: var(--acc); border: 2px solid var(--panel);
 }
 .scale-val { flex: none; width: 40px; text-align: right; font: 600 11.5px var(--font-mono); color: var(--acc-text); }
+/* 不适用的滑块（如节点水平居中时的边距）：整行压暗并禁用交互 */
+.scale-row.dim { opacity: .45; }
+.scale-row.dim input[type="range"] { cursor: not-allowed; }
 
 /* ============ 工作区 ============ */
 .workspace { flex: 1; display: flex; min-height: 0; }
@@ -1554,6 +1557,7 @@ const BRUSH_GROUPS_MOBILE = [
 function curBrushGroups() { return isMobile() ? BRUSH_GROUPS_MOBILE : BRUSH_GROUPS; }
 
 /* 节点圆标位置与比例（显示偏好，存 localStorage） */
+const NODE_INSET_DEF = 4; // 靠边节点的默认横向内缩（px）
 const NODE_POS_KEYS = {
   lt: [0, 0], tm: [.5, 0], rt: [1, 0],
   lm: [0, .5], c: [.5, .5], rm: [1, .5],
@@ -1563,7 +1567,14 @@ const state_node = {
   pos: localStorage.getItem('wdgui-node-pos') || 'lm',
   scale: Math.max(0.4, Math.min(2, parseFloat(localStorage.getItem('wdgui-node-scale')) || 1)),
   mode: localStorage.getItem('wdgui-node-mode') || 'letter', // letter=圆圈+字母序号（默认）；dot=只画小圆点
+  /* 靠边位置（左/右三列）的横向内缩量，单位 px，0–9 可调。
+     小内缩让圆标贴近垂直沿（h/l/H/L、时钟），大内缩让它留在格内、不压数据框边框与沿上箭头。 */
+  inset: NODE_INSET_DEF,
 };
+{
+  const raw = parseInt(localStorage.getItem('wdgui-node-inset'), 10);
+  if (Number.isFinite(raw)) state_node.inset = Math.max(0, Math.min(9, raw));
+}
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
 if (state_node.mode !== 'dot') state_node.mode = 'letter';
 /* 标签保持：在数据字符（= 2-9）间换色不清除数据标签；途经 x/z 时把标签暂存，
@@ -1598,7 +1609,7 @@ function drawNodeMarker(svg, x, y, letter) {
 /* 圆心在槽位矩形 (bx … bx+bw) × (0 … 48) 内的锚点 */
 function nodeAnchorXY(bx, bw) {
   const [fx, fy] = NODE_POS_KEYS[state_node.pos] || NODE_POS_KEYS.lm;
-  const nIn = 9 * state_node.scale;
+  const nIn = state_node.inset * state_node.scale;
   const vIn = Math.max(8, nodeR() + 1.5);
   return [
     fx === 0 ? bx + nIn : fx === 1 ? bx + bw - nIn : bx + bw / 2,
@@ -4699,6 +4710,32 @@ function buildSettingsMenu(menu) {
   srow.appendChild(slider);
   srow.appendChild(val);
   menu.appendChild(srow);
+  /* 靠边节点的横向内缩：只影响左/右两列的六种位置（上中/正中/下中是水平居中，与内缩无关） */
+  const edgePos = state_node.pos[0] === 'l' || state_node.pos[0] === 'r';
+  sec('节点边距');
+  const irow = h('div', { class: 'scale-row' + (edgePos ? '' : ' dim') });
+  const islider = h('input', {
+    type: 'range', min: '0', max: '9', step: '1', value: String(state_node.inset),
+    'aria-label': '靠边节点的横向内缩（px）',
+    title: edgePos
+      ? '小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头'
+      : '当前节点位置水平居中，边距不生效（选左/右类位置后可调）',
+  });
+  if (!edgePos) islider.disabled = true;
+  const ival = h('span', { class: 'scale-val' }, state_node.inset + 'p');
+  const isyncFill = () => islider.style.setProperty('--fill', (+islider.value / 9 * 100) + '%');
+  isyncFill();
+  islider.addEventListener('input', () => {
+    const v = +islider.value;
+    state_node.inset = v;
+    ival.textContent = v + 'p';
+    isyncFill();
+    localStorage.setItem('wdgui-node-inset', String(v));
+    scheduleUpdate();
+  });
+  irow.appendChild(islider);
+  irow.appendChild(ival);
+  menu.appendChild(irow);
   sec('笔刷栏默认样式');
   optGrid(3, BRUSH_DEFAULTS, v => state_brush.def === v, v => {
     state_brush.def = v;
