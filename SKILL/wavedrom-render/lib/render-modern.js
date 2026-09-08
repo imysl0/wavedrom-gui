@@ -23,11 +23,15 @@ const C = {
 const DIGIT_FILLS = { 2: '#ffffff', 3: '#ffffb4', 4: '#ffe0b9', 5: '#b9e0ff', 6: '#ccfdfe', 7: '#cdfdc5', 8: '#f0c1fb', 9: '#f5c2c0' };
 const DATA_CHARS = '=23456789';
 const NODE_INSET_DEF = 4; // 靠边节点的默认横向内缩（px），与 index.html 保持一致
+/* 九宫格锚点比例 [横, 纵]。中心格是「自动」：几何同左中，另外会躲开数据框标签；
+   其余八种都是纯定位，指到哪画到哪，不做任何避让。'c' 为旧键，等同 auto。 */
 const NODE_POS_KEYS = {
   lt: [0, 0], tm: [.5, 0], rt: [1, 0],
-  lm: [0, .5], c: [.5, .5], rm: [1, .5],
+  lm: [0, .5], auto: [0, .5], c: [0, .5], rm: [1, .5],
   lb: [0, 1], bm: [.5, 1], rb: [1, 1],
 };
+/* 仅「自动」参与数据框标签避让 */
+const isAutoPos = pos => pos === 'auto' || pos === 'c';
 /* ============================================================================
  *  FONT CONFIG — read from ../fonts.config.json (appearance block).
  *  Users edit fonts.config.json (single place for both download/embed AND
@@ -232,6 +236,7 @@ const liftedNodeY = (scale, mode) => Math.max(nodeMarkerR(scale, mode), LABEL_BA
      - 放不下（窄框）→ 该框内的节点记进 lift，抬到框上沿，标签仍按整框居中。 */
 function planLaneNodes(lane, gw, pos, scale, fs, inset, mode) {
   const ranges = new Map(), lift = new Set();
+  if (!isAutoPos(pos)) return { ranges, lift }; // 非自动：纯定位，标签与节点都不挪
   const positions = laneCharPositions(lane, gw);
   const slots = lane.slots, len = laneLen(lane);
   const mr = nodeMarkerR(scale, mode);

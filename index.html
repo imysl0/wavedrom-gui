@@ -211,6 +211,8 @@ svg { display: block; }
 .pos-grid button { width: auto; padding: 0; justify-content: center; height: 30px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); color: var(--muted); font-size: 14px; }
 .pos-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
 .pos-grid button.active { border-color: var(--acc); background: var(--acc-veil); color: var(--acc-text); }
+/* 中心格是「自动」文字而非箭头，字号收小以适配同样的方格 */
+.pos-grid button.pos-auto { font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 /* 文字选项多列网格：与 .pos-grid 同一套视觉（选中＝描边+底色，不再用右侧对勾） */
 .opt-grid { display: grid; gap: 4px; padding: 2px 8px 4px; }
 .opt-grid.c2 { grid-template-columns: repeat(2, 1fr); }
@@ -1564,11 +1566,15 @@ function curBrushGroups() { return isMobile() ? BRUSH_GROUPS_MOBILE : BRUSH_GROU
 
 /* 节点圆标位置与比例（显示偏好，存 localStorage） */
 const NODE_INSET_DEF = 4; // 靠边节点的默认横向内缩（px）
+/* 九宫格锚点比例 [横, 纵]。中心格是「自动」：几何同左中，另外会躲开数据框标签；
+   其余八种都是纯定位，指到哪画到哪，不做任何避让。 */
 const NODE_POS_KEYS = {
   lt: [0, 0], tm: [.5, 0], rt: [1, 0],
-  lm: [0, .5], c: [.5, .5], rm: [1, .5],
+  lm: [0, .5], auto: [0, .5], rm: [1, .5],
   lb: [0, 1], bm: [.5, 1], rb: [1, 1],
 };
+/* 仅「自动」参与数据框标签避让 */
+const nodeAutoAvoid = () => state_node.pos === 'auto';
 const state_node = {
   pos: localStorage.getItem('wdgui-node-pos') || 'lm',
   scale: Math.max(0.4, Math.min(2, parseFloat(localStorage.getItem('wdgui-node-scale')) || 1)),
@@ -1581,6 +1587,8 @@ const state_node = {
   const raw = parseInt(localStorage.getItem('wdgui-node-inset'), 10);
   if (Number.isFinite(raw)) state_node.inset = Math.max(0, Math.min(9, raw));
 }
+/* 旧偏好 'c'（正中）已被「自动」取代：两者都占九宫格中心格，迁过去最贴近原选择 */
+if (state_node.pos === 'c') { state_node.pos = 'auto'; localStorage.setItem('wdgui-node-pos', 'auto'); }
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
 const NODE_MODES = ['letter', 'bare', 'dot'];
 if (!NODE_MODES.includes(state_node.mode)) state_node.mode = 'bare';
@@ -1651,6 +1659,7 @@ function liftedNodeY() { const mr = nodeMarkerR(); return Math.max(mr, LABEL_BAN
        （否则要把 4 个字硬压进 18px，挤成一团反而更难认）。 */
 function planLaneNodes(lane) {
   const ranges = new Map(), lift = new Set();
+  if (!nodeAutoAvoid()) return { ranges, lift }; // 非自动模式：纯定位，标签与节点都不挪
   const positions = laneCharPositions(lane);
   const slots = lane.slots, len = laneLen(lane);
   const mr = nodeMarkerR();
@@ -4679,12 +4688,19 @@ function setPaneVisibility(pane, visible) {
 function buildSettingsMenu(menu) {
   menu.textContent = '';
   const sec = t => menu.appendChild(h('div', { class: 'menu-sec' }, t));
-  const POS_NAMES = { lt: '左上', tm: '上中', rt: '右上', lm: '左中', c: '正中', rm: '右中', lb: '左下', bm: '下中', rb: '右下' };
-  const POS_GLYPH = { lt: '↖', tm: '↑', rt: '↗', lm: '←', c: '●', rm: '→', lb: '↙', bm: '↓', rb: '↘' };
+  const POS_NAMES = {
+    lt: '左上', tm: '上中', rt: '右上',
+    lm: '左中', auto: '自动：同左中，但会躲开数据框标签', rm: '右中',
+    lb: '左下', bm: '下中', rb: '右下',
+  };
+  const POS_GLYPH = { lt: '↖', tm: '↑', rt: '↗', lm: '←', auto: '自动', rm: '→', lb: '↙', bm: '↓', rb: '↘' };
   sec('节点位置');
   const grid = h('div', { class: 'pos-grid' });
   Object.keys(POS_NAMES).forEach(k => {
-    const b = h('button', { class: state_node.pos === k ? 'active' : '', title: POS_NAMES[k], 'aria-label': '节点位置：' + POS_NAMES[k] }, POS_GLYPH[k]);
+    const b = h('button', {
+      class: (state_node.pos === k ? 'active' : '') + (k === 'auto' ? ' pos-auto' : ''),
+      title: POS_NAMES[k], 'aria-label': '节点位置：' + POS_NAMES[k],
+    }, POS_GLYPH[k]);
     b.addEventListener('click', ev => {
       ev.stopPropagation();
       state_node.pos = k;
@@ -4714,7 +4730,9 @@ function buildSettingsMenu(menu) {
   /* 节点比例 / 节点边距并排两列：都是数值微调，共用一行小标题省掉一段纵向空间。
      边距只影响左/右两列的六种位置（上中/正中/下中水平居中，与内缩无关），
      不适用时该列压暗禁用。 */
-  const edgePos = state_node.pos[0] === 'l' || state_node.pos[0] === 'r';
+  /* 边距只对靠左/靠右的锚点有意义：上中/下中是水平居中，横向内缩不参与计算。
+     「自动」几何同左中，所以同样可调。 */
+  const edgePos = NODE_POS_KEYS[state_node.pos][0] !== .5;
   const sliderCell = (label, opts) => {
     const cell = h('div', { class: 'slider-cell' + (opts.dim ? ' dim' : '') });
     cell.appendChild(h('div', { class: 'slider-cap' },
