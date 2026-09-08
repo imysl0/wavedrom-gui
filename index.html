@@ -1572,7 +1572,7 @@ const NODE_POS_KEYS = {
 const state_node = {
   pos: localStorage.getItem('wdgui-node-pos') || 'lm',
   scale: Math.max(0.4, Math.min(2, parseFloat(localStorage.getItem('wdgui-node-scale')) || 1)),
-  mode: localStorage.getItem('wdgui-node-mode') || 'letter', // letter=圆圈+字母序号（默认）；dot=只画小圆点
+  mode: localStorage.getItem('wdgui-node-mode') || 'letter', // letter=圆圈+字母；bare=仅字母（白底无圈）；dot=只画小圆点
   /* 靠边位置（左/右三列）的横向内缩量，单位 px，0–9 可调。
      小内缩让圆标贴近垂直沿（h/l/H/L、时钟），大内缩让它留在格内、不压数据框边框与沿上箭头。 */
   inset: NODE_INSET_DEF,
@@ -1582,13 +1582,16 @@ const state_node = {
   if (Number.isFinite(raw)) state_node.inset = Math.max(0, Math.min(9, raw));
 }
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
-if (state_node.mode !== 'dot') state_node.mode = 'letter';
+const NODE_MODES = ['letter', 'bare', 'dot'];
+if (!NODE_MODES.includes(state_node.mode)) state_node.mode = 'letter';
 /* 标签保持：在数据字符（= 2-9）间换色不清除数据标签；途经 x/z 时把标签暂存，
    切回数据字符即恢复，暂存随该格脱离选中而失效。关闭则沿用旧行为（换字符即清标签）。 */
 let keepLabel = localStorage.getItem('wdgui-keep-label') !== 'off';
 let labelStash = null; // { laneId, t, label }
 const nodeR = () => 6.5 * state_node.scale;
-/* 在 svg 上画一个节点标记：letter 模式画圆圈+字母；dot 模式画一个实心小圆点（不画字母） */
+/* 在 svg 上画一个节点标记：
+   letter = 圆圈 + 字母；bare = 仅字母（垫一层微透明白底，压住底下的波形线但不喧宾夺主）；
+   dot = 只画小圆点（不画字母） */
 function drawNodeMarker(svg, x, y, letter) {
   const NS = 'http://www.w3.org/2000/svg';
   if (state_node.mode === 'dot') {
@@ -1598,9 +1601,14 @@ function drawNodeMarker(svg, x, y, letter) {
     svg.appendChild(d);
     return;
   }
+  const bare = state_node.mode === 'bare';
   const c = document.createElementNS(NS, 'circle');
-  c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', nodeR());
-  c.setAttribute('fill', cssVar('--node-fill')); c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3);
+  c.setAttribute('cx', x); c.setAttribute('cy', y);
+  /* 无圈模式：底衬收到刚好托住字身，并带一点透明度让波形隐约透出来。
+     底色取主题的 --node-fill（浅色主题即白色），深色主题下自动跟着走，字仍然清楚。 */
+  c.setAttribute('r', bare ? 5.2 * state_node.scale : nodeR());
+  c.setAttribute('fill', bare ? hexA(cssVar('--node-fill'), .82) : cssVar('--node-fill'));
+  if (!bare) { c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3); }
   svg.appendChild(c);
   const tx = document.createElementNS(NS, 'text');
   tx.setAttribute('x', 0); tx.setAttribute('y', 3.5);
@@ -1623,7 +1631,11 @@ function nodeAnchorXY(bx, bw) {
   ];
 }
 /* 节点圆标的实际外接半径（含描边）：letter 模式是圆圈，dot 模式是小圆点 */
-function nodeMarkerR() { return state_node.mode === 'dot' ? 3 * state_node.scale + 1 : nodeR() + 0.65; }
+function nodeMarkerR() {
+  if (state_node.mode === 'dot') return 3 * state_node.scale + 1;
+  if (state_node.mode === 'bare') return 5.2 * state_node.scale; // 无圈：底衬更小，占位随之收窄
+  return nodeR() + 0.65;
+}
 /* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
 const LABEL_BAND = [18.5, 32];
 const labelTextW = s => String(s).length * 7.4;
@@ -4686,7 +4698,7 @@ function buildSettingsMenu(menu) {
   /* 文字选项统一走多列网格（与上面的节点位置九宫格同一套视觉） */
   const optGrid = (cols, items, isActive, onPick) => menuOptGrid(menu, cols, items, isActive, onPick);
   sec('节点显示模式');
-  optGrid(2, [['letter', '字母序号'], ['dot', '点']], v => state_node.mode === v, v => {
+  optGrid(3, [['letter', '圈+字母'], ['bare', '仅字母'], ['dot', '点']], v => state_node.mode === v, v => {
     state_node.mode = v;
     localStorage.setItem('wdgui-node-mode', v);
     buildSettingsMenu(menu);

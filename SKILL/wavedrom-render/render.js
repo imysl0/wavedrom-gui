@@ -15,6 +15,7 @@
  *   --node-pos <lt|tm|rt|lm|c|rm|lb|bm|rb>   modern node marker position (default lm)
  *   --node-scale <n>              modern node marker scale (default 1)
  *   --node-inset <0-9>            modern edge-anchored node inset in px (default 4)
+ *   --node-mode <letter|bare|dot> modern node marker style (default letter)
  *   --no-meta                     skip embedding WaveJSON metadata into SVG/PNG
  *   -h, --help
  *
@@ -33,7 +34,7 @@ const { svgToPng } = require('./lib/svg-to-png.js');
 const { svgWithMeta, pngInsertITXt, WD_PNG_KEYWORD } = require('./lib/meta-embed.js');
 
 function parseArgs(argv) {
-  const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, nodeInset: 4, noMeta: false };
+  const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, nodeInset: 4, nodeMode: 'letter', noMeta: false };
   const pos = [];
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -46,6 +47,7 @@ function parseArgs(argv) {
     else if (a === '--node-pos') o.nodePos = argv[++i];
     else if (a === '--node-scale') o.nodeScale = parseFloat(argv[++i]);
     else if (a === '--node-inset') o.nodeInset = parseInt(argv[++i], 10);
+    else if (a === '--node-mode') o.nodeMode = argv[++i];
     else if (a === '--no-meta') o.noMeta = true;
     else pos.push(a);
   }
@@ -58,7 +60,8 @@ const HELP = `WaveDrom render — WaveJSON -> waveform image
 Usage:
   node render.js <input.json> [--mode modern|traditional] [--format svg|png|both]
                  [--out PATH] [--scale N] [--skin default|narrow]
-                 [--node-pos lm|c|...] [--node-scale N] [--node-inset 0-9] [--no-meta]
+                 [--node-pos lm|c|...] [--node-scale N] [--node-inset 0-9]
+                 [--node-mode letter|bare|dot] [--no-meta]
   node render.js -   (read WaveJSON from stdin)
 
 Modes:
@@ -96,7 +99,7 @@ function main() {
 
   const res = o.mode === 'traditional'
     ? renderTraditional(source, { skin: o.skin })
-    : renderModern(source, { nodePos: o.nodePos, nodeScale: o.nodeScale, nodeInset: o.nodeInset });
+    : renderModern(source, { nodePos: o.nodePos, nodeScale: o.nodeScale, nodeInset: o.nodeInset, nodeMode: o.nodeMode });
 
   // Resolve output base name. Default (no --out): same convention as the app —
   // wavdrom_gui_<title> if the chart has a head title, else

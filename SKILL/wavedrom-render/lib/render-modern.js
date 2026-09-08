@@ -191,6 +191,24 @@ function laneCharPositions(lane, gw) {
   return positions;
 }
 
+/* 画一个节点标记：letter=圆圈+字母；bare=仅字母（微透明白底衬）；dot=实心小圆点 */
+function nodeMarkerSVG(x, y, letter, scale, mode) {
+  if (mode === 'dot') {
+    return tag('circle', { cx: x, cy: y, r: 3 * scale, fill: C.nodeLine, stroke: C.nodeFill, 'stroke-width': 1 });
+  }
+  const bare = mode === 'bare';
+  const circle = bare
+    ? tag('circle', { cx: x, cy: y, r: 5.2 * scale, fill: hexA(C.nodeFill, .82) })
+    : tag('circle', { cx: x, cy: y, r: 6.5 * scale, fill: C.nodeFill, stroke: C.nodeLine, 'stroke-width': 1.3 });
+  return circle + tag('text', { x: 0, y: 3.5, 'text-anchor': 'middle', 'font-size': FONTS.node, 'font-weight': 600,
+    transform: `translate(${x} ${y}) scale(${scale})`, 'font-family': FONT_MONO, fill: C.nodeLine }, esc(letter));
+}
+/* 节点标记的外接半径（供数据框标签避让用） */
+function nodeMarkerR(scale, mode) {
+  if (mode === 'dot') return 3 * scale + 1;
+  if (mode === 'bare') return 5.2 * scale;
+  return 6.5 * scale + 0.65;
+}
 function nodeAnchorXY(bx, bw, pos, scale, inset) {
   const [fx, fy] = NODE_POS_KEYS[pos] || NODE_POS_KEYS.lm;
   const nIn = (inset === undefined ? NODE_INSET_DEF : inset) * scale;
@@ -203,9 +221,8 @@ function nodeAnchorXY(bx, bw, pos, scale, inset) {
 /* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
 const LABEL_BAND = [18.5, 32];
 const labelTextW = (s, fs) => String(s).length * fs * 0.53;
-const nodeMarkerR = scale => 6.5 * scale + 0.65;
 /* 被抬起的节点圆心 y：贴数据框上沿，完全避开标签行 */
-const liftedNodeY = scale => Math.max(nodeMarkerR(scale), LABEL_BAND[0] - nodeMarkerR(scale) - 1.5);
+const liftedNodeY = (scale, mode) => Math.max(nodeMarkerR(scale, mode), LABEL_BAND[0] - nodeMarkerR(scale, mode) - 1.5);
 
 /* 一次性算清整条通道里「数据框标签 × 节点圆标」的避让方案，供通道本体与连线层共用
    （连线层必须拿到同一份结果，否则箭头会指向节点被抬走前的旧位置）。
@@ -213,11 +230,11 @@ const liftedNodeY = scale => Math.max(nodeMarkerR(scale), LABEL_BAND[0] - nodeMa
      - 节点压在标签行上时，先让出它占的那一侧；
      - 让完仍放得下标签 → 记进 ranges，标签在剩余区间居中；
      - 放不下（窄框）→ 该框内的节点记进 lift，抬到框上沿，标签仍按整框居中。 */
-function planLaneNodes(lane, gw, pos, scale, fs, inset) {
+function planLaneNodes(lane, gw, pos, scale, fs, inset, mode) {
   const ranges = new Map(), lift = new Set();
   const positions = laneCharPositions(lane, gw);
   const slots = lane.slots, len = laneLen(lane);
-  const mr = nodeMarkerR(scale);
+  const mr = nodeMarkerR(scale, mode);
   for (let t = 0; t < len; t++) {
     const s = slots[t];
     if (!s || !isData(s.glyph)) continue;
@@ -258,10 +275,9 @@ function planLaneNodes(lane, gw, pos, scale, fs, inset) {
  * laneSVG: the self-drawn mini waveform (faithful port of index.html laneSVG)
  * Returns { inner: <svg-body string>, width }. `color` is the trace color.
  * ========================================================================== */
-function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset) {
+function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode) {
   const W = gw * (lane.period || 1), len = laneLen(lane);
   const positions = laneCharPositions(lane, gw);
-  const nodeR = 6.5 * nodeScale;
   let out = '';       // path + decorations, in draw order
   let overlays = '';  // gap marks, drawn last
   let d = '';
@@ -272,7 +288,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset) {
   let lvl = null;
   const slots = lane.slots;
   let t = 0, prevClock = null, prevClockNoLead = false, gapPend = '', prevG = null, lastEnd = 0;
-  const nodePlan = planLaneNodes(lane, gw, nodePos, nodeScale, FONTS.dataLabel, nodeInset);
+  const nodePlan = planLaneNodes(lane, gw, nodePos, nodeScale, FONTS.dataLabel, nodeInset, nodeMode);
 
   const arrowTri = (x, y, dir) => {
     if (!dir) return;
@@ -458,10 +474,8 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset) {
     const bw = pk ? pk.w : W;
     const [nx, ny0] = nodeAnchorXY(bx, bw, nodePos, nodeScale, nodeInset);
     /* 窄数据框让不出横向空间时，把圆标抬到框上沿，避开标签行而不遮字 */
-    const ny = nodePlan.lift.has(+k) ? liftedNodeY(nodeScale) : ny0;
-    body += tag('circle', { cx: nx, cy: ny, r: nodeR, fill: C.nodeFill, stroke: C.nodeLine, 'stroke-width': 1.3 });
-    body += tag('text', { x: 0, y: 3.5, 'text-anchor': 'middle', 'font-size': FONTS.node, 'font-weight': 600,
-      transform: `translate(${nx} ${ny}) scale(${nodeScale})`, 'font-family': FONT_MONO, fill: C.nodeLine }, esc(lane.nodeByT[k]));
+    const ny = nodePlan.lift.has(+k) ? liftedNodeY(nodeScale, nodeMode) : ny0;
+    body += nodeMarkerSVG(nx, ny, lane.nodeByT[k], nodeScale, nodeMode);
   });
   return body;
 }
@@ -516,6 +530,7 @@ function renderModern(source, opts = {}) {
   const nodePos = opts.nodePos && NODE_POS_KEYS[opts.nodePos] ? opts.nodePos : 'lm';
   const nodeScale = Math.max(0.4, Math.min(2, opts.nodeScale || 1));
   const nodeInset = Number.isFinite(opts.nodeInset) ? Math.max(0, Math.min(9, opts.nodeInset)) : NODE_INSET_DEF;
+  const nodeMode = ['letter', 'bare', 'dot'].includes(opts.nodeMode) ? opts.nodeMode : 'letter';
   const gw = CELLW * (st.hscale || 1);
 
   if (!st.tree.length) {
@@ -640,7 +655,7 @@ function renderModern(source, opts = {}) {
       content += tag('line', { x1: 0, y1: r.y + r.h, x2: W, y2: r.y + r.h, stroke: C.lineSoft });
       const idx = flat.indexOf(lane);
       const color = C.ch[(idx < 0 ? 0 : idx) % 6];
-      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset);
+      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode);
       // translate into place: lane track starts at namew, minus crop offset winX
       content += `<g transform="translate(${namew - winX}, ${r.y})">${body}</g>`;
     } else if (r.type === 'group' || r.type === 'spacer') {
@@ -657,7 +672,7 @@ function renderModern(source, opts = {}) {
     const col = C.info;
     const planCache = new Map();
     const planOf = l => {
-      if (!planCache.has(l)) planCache.set(l, planLaneNodes(l, gw, nodePos, nodeScale, FONTS.dataLabel, nodeInset));
+      if (!planCache.has(l)) planCache.set(l, planLaneNodes(l, gw, nodePos, nodeScale, FONTS.dataLabel, nodeInset, nodeMode));
       return planCache.get(l);
     };
     const pos = letter => {
@@ -670,7 +685,7 @@ function renderModern(source, opts = {}) {
       const bx = lp ? lp.x : (n.t - (n.lane.phase || 0)) * lw;
       const [ax, ay0] = nodeAnchorXY(bx, lp ? lp.w : lw, nodePos, nodeScale, nodeInset);
       /* 与通道本体用同一份避让方案，否则箭头会指向节点被抬走前的旧位置 */
-      const ay = planOf(n.lane).lift.has(n.t) ? liftedNodeY(nodeScale) : ay0;
+      const ay = planOf(n.lane).lift.has(n.t) ? liftedNodeY(nodeScale, nodeMode) : ay0;
       return { x: namew - winX + ax, y: ry.y + ay };
     };
     const arrow = (x, y, dx, dy) => {
@@ -758,9 +773,7 @@ function renderModern(source, opts = {}) {
     for (const n of nodes) {
       const p = pos(n.letter);
       if (!p) continue;
-      edgeLayer += tag('circle', { cx: p.x, cy: p.y, r: 6.5 * nodeScale, fill: C.nodeFill, stroke: C.nodeLine, 'stroke-width': 1.3 });
-      edgeLayer += tag('text', { x: 0, y: 3.5, 'text-anchor': 'middle', 'font-size': FONTS.node, 'font-weight': 600,
-        transform: `translate(${p.x} ${p.y}) scale(${nodeScale})`, 'font-family': FONT_MONO, fill: C.nodeLine }, esc(n.letter));
+      edgeLayer += nodeMarkerSVG(p.x, p.y, n.letter, nodeScale, nodeMode);
     }
   }
 
