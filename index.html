@@ -221,6 +221,51 @@ svg { display: block; }
 }
 .opt-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
 .opt-grid button.active { border-color: var(--acc); background: var(--acc-veil); color: var(--acc-text); }
+/* ---- 设置菜单：大类分组 + 单行选项 ---- */
+/* 大类标题：点击折叠/展开整组；收起时右侧显示该组当前值摘要 */
+.set-cat {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  padding: 6px 10px; border: none; background: transparent;
+  color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  border-radius: var(--r-sm); cursor: pointer;
+}
+.set-cat:hover { background: rgba(120,150,200,.12); color: var(--text); }
+.set-cat .caret { transition: transform .15s ease; opacity: .8; flex: none; }
+.set-cat[aria-expanded="true"] .caret { transform: rotate(90deg); }
+.set-cat .cat-sum {
+  margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 400; letter-spacing: 0; opacity: .75; font-size: 10.5px;
+}
+.set-cat[aria-expanded="true"] .cat-sum { display: none; }
+.set-body { display: none; padding-bottom: 2px; }
+.set-body.on { display: block; }
+/* 单行选项：标签 …… 当前值 › —— N 选 1 压成一行，点开二级弹层再选 */
+.set-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 10px 6px 22px; border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--text); text-align: left; font-size: 12px;
+}
+.set-row:hover { background: rgba(120,150,200,.14); }
+.set-row .rv { margin-left: auto; font-size: 11.5px; color: var(--acc-text); white-space: nowrap; }
+.set-row .rc { opacity: .45; font-size: 11px; flex: none; }
+.set-body > .menu-sec { padding-left: 22px; }
+.set-body > .pos-grid, .set-body > .opt-grid, .set-body > .slider-duo { padding-left: 20px; }
+/* 二级选择弹层 */
+#setPop {
+  position: fixed; z-index: 90; display: none;
+  min-width: 150px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto;
+  padding: 5px; background: var(--raise);
+  border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
+}
+#setPop.on { display: block; }
+#setPop button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 10px; border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--text); text-align: left; font-size: 12px;
+}
+#setPop button:hover { background: rgba(120,150,200,.14); }
+#setPop button.active { color: var(--acc-text); }
+#setPop button .ck { margin-left: auto; color: var(--acc); flex: none; }
 .slider-cell input[type="range"] {
   flex: 1; min-width: 0; height: 18px;
   -webkit-appearance: none; appearance: none;
@@ -4289,8 +4334,9 @@ function bindGrid() {
     if (hb && hb.classList.contains('pinned') && !hb.contains(ev.target)) hb.classList.remove('pinned');
     const bp = $('#brushPanel');
     if (bp && !ev.target.closest('.fan-box') && !bp.contains(ev.target)) bp.remove();
+    if (setPopEl && !setPopEl.contains(ev.target) && !(ev.target.closest && ev.target.closest('.set-row'))) closeSetPop();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); if (localStorage.getItem('wdgui-side-dock') !== '1') { $('.side').classList.remove('drawer-open'); delete $('.side').dataset.drawerSec; } $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closeSetPop(); closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); if (localStorage.getItem('wdgui-side-dock') !== '1') { $('.side').classList.remove('drawer-open'); delete $('.side').dataset.drawerSec; } $('#drawerMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
@@ -4554,6 +4600,7 @@ function addLane(type) {
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
 function closeMenus() {
+  if (typeof closeSetPop === 'function') closeSetPop(); // 设置菜单的二级选择弹层
   document.querySelectorAll('.menu.open').forEach(m => {
     m.classList.remove('open');
     m.style.position = m.style.top = m.style.left = m.style.right = ''; // 清除 fixed 定位残留
@@ -4677,143 +4724,191 @@ function setPaneVisibility(pane, visible) {
   state.autoFit = true;
   if (document.documentElement.dataset.showPreview !== '0') renderPreview();
 }
+/* 节点位置九宫格的名称与图标（设置菜单用） */
+const POS_NAMES = {
+  lt: '左上', tm: '上中', rt: '右上',
+  lm: '左中', auto: '自动：同左中，但会躲开数据框标签', rm: '右中',
+  lb: '左下', bm: '下中', rb: '右下',
+};
+const POS_NAMES_SHORT = {
+  lt: '左上', tm: '上中', rt: '右上', lm: '左中', auto: '自动', rm: '右中',
+  lb: '左下', bm: '下中', rb: '右下',
+};
+const POS_GLYPH = { lt: '↖', tm: '↑', rt: '↗', lm: '←', auto: '自动', rm: '→', lb: '↙', bm: '↓', rb: '↘' };
+/* 当前展开的大类（手风琴，同时只开一类）；null = 全部收起 */
+let settingsCatOpen = 'look';
+/* 设置菜单：四大类折叠 + N选1 压成单行（点行右侧弹二级列表选择）。
+   九宫格与双滑块保持原样——前者靠空间布局表达方位，后者是连续值，压成一行反而更难用。 */
+let setPopEl = null;
+function closeSetPop() { if (setPopEl) { setPopEl.classList.remove('on'); setPopEl.remove(); setPopEl = null; } }
+/* 从选项行弹出二级列表：优先贴行右侧，放不下则贴左；纵向钳在视口内 */
+function openSetPop(anchor, items, isActive, onPick) {
+  closeSetPop();
+  const pop = h('div', { id: 'setPop' });
+  items.forEach(([v, label, tip]) => {
+    const on = isActive(v);
+    const b = h('button', { class: on ? 'active' : '', title: tip || label }, label);
+    if (on) { const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12); ck.setAttribute('class', 'ck'); b.appendChild(ck); }
+    b.addEventListener('click', ev => { ev.stopPropagation(); closeSetPop(); onPick(v); });
+    pop.appendChild(b);
+  });
+  document.body.appendChild(pop);
+  pop.classList.add('on');
+  const r = anchor.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = r.right + 6;
+  if (left + pw > window.innerWidth - 8) left = Math.max(8, r.left - pw - 6);
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(8, Math.min(r.top - 4, window.innerHeight - ph - 8)) + 'px';
+  setPopEl = pop;
+}
 function buildSettingsMenu(menu) {
+  closeSetPop();
   menu.textContent = '';
-  const sec = t => menu.appendChild(h('div', { class: 'menu-sec' }, t));
   const root = document.documentElement;
-  /* 顶栏原有的四个图标钮（字体 / 轨迹 / 视图 / 主题）已收进这里，
-     顶栏只保留文字菜单。开关沿用各自原有的处理函数，行为与原按钮一致。 */
-  sec('主题');
-  menuOptGrid(menu, 2, [['light', '浅色'], ['dark', '深色']],
-    v => (root.dataset.theme || 'dark') === v,
-    v => { applyTheme(v); buildSettingsMenu(menu); });
-  sec('波形轨迹');
-  menuOptGrid(menu, 2, [['slim', '纤细'], ['glow', '荧光辉光']],
-    v => (root.dataset.trace === 'glow' ? 'glow' : 'slim') === v,
-    v => {
-      root.dataset.trace = v;
-      localStorage.setItem('wdgui-trace', v);
-      renderGrid();
-      buildSettingsMenu(menu);
-    });
-  sec('界面字体');
-  menuOptGrid(menu, 2, FONT_CHOICES, v => state_font.ui === v, v => {
-    state_font.ui = v; localStorage.setItem('wdgui-uifont', v);
-    applyFonts(); buildSettingsMenu(menu);
-  });
-  sec('数据·代码字体');
-  menuOptGrid(menu, 2, FONT_CHOICES_DATA, v => state_font.data === v, v => {
-    state_font.data = v; localStorage.setItem('wdgui-dfont', v);
-    applyFonts(); buildSettingsMenu(menu);
-  });
-  menu.appendChild(h('div', { class: 'sep' }));
-  sec('布局方向');
-  menuOptGrid(menu, 2, [['side', '预览在右侧'], ['below', '预览在下方']],
-    v => root.dataset.view === v, v => { setViewMode(v); buildSettingsMenu(menu); });
-  sec('窗口显示');
-  menuOptGrid(menu, 2, [['preview', '实时预览'], ['code', 'WaveJSON']],
-    v => root.dataset[v === 'preview' ? 'showPreview' : 'showCode'] !== '0',
-    v => {
-      const key = v === 'preview' ? 'showPreview' : 'showCode';
-      setPaneVisibility(v, root.dataset[key] !== '0' ? '0' : '1');
-      buildSettingsMenu(menu);
-    });
-  sec('视图模式');
-  menuOptGrid(menu, 2, [['auto', '自动', '自动：按屏宽判断桌面/手机布局'], ['simple', '简约模式', '简约模式：固定使用手机版布局']],
-    v => viewMode() === v, v => { setViewModePref(v); buildSettingsMenu(menu); });
-  menu.appendChild(h('div', { class: 'sep' }));
-  const POS_NAMES = {
-    lt: '左上', tm: '上中', rt: '右上',
-    lm: '左中', auto: '自动：同左中，但会躲开数据框标签', rm: '右中',
-    lb: '左下', bm: '下中', rb: '右下',
-  };
-  const POS_GLYPH = { lt: '↖', tm: '↑', rt: '↗', lm: '←', auto: '自动', rm: '→', lb: '↙', bm: '↓', rb: '↘' };
-  sec('节点位置');
-  const grid = h('div', { class: 'pos-grid' });
-  Object.keys(POS_NAMES).forEach(k => {
-    const b = h('button', {
-      class: (state_node.pos === k ? 'active' : '') + (k === 'auto' ? ' pos-auto' : ''),
-      title: POS_NAMES[k], 'aria-label': '节点位置：' + POS_NAMES[k],
-    }, POS_GLYPH[k]);
+  const rebuild = () => buildSettingsMenu(menu);
+  const labelOf = (items, v, dft) => { const it = items.find(x => x[0] === v); return it ? it[1] : dft; };
+
+  /* 一行 N 选 1：标签 …… 当前值 › */
+  const row = (parent, label, items, getV, setV) => {
+    const b = h('button', { class: 'set-row', title: label },
+      h('span', null, label),
+      h('span', { class: 'rv' }, labelOf(items, getV(), '—')),
+      h('span', { class: 'rc' }, '›'));
     b.addEventListener('click', ev => {
       ev.stopPropagation();
-      state_node.pos = k;
-      localStorage.setItem('wdgui-node-pos', k);
-      buildSettingsMenu(menu);
-      renderGrid();
+      openSetPop(b, items, v => v === getV(), v => { setV(v); rebuild(); });
     });
-    grid.appendChild(b);
-  });
-  menu.appendChild(grid);
-  /* 文字选项统一走多列网格（与上面的节点位置九宫格同一套视觉） */
-  const optGrid = (cols, items, isActive, onPick) => menuOptGrid(menu, cols, items, isActive, onPick);
-  sec('节点显示模式');
-  optGrid(3, [['bare', '仅字母'], ['letter', '圈+字母'], ['dot', '点']], v => state_node.mode === v, v => {
-    state_node.mode = v;
-    localStorage.setItem('wdgui-node-mode', v);
-    buildSettingsMenu(menu);
-    renderGrid();
-  });
-  sec('数据标签');
-  optGrid(2, [['on', '标签保持'], ['off', '换字符即清除']], v => (keepLabel ? 'on' : 'off') === v, v => {
-    keepLabel = v === 'on';
-    localStorage.setItem('wdgui-keep-label', v);
-    if (!keepLabel) labelStash = null;
-    buildSettingsMenu(menu);
-  });
-  /* 节点比例 / 节点边距并排两列：都是数值微调，共用一行小标题省掉一段纵向空间。
-     边距只影响左/右两列的六种位置（上中/正中/下中水平居中，与内缩无关），
-     不适用时该列压暗禁用。 */
-  /* 边距只对靠左/靠右的锚点有意义：上中/下中是水平居中，横向内缩不参与计算。
-     「自动」几何同左中，所以同样可调。 */
-  const edgePos = NODE_POS_KEYS[state_node.pos][0] !== .5;
-  const sliderCell = (label, opts) => {
-    const cell = h('div', { class: 'slider-cell' + (opts.dim ? ' dim' : '') });
-    cell.appendChild(h('div', { class: 'slider-cap' },
-      h('span', null, label),
-      h('span', { class: 'scale-val' }, opts.fmt(opts.value))));
-    const sl = h('input', {
-      type: 'range', min: String(opts.min), max: String(opts.max), step: String(opts.step),
-      value: String(opts.value), 'aria-label': opts.aria, title: opts.title,
-    });
-    if (opts.dim) sl.disabled = true;
-    const valEl = cell.querySelector('.scale-val');
-    const fill = () => sl.style.setProperty('--fill', ((+sl.value - opts.min) / (opts.max - opts.min) * 100) + '%');
-    fill();
-    sl.addEventListener('input', () => {
-      const v = +sl.value;
-      valEl.textContent = opts.fmt(v);
-      fill();
-      opts.onInput(v);
-      scheduleUpdate();
-    });
-    cell.appendChild(sl);
-    return cell;
+    parent.appendChild(b);
+    return b;
   };
-  sec('节点比例与边距');
-  const srow = h('div', { class: 'slider-duo' });
-  srow.appendChild(sliderCell('比例', {
-    min: 50, max: 150, step: 5, value: Math.round(state_node.scale * 100),
-    fmt: v => v + '%', aria: '节点显示比例', title: '节点圆标的整体大小',
-    onInput: v => { state_node.scale = v / 100; localStorage.setItem('wdgui-node-scale', String(v / 100)); },
-  }));
-  srow.appendChild(sliderCell('边距', {
-    min: 0, max: 9, step: 1, value: state_node.inset, dim: !edgePos,
-    fmt: v => v + 'p', aria: '靠边节点的横向内缩（px）',
-    title: edgePos
-      ? '小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头'
-      : '当前节点位置水平居中，边距不生效（选左/右类位置后可调）',
-    onInput: v => { state_node.inset = v; localStorage.setItem('wdgui-node-inset', String(v)); },
-  }));
-  menu.appendChild(srow);
-  sec('笔刷栏默认样式');
-  optGrid(3, BRUSH_DEFAULTS, v => state_brush.def === v, v => {
-    state_brush.def = v;
-    localStorage.setItem('wdgui-brush-default', v);
-    state_brush.mode = v;
-    renderBrushUI();
-    buildSettingsMenu(menu);
+  /* 大类：标题可折叠，收起时右侧给一句当前值摘要 */
+  const cat = (key, title, summary, fill) => {
+    const open = settingsCatOpen === key;
+    const head = h('button', { class: 'set-cat', 'aria-expanded': String(open) },
+      icon('<path d="M6.5 3.5 11 8l-4.5 4.5"/>', 11),
+      h('span', null, title),
+      h('span', { class: 'cat-sum' }, summary()));
+    head.querySelector('svg').setAttribute('class', 'caret');
+    const body = h('div', { class: 'set-body' + (open ? ' on' : '') });
+    head.addEventListener('click', ev => {
+      ev.stopPropagation();
+      settingsCatOpen = open ? null : key; // 手风琴：同时只展开一类，菜单不会又变长
+      rebuild();
+    });
+    menu.appendChild(head);
+    fill(body);
+    menu.appendChild(body);
+  };
+
+  const THEMES = [['light', '浅色'], ['dark', '深色']];
+  const TRACES = [['slim', '纤细'], ['glow', '荧光辉光']];
+  const VIEWS = [['side', '预览在右侧'], ['below', '预览在下方']];
+  const VMODES = [['auto', '自动', '按屏宽判断桌面/手机布局'], ['simple', '简约模式', '固定使用手机版布局']];
+  const NMODES = [['bare', '仅字母'], ['letter', '圈+字母'], ['dot', '点']];
+  const LABELS = [['on', '标签保持'], ['off', '换字符即清除']];
+  const curTrace = () => root.dataset.trace === 'glow' ? 'glow' : 'slim';
+
+  cat('look', '外观', () => labelOf(THEMES, root.dataset.theme, '深色') + '·' + labelOf(TRACES, curTrace(), '纤细'), body => {
+    row(body, '主题', THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
+    row(body, '波形轨迹', TRACES, curTrace, v => {
+      root.dataset.trace = v; localStorage.setItem('wdgui-trace', v); renderGrid();
+    });
+    row(body, '界面字体', FONT_CHOICES, () => state_font.ui, v => {
+      state_font.ui = v; localStorage.setItem('wdgui-uifont', v); applyFonts();
+    });
+    row(body, '数据·代码字体', FONT_CHOICES_DATA, () => state_font.data, v => {
+      state_font.data = v; localStorage.setItem('wdgui-dfont', v); applyFonts();
+    });
   });
+
+  cat('view', '视图', () => labelOf(VIEWS, root.dataset.view, '预览在右侧'), body => {
+    row(body, '布局方向', VIEWS, () => root.dataset.view, v => setViewMode(v));
+    row(body, '视图模式', VMODES, viewMode, v => setViewModePref(v));
+    /* 窗口显示是两个各自独立的开关，不能压成 N 选 1，保持可勾选的方格 */
+    body.appendChild(h('div', { class: 'menu-sec' }, '窗口显示'));
+    menuOptGrid(body, 2, [['preview', '实时预览'], ['code', 'WaveJSON']],
+      v => root.dataset[v === 'preview' ? 'showPreview' : 'showCode'] !== '0',
+      v => {
+        const key = v === 'preview' ? 'showPreview' : 'showCode';
+        setPaneVisibility(v, root.dataset[key] !== '0' ? '0' : '1');
+        rebuild();
+      });
+  });
+
+  cat('node', '节点', () => POS_NAMES_SHORT[state_node.pos] + '·' + labelOf(NMODES, state_node.mode, '仅字母'), body => {
+    /* 九宫格保留：方位靠空间布局表达，压成一行会丢掉这个直觉 */
+    body.appendChild(h('div', { class: 'menu-sec' }, '节点位置'));
+    const grid = h('div', { class: 'pos-grid' });
+    Object.keys(POS_NAMES).forEach(k => {
+      const b = h('button', {
+        class: (state_node.pos === k ? 'active' : '') + (k === 'auto' ? ' pos-auto' : ''),
+        title: POS_NAMES[k], 'aria-label': '节点位置：' + POS_NAMES[k],
+      }, POS_GLYPH[k]);
+      b.addEventListener('click', ev => {
+        ev.stopPropagation();
+        state_node.pos = k; localStorage.setItem('wdgui-node-pos', k);
+        rebuild(); renderGrid();
+      });
+      grid.appendChild(b);
+    });
+    body.appendChild(grid);
+    row(body, '显示模式', NMODES, () => state_node.mode, v => {
+      state_node.mode = v; localStorage.setItem('wdgui-node-mode', v); renderGrid();
+    });
+    row(body, '数据标签', LABELS, () => keepLabel ? 'on' : 'off', v => {
+      keepLabel = v === 'on'; localStorage.setItem('wdgui-keep-label', v);
+      if (!keepLabel) labelStash = null;
+    });
+    /* 比例/边距是连续值，保留并排滑块 */
+    const edgePos = NODE_POS_KEYS[state_node.pos][0] !== .5;
+    body.appendChild(h('div', { class: 'menu-sec' }, '比例与边距'));
+    const srow = h('div', { class: 'slider-duo' });
+    srow.appendChild(settingsSliderCell('比例', {
+      min: 50, max: 150, step: 5, value: Math.round(state_node.scale * 100),
+      fmt: v => v + '%', aria: '节点显示比例', title: '节点圆标的整体大小',
+      onInput: v => { state_node.scale = v / 100; localStorage.setItem('wdgui-node-scale', String(v / 100)); },
+    }));
+    srow.appendChild(settingsSliderCell('边距', {
+      min: 0, max: 9, step: 1, value: state_node.inset, dim: !edgePos,
+      fmt: v => v + 'p', aria: '靠边节点的横向内缩（px）',
+      title: edgePos
+        ? '小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头'
+        : '当前节点位置水平居中，边距不生效（选左/右类位置后可调）',
+      onInput: v => { state_node.inset = v; localStorage.setItem('wdgui-node-inset', String(v)); },
+    }));
+    body.appendChild(srow);
+  });
+
+  cat('brush', '笔刷', () => labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条'), body => {
+    row(body, '笔刷栏默认样式', BRUSH_DEFAULTS, () => state_brush.def, v => {
+      state_brush.def = v; localStorage.setItem('wdgui-brush-default', v);
+      state_brush.mode = v; renderBrushUI();
+    });
+  });
+}
+/* 设置菜单里的滑块单元格（比例 / 边距共用） */
+function settingsSliderCell(label, opts) {
+  const cell = h('div', { class: 'slider-cell' + (opts.dim ? ' dim' : '') });
+  cell.appendChild(h('div', { class: 'slider-cap' },
+    h('span', null, label),
+    h('span', { class: 'scale-val' }, opts.fmt(opts.value))));
+  const sl = h('input', {
+    type: 'range', min: String(opts.min), max: String(opts.max), step: String(opts.step),
+    value: String(opts.value), 'aria-label': opts.aria, title: opts.title,
+  });
+  if (opts.dim) sl.disabled = true;
+  const valEl = cell.querySelector('.scale-val');
+  const fill = () => sl.style.setProperty('--fill', ((+sl.value - opts.min) / (opts.max - opts.min) * 100) + '%');
+  fill();
+  sl.addEventListener('input', () => {
+    const v = +sl.value;
+    valEl.textContent = opts.fmt(v);
+    fill();
+    opts.onInput(v);
+    scheduleUpdate();
+  });
+  cell.appendChild(sl);
+  return cell;
 }
 function buildHelpMenu(menu) {
   menu.textContent = '';
