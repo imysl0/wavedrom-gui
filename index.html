@@ -200,7 +200,10 @@ svg { display: block; }
 .menu button .check { margin-left: auto; color: var(--acc-bright); }
 .menu .sep { height: 1px; background: var(--line-soft); margin: 5px 4px; }
 .menu .menu-tip { padding: 2px 10px 6px; font-size: 11px; color: var(--faint); }
-#m-settings .menu { min-width: 238px; }
+/* 设置菜单固定宽：fixed 定位脱离父容器后没有包含块约束，浏览器会按内容「偏好宽度」
+   撑开（节点类展开时会跳到 318px）。只给 min-width 挡不住，必须定死 width。
+   max-width 兜住极窄屏，box-sizing 让 padding 不额外撑宽。 */
+#m-settings .menu { width: 238px; max-width: calc(100vw - 16px); box-sizing: border-box; }
 .menu-sec { font-size: 11px; font-weight: 600; color: var(--faint); padding: 7px 10px 3px; letter-spacing: .04em; }
 .menu .drawer-back { font-weight: 600; color: var(--acc-text); }
 .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 2px 8px 4px; }
