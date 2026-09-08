@@ -3594,7 +3594,7 @@ function paintCell(lane, t, glyph) {
     if (isData(glyph)) {
       if (carried !== undefined && carried !== null) slot.label = carried;
       if (labelStash && labelStash.laneId === lane.id && labelStash.t === t) labelStash = null;
-    } else if ((isUnknown(glyph) || isCont) && carried !== undefined && carried !== null && (isSelectedCell(lane.id, t) || isActiveDragCell(lane.id, t))) {
+    } else if ((isUnknown(glyph) || isCont) && carried !== undefined && carried !== null && (isSelectedCell(lane.id, t) || isActiveDragCell(lane.id, t) || isWheelCell(lane.id, t))) {
       labelStash = { laneId: lane.id, t, label: carried };
     } else if (!isUnknown(glyph) && !isCont && labelStash && labelStash.laneId === lane.id && labelStash.t === t) {
       labelStash = null;
@@ -3616,6 +3616,13 @@ function isSelectedCell(laneId, t) {
    不限定 t === dragLastT：右移后回头改左侧列时该格仍是被变换格，同样要暂存。 */
 function isActiveDragCell(laneId, t) {
   return painting && paintLane === laneId;
+}
+/* 该格是否正被滚轮就地变换：滚轮允许在无选中格时悬停触发，此时该格既不是选中格
+   也不是拖动格，若不认它，bus 下变换（→x）标签会当场丢失，与自动模式/开着面板时
+   的表现不一致。滚轮处理期间置位，处理完即清。 */
+let wheelCell = null; // { laneId, t }
+function isWheelCell(laneId, t) {
+  return wheelCell !== null && wheelCell.laneId === laneId && wheelCell.t === t;
 }
 /* 选中格变化 / 关闭面板时作废暂存标签 */
 function dropLabelStash(laneId, t) {
@@ -4280,7 +4287,12 @@ function bindGrid() {
     const base = baseGlyphAt(lane, cT);
     const next = ev.deltaY < 0 ? cellUp(base) : cellDown(base);
     commitTag = 'wheel';
+    /* 无选中格时滚轮也能悬停变换，此时把该格标记为「正在滚轮变换」，
+       让 paintCell 的标签暂存认得它；换格滚动则先作废上一格的暂存。 */
+    dropLabelStash(cLane, cT);
+    wheelCell = { laneId: cLane, t: cT };
     paintCell(lane, cT, next); // 就地变换，不触发 advanceChain（滚轮是微调手势，不右移）
+    wheelCell = null;
     if (onChainSel) restoreChainSelHighlight(); // paintCell 重建 DOM，重贴当前格高亮
     if (onPopCell) reopenPopAt(lane, cT); // 选中格滚轮重开面板；悬停切换不弹面板
     else if (onChainSel && $('#cellPop').classList.contains('open')) reopenPopAtChainSel();
