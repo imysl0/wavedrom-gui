@@ -1082,8 +1082,6 @@ html[data-mobile] {
   .topbar > * { flex: none; }
   .topbar .spacer { flex: 1 1 0; min-width: 0; }
   /* 手机顶栏精简：只留 ☰、品牌+版本、设置/导入/导出（靠右）；其余收进 ☰ 菜单 */
-  .topbar > #m-examples, .topbar > #m-help,
-  .topbar > .btn[data-act="open-about"] { display: none; }
   .topbar #m-settings { order: 3; } .topbar #m-import { order: 4; } .topbar #m-export { order: 5; }
   .topbar .spacer { order: 2; }
   #m-drawer { order: 0; } .brand { order: 1; }
@@ -1188,13 +1186,11 @@ html[data-mobile] {
     <div class="name"><b><span class="bn-gui">WaveDrom-Gui</span><span class="bn-phone">Wave</span></b></div>
     <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip">说不定有新版了，快点击去仓库首页看看吧！</span></button>
   </div>
-  <div class="menu-wrap" id="m-examples">
-    <button class="btn ghost" aria-haspopup="true">示例 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
-    <div class="menu"></div>
-  </div>
   <div class="menu-wrap" id="m-import">
     <button class="btn ghost" aria-haspopup="true">导入 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu">
+      <button data-act="open-examples"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/></svg>导入示例<span class="rc" style="margin-left:auto;opacity:.45">›</span></button>
+      <div class="sep"></div>
       <button data-act="import-file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg>打开文件（JSON / SVG / PNG）…</button>
       <button data-act="import-paste"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="9" height="10" rx="1.5"/><path d="M11 4V3a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 3 3v8A1.5 1.5 0 0 0 4.5 12.5H5"/></svg>粘贴 WaveJSON…</button>
       <div class="menu-tip">也可把文件直接拖进窗口</div>
@@ -1206,13 +1202,6 @@ html[data-mobile] {
     <button class="btn ghost" aria-haspopup="true">设置 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu"></div>
   </div>
-  <div class="menu-wrap" id="m-help">
-    <button class="btn ghost" aria-haspopup="true">帮助 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
-    <div class="menu"></div>
-  </div>
-  <button class="btn ghost" data-act="open-about" title="关于本项目">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/></svg>关于
-  </button>
   <div class="spacer"></div>
   <div class="menu-wrap" id="m-export">
     <button class="btn" aria-haspopup="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8m0 0 3-3m-3 3L5 7"/><path d="M2.5 11.5v1A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>导出 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
@@ -4740,6 +4729,35 @@ const POS_NAMES_SHORT = {
 const POS_GLYPH = { lt: '↖', tm: '↑', rt: '↗', lm: '←', auto: '自动', rm: '→', lb: '↙', bm: '↓', rb: '↘' };
 /* 当前展开的大类（手风琴，同时只开一类）；null = 全部收起 */
 let settingsCatOpen = 'look';
+/* 示例二级弹层：由「导入 › 导入示例」唤出，复用设置菜单的二级弹层样式。
+   示例条目较多，做成弹层可避免把导入菜单撑得很长。 */
+function openExamplePop(anchorEl) {
+  closeSetPop();
+  const pop = h('div', { id: 'setPop' });
+  const add = (label, onPick, tut) => {
+    const b = h('button', { title: label }, icon('<path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/>', 13), label);
+    b.addEventListener('click', ev => { ev.stopPropagation(); closeSetPop(); closeMenus(); onPick(); });
+    pop.appendChild(b);
+  };
+  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(ex.name, () => loadExample(i)); });
+  pop.appendChild(h('div', { class: 'sep' }));
+  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(ex.name, () => loadExample(i)); });
+  pop.appendChild(h('div', { class: 'sep' }));
+  const clr = h('button', null, icon(IC.trash, 13), '空白文档');
+  clr.addEventListener('click', ev => {
+    ev.stopPropagation(); closeSetPop(); closeMenus();
+    adoptState(parseDoc({ signal: [] })); syncSettings(); update(true); toast('已新建空白文档');
+  });
+  pop.appendChild(clr);
+  document.body.appendChild(pop);
+  pop.classList.add('on');
+  const r = anchorEl.getBoundingClientRect(), pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = r.right + 6;
+  if (left + pw > window.innerWidth - 8) left = Math.max(8, r.left - pw - 6);
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(8, Math.min(r.top - 4, window.innerHeight - ph - 8)) + 'px';
+  setPopEl = pop;
+}
 /* 设置菜单：四大类折叠 + N选1 压成单行（点行右侧弹二级列表选择）。
    九宫格与双滑块保持原样——前者靠空间布局表达方位，后者是连续值，压成一行反而更难用。 */
 let setPopEl = null;
@@ -4888,6 +4906,21 @@ function buildSettingsMenu(menu) {
       state_brush.mode = v; renderBrushUI();
     });
   });
+
+  /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
+  cat('help', '帮助与关于', () => '', body => {
+    const act = (label, iconPath, onPick) => {
+      const b = h('button', { class: 'set-row', title: label }, icon(iconPath, 13), h('span', null, label));
+      b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); onPick(); });
+      body.appendChild(b);
+    };
+    act('快捷键', '<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>',
+      () => handleAct('open-shortcut'));
+    act('WaveDrom 语法教程', '<path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/>',
+      () => handleAct('open-tutorial'));
+    act('关于', '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/>',
+      () => handleAct('open-about'));
+  });
 }
 /* 设置菜单里的滑块单元格（比例 / 边距共用） */
 function settingsSliderCell(label, opts) {
@@ -4933,7 +4966,7 @@ function positionMenu(wrap, menu) {
   menu.style.right = 'auto';
 }
 function bindMenus() {
-  [['#m-examples', buildExampleMenu], ['#m-import', null], ['#m-export', null], ['#m-settings', buildSettingsMenu], ['#m-help', buildHelpMenu]].forEach(([sel, builder]) => {
+  [['#m-import', null], ['#m-export', null], ['#m-settings', buildSettingsMenu]].forEach(([sel, builder]) => {
     const wrap = $(sel);
     const btn = wrap.querySelector(':scope > button');
     const menu = wrap.querySelector(':scope > .menu');
@@ -4952,7 +4985,14 @@ function bindMenus() {
   document.addEventListener('click', ev => { if (!ev.target.closest('.menu-wrap')) closeMenus(); });
   window.addEventListener('scroll', closeMenus, true); // 任意容器滚动（含顶栏横滑）即关闭菜单
   window.addEventListener('resize', closeMenus);
-  document.querySelectorAll('.menu [data-act]').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); handleAct(b.dataset.act); }));
+  /* 菜单内的动作项：默认点完即关菜单；带二级弹层的项（如「导入示例」）要保留宿主菜单，
+     否则 closeMenus 会连同刚弹出的二级层一起收掉，且需要把按钮传给 handleAct 作锚点。 */
+  const KEEP_MENU_ACTS = ['open-examples'];
+  document.querySelectorAll('.menu [data-act]').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    if (!KEEP_MENU_ACTS.includes(b.dataset.act)) closeMenus();
+    handleAct(b.dataset.act, b);
+  }));
 }
 function buildExampleMenu(menu) {
   menu.textContent = '';
@@ -5443,6 +5483,7 @@ function handleAct(act, btn) {
     }
     case 'open-tutorial': window.open('https://wavedrom.com/tutorial.html', '_blank'); break;
     case 'open-about': $('#aboutMask').classList.add('open'); break;
+    case 'open-examples': openExamplePop(btn); break;
     case 'about-close': $('#aboutMask').classList.remove('open'); break;
     case 'about-repo': window.open('https://cnb.cool/linshi-2026/wavedrom-gui', '_blank'); break;
     case 'open-shortcut': $('#shortcutMask').classList.add('open'); break;
