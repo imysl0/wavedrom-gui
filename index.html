@@ -211,6 +211,18 @@ svg { display: block; }
 .pos-grid button { width: auto; padding: 0; justify-content: center; height: 30px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); color: var(--muted); font-size: 14px; }
 .pos-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
 .pos-grid button.active { border-color: var(--acc); background: var(--acc-veil); color: var(--acc-text); }
+/* 文字选项多列网格：与 .pos-grid 同一套视觉（选中＝描边+底色，不再用右侧对勾） */
+.opt-grid { display: grid; gap: 4px; padding: 2px 8px 4px; }
+.opt-grid.c2 { grid-template-columns: repeat(2, 1fr); }
+.opt-grid.c3 { grid-template-columns: repeat(3, 1fr); }
+.opt-grid button {
+  width: auto; padding: 0 4px; justify-content: center; min-height: 30px;
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--panel-2); color: var(--muted);
+  font-size: 12px; line-height: 1.25; text-align: center; white-space: normal;
+}
+.opt-grid button:hover { border-color: var(--acc); color: var(--text); background: var(--panel-2); }
+.opt-grid button.active { border-color: var(--acc); background: var(--acc-veil); color: var(--acc-text); }
 .scale-row { display: flex; align-items: center; gap: 8px; padding: 2px 10px 8px; }
 .scale-row input[type="range"] {
   flex: 1; min-width: 0; height: 18px;
@@ -4552,6 +4564,22 @@ function buildFontMenu(menu) {
   menu.appendChild(mkItem('data', 'plex', 'JetBrains Mono', 'JetBrains Mono'));
   menu.appendChild(mkItem('data', 'system', '系统字体', 'system-ui'));
 }
+/* 菜单里的互斥选项：多列方格（与节点位置九宫格同一套视觉），
+   选中态用描边+底色表达，省掉右侧对勾，横向排布更紧凑也更好扫。
+   items 每项为 [值, 按钮文字, 可选的完整说明（用作 title/aria）]。
+   仅用于单选；各自独立的开关仍用行式列表 + 对勾，避免误解成只能选一个。 */
+function menuOptGrid(menu, cols, items, isActive, onPick) {
+  const g = h('div', { class: 'opt-grid c' + cols });
+  items.forEach(([v, label, tip]) => {
+    const b = h('button', {
+      class: isActive(v) ? 'active' : '', title: tip || label, 'aria-label': tip || label,
+    }, label);
+    b.addEventListener('click', ev => { ev.stopPropagation(); onPick(v); });
+    g.appendChild(b);
+  });
+  menu.appendChild(g);
+  return g;
+}
 function buildViewMenu(menu) {
   menu.textContent = '';
   const root = document.documentElement;
@@ -4570,13 +4598,16 @@ function buildViewMenu(menu) {
     });
     menu.appendChild(b);
   };
+  /* 互斥选项走多列网格；下面「窗口显示」是各自独立的开关，保持可勾选的行式列表 */
+  const optGrid = (cols, items, isActive, onPick) =>
+    menuOptGrid(menu, cols, items, isActive, v => { onPick(v); closeMenus(); });
   menu.appendChild(h('div', { class: 'menu-sec' }, '视图模式'));
-  addItem('自动（按屏宽判断）', viewMode() === 'auto', () => setViewModePref('auto'));
-  addItem('简约模式（固定手机版）', viewMode() === 'simple', () => setViewModePref('simple'));
+  optGrid(2, [['auto', '自动', '自动：按屏宽判断桌面/手机布局'], ['simple', '简约模式', '简约模式：固定使用手机版布局']],
+    v => viewMode() === v, v => setViewModePref(v));
   menu.appendChild(h('div', { class: 'sep' }));
   menu.appendChild(h('div', { class: 'menu-sec' }, '布局方向'));
-  addItem('预览在右侧', root.dataset.view === 'side', () => setViewMode('side'));
-  addItem('预览在下方', root.dataset.view === 'below', () => setViewMode('below'));
+  optGrid(2, [['side', '预览在右侧'], ['below', '预览在下方']],
+    v => root.dataset.view === v, v => setViewMode(v));
   menu.appendChild(h('div', { class: 'sep' }));
   menu.appendChild(h('div', { class: 'menu-sec' }, '窗口显示'));
   addItem('显示实时预览', root.dataset.showPreview !== '0', () => setPaneVisibility('preview', root.dataset.showPreview !== '0' ? '0' : '1'));
@@ -4635,43 +4666,21 @@ function buildSettingsMenu(menu) {
     grid.appendChild(b);
   });
   menu.appendChild(grid);
+  /* 文字选项统一走多列网格（与上面的节点位置九宫格同一套视觉） */
+  const optGrid = (cols, items, isActive, onPick) => menuOptGrid(menu, cols, items, isActive, onPick);
   sec('节点显示模式');
-  [['letter', '字母序号'], ['dot', '点']].forEach(([v, label]) => {
-    const active = state_node.mode === v;
-    const b = h('button', { class: active ? 'active' : '', 'aria-label': '节点显示模式：' + label });
-    b.appendChild(h('span', null, label));
-    if (active) {
-      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
-      ck.style.marginLeft = 'auto'; ck.style.color = 'var(--acc)';
-      b.appendChild(ck);
-    }
-    b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      state_node.mode = v;
-      localStorage.setItem('wdgui-node-mode', v);
-      buildSettingsMenu(menu);
-      renderGrid();
-    });
-    menu.appendChild(b);
+  optGrid(2, [['letter', '字母序号'], ['dot', '点']], v => state_node.mode === v, v => {
+    state_node.mode = v;
+    localStorage.setItem('wdgui-node-mode', v);
+    buildSettingsMenu(menu);
+    renderGrid();
   });
   sec('数据标签');
-  [['on', '标签保持'], ['off', '换字符即清除']].forEach(([v, label]) => {
-    const active = (keepLabel ? 'on' : 'off') === v;
-    const b = h('button', { class: active ? 'active' : '', 'aria-label': '数据标签：' + label });
-    b.appendChild(h('span', null, label));
-    if (active) {
-      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
-      ck.style.marginLeft = 'auto'; ck.style.color = 'var(--acc)';
-      b.appendChild(ck);
-    }
-    b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      keepLabel = v === 'on';
-      localStorage.setItem('wdgui-keep-label', v);
-      if (!keepLabel) labelStash = null;
-      buildSettingsMenu(menu);
-    });
-    menu.appendChild(b);
+  optGrid(2, [['on', '标签保持'], ['off', '换字符即清除']], v => (keepLabel ? 'on' : 'off') === v, v => {
+    keepLabel = v === 'on';
+    localStorage.setItem('wdgui-keep-label', v);
+    if (!keepLabel) labelStash = null;
+    buildSettingsMenu(menu);
   });
   sec('节点比例');
   const srow = h('div', { class: 'scale-row' });
@@ -4691,24 +4700,12 @@ function buildSettingsMenu(menu) {
   srow.appendChild(val);
   menu.appendChild(srow);
   sec('笔刷栏默认样式');
-  BRUSH_DEFAULTS.forEach(([v, label]) => {
-    const active = state_brush.def === v;
-    const b = h('button', { class: active ? 'active' : '', 'aria-label': '笔刷栏默认样式：' + label });
-    b.appendChild(h('span', null, label));
-    if (active) {
-      const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12);
-      ck.style.marginLeft = 'auto'; ck.style.color = 'var(--acc)';
-      b.appendChild(ck);
-    }
-    b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      state_brush.def = v;
-      localStorage.setItem('wdgui-brush-default', v);
-      state_brush.mode = v;
-      renderBrushUI();
-      buildSettingsMenu(menu);
-    });
-    menu.appendChild(b);
+  optGrid(3, BRUSH_DEFAULTS, v => state_brush.def === v, v => {
+    state_brush.def = v;
+    localStorage.setItem('wdgui-brush-default', v);
+    state_brush.mode = v;
+    renderBrushUI();
+    buildSettingsMenu(menu);
   });
 }
 function buildHelpMenu(menu) {
