@@ -60,7 +60,7 @@ Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks and i
 
 ## Credits
 
-- [WaveDrom](https://wavedrom.com/) — the official rendering engine and skins
+- [WaveDrom](https://wavedrom.com/) — the official rendering engine, skins and examples
 - [LXGW WenKai](https://github.com/lxgw/LxgwWenKai) — default UI and code font
 - [npmmirror](https://npmmirror.com/) — font CDN slices
 - The entire codebase was written in collaboration with AI: GLM-5.3-flash, Qwen3.8-max, deepseek-v4-flash-exp, mimo-v25-pro, claude-opus-4.8

@@ -2936,38 +2936,61 @@ function renderMiniEdges() {
     p.setAttribute('fill', col); p.setAttribute('opacity', .9);
     svg.appendChild(p);
   };
+  /* 同对节点的多条边错开：直线沿法线扇开（A）、曲线拱高递增（C）、标签沿路径错位（D） */
+  /* 组键 = 无序节点对 + 形状类别（直线类/曲线类各自编号：两类天然不同路径，无需互相错开） */
+  const pairKey = e => (e.from < e.to ? e.from + '~' + e.to : e.to + '~' + e.from) + (e.spec.includes('~') ? '#c' : '#l');
+  const groupTotal = new Map(), groupSeen = new Map();
+  state.edges.forEach(e => { const k = pairKey(e); groupTotal.set(k, (groupTotal.get(k) || 0) + 1); });
   for (const e of state.edges) {
     const pa = pos(e.from), pb = pos(e.to);
     if (!pa || !pb) continue;
     const spec = e.spec;
+    const gk = pairKey(e);
+    const gIdx = groupSeen.get(gk) || 0;
+    groupSeen.set(gk, gIdx + 1);
+    const gTotal = groupTotal.get(gk) || 1;
+    const isCurve = spec.includes('~');
+    /* A：直线类（含正交折线）整条沿连线法线平移，段方向不变，箭头指向不受影响 */
+    let A = pa, B = pb;
+    if (gTotal > 1 && !isCurve) {
+      const ddx = pb.x - pa.x, ddy = pb.y - pa.y, dlen = Math.hypot(ddx, ddy) || 1;
+      const off = (gIdx - (gTotal - 1) / 2) * 7;
+      const nx = -ddy / dlen, ny = ddx / dlen;
+      A = { x: pa.x + nx * off, y: pa.y + ny * off };
+      B = { x: pb.x + nx * off, y: pb.y + ny * off };
+    }
     const segs = [];        // 正交/斜线路径段
     const heads = [];       // [x, y, dx, dy] 箭头
     const dots = [];
     const r = 9;
     if (spec === '+') {
       // 两端圆点 + 连接线
-      const dx = pb.x - pa.x, dy = pb.y - pa.y;
+      const dx = B.x - A.x, dy = B.y - A.y;
       const dist = Math.hypot(dx, dy) || 1;
       const ux = dx / dist, uy = dy / dist;
-      segs.push([[pa.x + ux * r, pa.y + uy * r], [pb.x - ux * r, pb.y - uy * r]]);
-      dots.push(pa, pb);
+      segs.push([[A.x + ux * r, A.y + uy * r], [B.x - ux * r, B.y - uy * r]]);
+      dots.push(A, B);
     } else if (spec.includes('|')) {
-      // 官方正交走线：| 靠近终点 → 水平后垂直进入；| 在开头 → 垂直后水平；-|- → Z 形
-      const lead = spec.startsWith('|');
-      const dx = pb.x - pa.x, sx = pa.x, ex = pb.x, sy = pa.y, ey = pb.y;
+      // 官方正交走线（对齐 arc-shape）：'|-' 竖直后水平、'-|' 水平后竖直、
+      // '-|-'（含 -|-> / <-|> / <-|->）为 Z 形——半程水平 + 竖直 + 半程水平，
+      // 竖直段落在中点而非终点，避免与以终点为折点的边（如 |->）重叠
+      /* 形状按官方 case 表显式判定：<-|> 也是 Z 形（剥箭头字符后会误判成 -|） */
+      const isZ = spec === '-|-' || spec === '-|->' || spec === '<-|>' || spec === '<-|->';
+      const lead = spec === '|-' || spec === '|->';
+      const dx = B.x - A.x, sx = A.x, ex = B.x, sy = A.y, ey = B.y;
       const dyv = ey > sy ? 1 : -1;
       if (lead) {
         segs.push([[sx, sy - r], [sx, ey]]);
         segs.push([[sx, ey], [ex - dx > 0 ? ex : ex, ey]]);
         if (spec.endsWith('>')) heads.push([ex - r, ey, 1, 0]);
         if (spec.startsWith('<')) heads.push([sx, sy - r, 0, -dyv]);
-      } else if ((spec.match(/\|/g) || []).length >= 2 && !spec.endsWith('|')) {
+      } else if (isZ) {
         const mx = (sx + ex) / 2;
         segs.push([[sx, sy], [mx, sy]]);
         segs.push([[mx, sy], [mx, ey]]);
         segs.push([[mx, ey], [ex, ey]]);
         if (spec.endsWith('>')) heads.push([ex - r, ey, 1, 0]);
-        if (spec.startsWith('<')) heads.push([sx + r, sy, -1, 0]);
+        if (spec.startsWith('<') || spec === '-|->') heads.push([sx + r, sy, -1, 0]); // 官方 -|-> 亦为双向
       } else {
         segs.push([[sx, sy], [ex, sy]]);
         segs.push([[ex, sy], [ex, ey]]);
@@ -2976,19 +2999,32 @@ function renderMiniEdges() {
         if (spec.startsWith('<')) heads.push([sx, sy + (sy < ey ? -r : r), 0, sy < ey ? -1 : 1]);
       }
     } else {
-      const dx = pb.x - pa.x, dy = pb.y - pa.y;
+      const dx = B.x - A.x, dy = B.y - A.y;
       const dist = Math.hypot(dx, dy) || 1;
       const ux = dx / dist, uy = dy / dist;
-      const ax = pa.x + ux * r, ay = pa.y + uy * r;
-      const bx = pb.x - ux * r, by = pb.y - uy * r;
-      if (spec.includes('~')) {
-        const cx = (ax + bx) / 2 - uy * Math.min(26, dist * .22);
-        const cy = (ay + by) / 2 + ux * Math.min(26, dist * .22);
-        segs.push([['Q', ax, ay, cx, cy, bx, by]]);
-        let ex = bx - cx, ey2 = by - cy; const el = Math.hypot(ex, ey2) || 1;
-        if (spec.endsWith('>')) heads.push([bx, by, ex / el, ey2 / el]);
-        let sx2 = ax - cx, sy2 = ay - cy; const sl = Math.hypot(sx2, sy2) || 1;
-        if (spec.startsWith('<')) heads.push([ax, ay, sx2 / sl, sy2 / sl]);
+      const ax = A.x + ux * r, ay = A.y + uy * r;
+      const bx = B.x - ux * r, by = B.y - uy * r;
+      if (isCurve) {
+        /* 对齐官方 arc-shape 的三次贝塞尔：~ 两端水平进出；-~ 起点水平、终点斜入；
+           ~- 起点斜出、终点水平。同组多条再沿法线整体偏移，保持官方形状的同时扇开。 */
+        const ccore = spec.replace(/^</, '').replace(/>$/, '');
+        const cdx = bx - ax, cdy = by - ay;
+        let c1x, c1y, c2x, c2y;
+        if (ccore === '-~') { c1x = ax + .7 * cdx; c1y = ay; c2x = bx; c2y = by; }
+        else if (ccore === '~-') { c1x = ax; c1y = ay; c2x = ax + .3 * cdx; c2y = ay + cdy; }
+        else { c1x = ax + .7 * cdx; c1y = ay; c2x = ax + .3 * cdx; c2y = ay + cdy; }
+        if (gTotal > 1) {
+          const cl = Math.hypot(cdx, cdy) || 1;
+          const off = (gIdx - (gTotal - 1) / 2) * 9;
+          const cnx = -cdy / cl, cny = cdx / cl;
+          c1x += cnx * off; c1y += cny * off; c2x += cnx * off; c2y += cny * off;
+        }
+        segs.push([['C', ax, ay, c1x, c1y, c2x, c2y, bx, by]]);
+        const norm = (vx, vy) => { const l = Math.hypot(vx, vy) || 1; return [vx / l, vy / l]; };
+        let [hex, hey] = Math.hypot(bx - c2x, by - c2y) < .5 ? norm(bx - c1x, by - c1y) : norm(bx - c2x, by - c2y);
+        if (spec.endsWith('>')) heads.push([bx, by, hex, hey]);
+        let [hgx, hgy] = Math.hypot(ax - c1x, ay - c1y) < .5 ? norm(ax - c2x, ay - c2y) : norm(ax - c1x, ay - c1y);
+        if (spec.startsWith('<')) heads.push([ax, ay, hgx, hgy]);
       } else {
         segs.push([[ax, ay], [bx, by]]);
         if (spec.endsWith('>')) heads.push([bx, by, ux, uy]);
@@ -2997,9 +3033,12 @@ function renderMiniEdges() {
     }
     for (const sg of segs) {
       const path = document.createElementNS(NS, 'path');
-      path.setAttribute('d', sg[0][0] === 'Q'
+      const sg0 = sg[0][0];
+      path.setAttribute('d', sg0 === 'Q'
         ? `M${sg[0][1]} ${sg[0][2]}Q${sg[0][3]} ${sg[0][4]} ${sg[0][5]} ${sg[0][6]}`
-        : `M${sg[0][0]} ${sg[0][1]}L${sg[1][0]} ${sg[1][1]}`);
+        : sg0 === 'C'
+          ? `M${sg[0][1]} ${sg[0][2]}C${sg[0][3]} ${sg[0][4]} ${sg[0][5]} ${sg[0][6]} ${sg[0][7]} ${sg[0][8]}`
+          : `M${sg[0][0]} ${sg[0][1]}L${sg[1][0]} ${sg[1][1]}`);
       path.setAttribute('fill', 'none');
       path.setAttribute('stroke', col);
       path.setAttribute('stroke-width', 1.4);
@@ -3014,23 +3053,33 @@ function renderMiniEdges() {
       svg.appendChild(c);
     }
     if (e.label) {
+      /* D：同组标签沿路径错位（0.5 / 0.32 / 0.68 / 0.22 / 0.78 轮换），避免互相压 */
+      const lt = gTotal > 1 ? [0.5, 0.32, 0.68, 0.22, 0.78][gIdx % 5] : 0.5;
       let lp = null;
       if (!segs.length && dots.length === 2) {
-        lp = [(dots[0].x + dots[1].x) / 2, Math.min(dots[0].y, dots[1].y) - 6, 'middle'];
-      } else if (segs.length === 1 && segs[0][0][0] === 'Q') {
-        const [, ax, ay, cx2, cy2, bx, by] = segs[0][0];
-        lp = [(ax + 2 * cx2 + bx) / 4, (ay + 2 * cy2 + by) / 4 - 5, 'middle'];
+        lp = [dots[0].x + (dots[1].x - dots[0].x) * lt, dots[0].y + (dots[1].y - dots[0].y) * lt - 6, 'middle'];
+      } else if (segs.length === 1 && segs[0][0][0] === 'C') {
+        /* 官方标签 x：~ 中点、-~ 0.75、~- 0.25；同组多条再错开 */
+        const [, cax, cay, , , , , cbx, cby] = segs[0][0];
+        const ccoreL = spec.replace(/^</, '').replace(/>$/, '');
+        let fx = ccoreL === '-~' ? .75 : ccoreL === '~-' ? .25 : .5;
+        if (gTotal > 1) fx = Math.max(.15, Math.min(.85, fx + (gIdx - (gTotal - 1) / 2) * .18));
+        lp = [cax + (cbx - cax) * fx, (cay + cby) / 2 - 5, 'middle'];
       } else if (segs.length === 1) {
-        lp = [(segs[0][0][0] + segs[0][1][0]) / 2, (segs[0][0][1] + segs[0][1][1]) / 2 - 5, 'middle'];
+        lp = [segs[0][0][0] + (segs[0][1][0] - segs[0][0][0]) * lt,
+              segs[0][0][1] + (segs[0][1][1] - segs[0][0][1]) * lt - 5, 'middle'];
       } else {
-        let best = null, bl = -1;
-        segs.forEach(sg => {
+        /* 折线：按总长比例取点 */
+        let segLen = 0; segs.forEach(sg => { segLen += Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]); });
+        let want = segLen * lt, acc = 0, pt = null, segDir = null;
+        for (const sg of segs) {
           const l = Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]);
-          if (l > bl) { bl = l; best = sg; }
-        });
-        if (best) {
-          const mx2 = (best[0][0] + best[1][0]) / 2, my2 = (best[0][1] + best[1][1]) / 2;
-          lp = best[0][1] === best[1][1] ? [mx2, my2 - 5, 'middle'] : [mx2 + 7, my2, 'start'];
+          if (acc + l >= want) { const f = l ? (want - acc) / l : 0; pt = [sg[0][0] + (sg[1][0] - sg[0][0]) * f, sg[0][1] + (sg[1][1] - sg[0][1]) * f]; segDir = sg; break; }
+          acc += l;
+        }
+        if (pt) {
+          const horiz = segDir && segDir[0][1] === segDir[1][1];
+          lp = horiz ? [pt[0], pt[1] - 5, 'middle'] : [pt[0] + 7, pt[1], 'start'];
         }
       }
       if (lp) {
@@ -4767,14 +4816,16 @@ let settingsCatOpen = 'look';
 function openExamplePop(anchorEl) {
   closeSetPop();
   const pop = h('div', { id: 'setPop' });
-  const add = (label, onPick, tut) => {
+  /* 列表标签：0 起的序号 + 波形名称（剥掉名称里的 "Step N · " 前缀） */
+  const exLabel = (ex, i) => i + ' ' + i18n(ex.name).replace(/^Step \d+ · /, '');
+  const add = (label, onPick) => {
     const b = h('button', { title: label }, icon('<path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/>', 13), label);
     b.addEventListener('click', ev => { ev.stopPropagation(); closeSetPop(); closeMenus(); onPick(); });
     pop.appendChild(b);
   };
-  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(i18n(ex.name), () => loadExample(i)); });
+  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(exLabel(ex, i), () => loadExample(i)); });
   pop.appendChild(h('div', { class: 'sep' }));
-  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(i18n(ex.name), () => loadExample(i)); });
+  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(exLabel(ex, i), () => loadExample(i)); });
   pop.appendChild(h('div', { class: 'sep' }));
   const clr = h('button', null, icon(IC.trash, 13), i18n('空白文档'));
   clr.addEventListener('click', ev => {

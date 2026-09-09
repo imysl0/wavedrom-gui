@@ -60,7 +60,7 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 
 ## 致谢
 
-- [WaveDrom](https://wavedrom.com/) —— 官方渲染引擎与皮肤
+- [WaveDrom](https://wavedrom.com/) —— 官方渲染引擎、皮肤与示例
 - [霞鹜文楷 LXGW WenKai](https://github.com/lxgw/LxgwWenKai) —— 默认界面与代码字体
 - [npmmirror](https://npmmirror.com/) —— 字体 CDN 分片直连
 - 本仓库代码完全由 AI 协作完成：GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8
