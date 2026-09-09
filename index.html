@@ -229,7 +229,7 @@ svg { display: block; }
 .menu button:hover { background: rgba(120,150,200,.14); }
 .menu button svg { color: var(--muted); flex: none; }
 .menu button .kbd { margin-left: auto; font: 10px var(--font-mono); color: var(--faint); }
-.menu button .check { margin-left: auto; color: var(--acc-bright); }
+.menu button .check { margin-left: auto; color: var(--acc-text); }
 .menu .sep { height: 1px; background: var(--line-soft); margin: 5px 4px; }
 .menu .menu-tip { padding: 2px 10px 6px; font-size: 11px; color: var(--faint); }
 /* 设置菜单固定宽：fixed 定位脱离父容器后没有包含块约束，浏览器会按内容「偏好宽度」
@@ -1431,7 +1431,7 @@ const I18N_EN = {
   '先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。': 'Place nodes via the cell popup first, then connect arrows between two of them.',
   '＋添加箭头': '+ Add arrow',
   /* 状态面板与单元格弹窗 */
-  '延续 (.)': 'Hold (.)', '当前：': 'Now: ', '标签': 'Label', '数据标签': 'Labels',
+  '延续 (.)': 'Hold (.)', '当前：': 'Now: ', '标签': 'Label',
   '⊕ 节点': '⊕ Node', '清除本格': 'Erase cell',
   /* 更多操作菜单 */
   '更多操作': 'More', '复制通道': 'Duplicate', '移入上方最近的分组': 'Move into nearest group above',
@@ -1506,7 +1506,7 @@ const I18N_EN = {
   '添加分组，把相邻通道收进组里': 'Add a group to wrap adjacent lanes',
   '显示通道与分组面板': 'Show lanes & groups panel', '隐藏通道与分组面板': 'Hide lanes & groups panel',
   '显示或隐藏通道与分组面板': 'Show or hide the lanes & groups panel',
-  '操作说明': 'Help', '网格拍数增减': 'Cycle count',
+  '操作说明': 'Help',
   '当前版本 dev，点击打开仓库首页': 'Version dev — click to open the repo',
   '当前版本 ': 'Version ', '，点击打开仓库首页': ' — click to open the repo', 'phase 相位': 'phase',
   '说不定有新版了，快点击去仓库首页看看吧！': 'Maybe a new version is out — click to visit the repo!',
@@ -1514,7 +1514,7 @@ const I18N_EN = {
   '支持 PNG / SVG / JSON（PNG、SVG 需带内嵌 WaveJSON）': 'PNG / SVG / JSON (PNG & SVG must embed WaveJSON)',
   '清除（右键单击单元格即可）': 'Erase (right-click a cell works too)',
   '延续（.）—— 让上一拍的状态再延续一拍': 'Hold (.) — extend the previous cycle one more',
-  '笔刷：': 'Brush: ', '笔刷组': ' brush set', '笔刷': 'Brush',
+  '笔刷：': 'Brush: ', '笔刷组': ' brush set',
   '显示/隐藏名称列操作按钮（拖拽·更多·删除）': 'Toggle name-column actions (drag · more · delete)',
   '关闭边与箭头': 'Close edges', '关闭图表设置': 'Close chart settings',
   '行内小工具：总是显示（点击改为悬停显示）': 'Inline tools: always on (click to switch to hover)',
@@ -1551,19 +1551,18 @@ const I18N_EN = {
   '已钉住：选择笔刷后弹层保持（点击改回自动收起）': 'Pinned: the flyout stays open after picking a brush (click to unpin)',
   '选择笔刷后自动收起（点击钉住弹层）': 'Flyout auto-closes after picking a brush (click to pin)',
   '笔刷面板': 'Brush panel',
-  '恢复横向弹窗条': 'Back to compact bar', '恢复右纵条': 'Back to right column', '折叠为右纵条': 'Fold to right column',
+  '恢复横向弹窗条': 'Back to compact bar', '恢复右纵条': 'Back to right column',
   '笔刷（悬停或点击展示面板）': 'Brushes (hover or click to open)',
   '延续第 ': 'Hold of cycle ', ' 拍 · ': ' · ', '非波形末尾的延续格无内容可清除': 'Hold cells before the waveform end have nothing to erase',
   '已清除第 ': 'Cleared cycle ', '该拍现延续第 ': 'now holds cycle ', ' 拍': '', '该拍变为延续': 'now a hold',
   '展开状态字符': 'Expand state glyphs', '折叠状态字符': 'Collapse state glyphs',
   '填充：': 'Fill: ', '自动·跟随通道': 'Auto · follow lane', '（官方填充）': ' (official fill)',
   '官方填充色（写入 wave 数字槽位，官方完全识别）': 'Official fill colors (written as wave digits, fully recognized by WaveDrom)',
-  '节点标记': 'Node mark', '移除': 'Remove', '⊕ 放置节点': '⊕ Place node', '放置节点后可连箭头': 'Place nodes to connect arrows',
-  '清除本格': 'Erase cell', '通道属性': 'Lane properties',
+  '节点标记': 'Node mark', '移除': 'Remove', '⊕ 放置节点': '⊕ Place node', '放置节点后可连箭头': 'Place nodes to connect arrows', '通道属性': 'Lane properties',
   'period 周期 —— 每拍占 N 个时间单位': 'period — each cycle spans N time units',
   'phase 相位 —— 左移 0～1 拍（0.5 = 半拍）': 'phase — shift left 0–1 cycle (0.5 = half cycle)',
   '典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。': 'Typical DDR use: CK with period=2, command/address with phase=0.5.',
-  '信号': 'Signal', '时钟': 'Clk', '总线': 'Bus',
+  '信号': 'Signal',
   '通道已添加，已预填 8 拍': ' lane added, pre-filled with 8 cycles',
   '不是 PNG 文件': 'Not a PNG file', 'PNG 结构不完整（缺少 IEND）': 'Broken PNG (missing IEND)',
   'PNG 里没有内嵌 WaveJSON（可能已被转存剥离）': 'No embedded WaveJSON in the PNG (may have been stripped)',
@@ -1591,7 +1590,6 @@ const I18N_EN = {
   'Step 7 · 标题与刻度': 'Step 7 · Title & ticks',
   'Step 8 · 样条箭头': 'Step 8 · Spline arrows',
   'Step 8 · 直角箭头': 'Step 8 · Right-angle arrows',
-  '自动': 'Auto',
   '还没有节点标记 —— 在网格单元格弹窗里点「放置节点」。': 'No node marks yet — click "place node" in a cell popup.',
   '已有节点，添加一条箭头把它们连起来': 'node(s) placed — add an arrow to connect them',
   '起点节点': 'From node', '终点节点': 'To node', '箭头样式': 'Arrow style', '选择样式': 'Pick a style',
@@ -1621,6 +1619,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = i18n(el.dataset.i18nTitle); el.setAttribute('aria-label', i18n(el.dataset.i18nTitle)); });
   document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', i18n(el.dataset.i18nAria)); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = i18n(el.dataset.i18nPh); });
+  closePop(); closeMoreMenu(); closeSetPop(); // 动态浮层内容不随语言刷新，直接收起避免中英混排
   renderGrid(); renderEdges(); renderBrushUI();
   updateChainBtn();
 }
@@ -2171,21 +2170,6 @@ function isUnknown(g) { return g === 'x' || g === 'z'; }
 /* 通道类型：无持久字段，按整条已落字符推断（'.' 延续与 '|' 间隙不参与）。
    只有第一格的通道视为「待初始化」，滚轮给三类元素的合集，方便一格定基调；
    既无时钟也无电平/沿、只有 x/z 之类的通道判不出方向，兜底为「非时钟」，给信号+总线合集。 */
-function laneType(lane) {
-  if (laneLen(lane) <= 1) return 'seed';
-  let hasClock = false, hasData = false, hasLevel = false;
-  (lane.slots || []).forEach(s => {
-    const g = s && s.glyph;
-    if (!g || g === '.' || g === '|') return;
-    if (CLOCK_CHARS.includes(g)) hasClock = true;
-    else if (isData(g)) hasData = true;
-    else if (LEVEL_EDGE_CHARS.includes(g)) hasLevel = true;
-  });
-  if (hasClock) return 'clock';
-  if (hasData) return 'bus';
-  if (hasLevel) return 'signal';
-  return 'nonclock';
-}
 
 /* 拖动越界的上/下变换：按字符本身归类（基准字符已决定其类别），返回变换后的字符。
    时钟：上=大小写互切（相位不变 p↔P n↔N）；下=正负相切换（大小写不变 p↔n P↔N）。
