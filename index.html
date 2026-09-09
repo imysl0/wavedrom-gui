@@ -482,10 +482,6 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 }
 .editor-toolbar .chain-pill:hover { background: var(--acc-veil); }
 .editor-toolbar .chain-pill .chain-title { font: 600 15px var(--font-ui); letter-spacing: .5px; line-height: 1; }
-.editor-toolbar .chain-pill .chain-sep { width: 1.4px; height: 15px; background: currentColor; opacity: .55; border-radius: 1px; }
-.editor-toolbar .chain-pill .chain-state { font: 500 12px var(--font-mono); line-height: 1; }
-.chain-state::after { content: '启动'; }
-.chain-state[data-s="on"]::after { content: '退出'; }
 .chain-title .ct-short { display: none; }
 .editor-toolbar .chain-pill.active { background: var(--acc); border-color: var(--acc); color: var(--acc-ink); }
 .editor-toolbar .chain-pill.active:hover { background: var(--acc); }
@@ -1057,15 +1053,12 @@ html[data-mobile] {
   .editor-toolbar .hint { display: none; }
   .chain-title .ct-full { display: none; }
   .chain-title .ct-short { display: inline; }
-  .chain-state::after { content: '开'; }
-  .chain-state[data-s="on"]::after { content: '关'; }
   .brand .name .bn-gui { display: none; }
   .brand .name .bn-phone { display: inline; }
   .palette { flex-wrap: wrap; row-gap: 4px; } /* 手机：笔刷双行 */
   .palette > * { flex: none; }
   /* 隐藏 ±4 步进与自动模式开/关文字及其分隔竖线 */
   .col-stepper .btn[data-n="-4"], .col-stepper .btn[data-n="4"] { display: none; }
-  .editor-toolbar .chain-state, .editor-toolbar .chain-pill .chain-sep { display: none; }
   /* 自动模式胶囊：手机只剩「自动」二字，胶囊与字号都收小一些 */
   .editor-toolbar .chain-pill { height: 26px; padding: 0 10px; margin-left: 6px; border-width: 1.4px; }
   .editor-toolbar .chain-pill .chain-title { font-size: 12px; letter-spacing: .2px; }
@@ -1118,59 +1111,65 @@ html[data-mobile] {
       <path d="M1 14h4V6h4v10h4V6h4v8h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <div class="name"><b><span class="bn-gui">WaveDrom-Gui</span><span class="bn-phone">Wave</span></b></div>
-    <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip">说不定有新版了，快点击去仓库首页看看吧！</span></button>
+    <button class="ver-badge ver-link" id="verBadge" data-act="about-repo" aria-label="当前版本 dev，点击打开仓库首页" data-i18n-aria="当前版本 dev，点击打开仓库首页"><span data-app-version>dev</span><span class="ver-pop" role="tooltip" data-i18n="说不定有新版了，快点击去仓库首页看看吧！">说不定有新版了，快点击去仓库首页看看吧！</span></button>
   </div>
   <div class="spacer"></div>
+  <div class="menu-wrap" id="m-lang">
+    <button class="icon-btn" aria-haspopup="true" data-i18n-title="界面语言">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c2.3 2.4 2.3 10 0 12.4-2.3-2.4-2.3-10 0-12.4M8 1.8v12.4"/></svg>
+    </button>
+    <div class="menu"></div>
+  </div>
   <div class="menu-wrap" id="m-settings">
-    <button class="btn ghost" aria-haspopup="true">设置 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+    <button class="btn ghost" aria-haspopup="true"><span data-i18n="设置">设置</span> <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu"></div>
   </div>
   <div class="menu-wrap" id="m-import">
-    <button class="btn ghost" aria-haspopup="true">导入 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+    <button class="btn ghost" aria-haspopup="true"><span data-i18n="导入">导入</span> <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu">
-      <button data-act="open-examples"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/></svg>导入示例<span class="rc" style="margin-left:auto;opacity:.45">›</span></button>
+      <button data-act="open-examples"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.2"/></svg><span data-i18n="导入示例">导入示例</span><span class="rc" style="margin-left:auto;opacity:.45">›</span></button>
       <div class="sep"></div>
-      <button data-act="import-file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg>打开文件（JSON / SVG / PNG）…</button>
-      <button data-act="import-paste"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="9" height="10" rx="1.5"/><path d="M11 4V3a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 3 3v8A1.5 1.5 0 0 0 4.5 12.5H5"/></svg>粘贴 WaveJSON…</button>
-      <div class="menu-tip">也可把文件直接拖进窗口</div>
+      <button data-act="import-file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2H4.5A1.5 1.5 0 0 0 3 3.5v9A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V6z"/><path d="M9 2v4h4"/></svg><span data-i18n="打开文件（JSON / SVG / PNG）…">打开文件（JSON / SVG / PNG）…</span></button>
+      <button data-act="import-paste"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="9" height="10" rx="1.5"/><path d="M11 4V3a1.5 1.5 0 0 0-1.5-1.5h-5A1.5 1.5 0 0 0 3 3v8A1.5 1.5 0 0 0 4.5 12.5H5"/></svg><span data-i18n="粘贴 WaveJSON…">粘贴 WaveJSON…</span></button>
+      <div class="menu-tip" data-i18n="也可把文件直接拖进窗口">也可把文件直接拖进窗口</div>
       <div class="sep"></div>
-      <button data-act="open-tutorial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg>WaveDrom 语法教程</button>
+      <button data-act="open-tutorial"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/></svg><span data-i18n="WaveDrom 语法教程">WaveDrom 语法教程</span></button>
     </div>
   </div>
   <div class="menu-wrap" id="m-export">
-    <button class="btn" aria-haspopup="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8m0 0 3-3m-3 3L5 7"/><path d="M2.5 11.5v1A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>导出 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+    <button class="btn" aria-haspopup="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8m0 0 3-3m-3 3L5 7"/><path d="M2.5 11.5v1A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg><span data-i18n="导出">导出</span> <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
     <div class="menu">
-      <button data-act="export-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h6M8 3v10"/></svg>下载 SVG</button>
-      <button data-act="export-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.5" cy="6.5" r="1"/><path d="m4 12 3.5-3.5 2 2L12 8l2 2"/></svg>下载 PNG（2×）</button>
-      <button data-act="export-editor-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V13"/></svg>下载编辑区 SVG</button>
-      <button data-act="export-editor-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V13M10.5 6.5V13"/><circle cx="4.4" cy="4.8" r=".2"/></svg>下载编辑区 PNG（2×）</button>
+      <button data-act="export-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h6M8 3v10"/></svg><span data-i18n="下载 SVG">下载 SVG</span></button>
+      <button data-act="export-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="5.5" cy="6.5" r="1"/><path d="m4 12 3.5-3.5 2 2L12 8l2 2"/></svg><span data-i18n="下载 PNG（2×）">下载 PNG（2×）</span></button>
+      <button data-act="export-editor-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V13"/></svg><span data-i18n="下载编辑区 SVG">下载编辑区 SVG</span></button>
+      <button data-act="export-editor-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12M6.5 6.5V13M10.5 6.5V13"/><circle cx="4.4" cy="4.8" r=".2"/></svg><span data-i18n="下载编辑区 PNG（2×）">下载编辑区 PNG（2×）</span></button>
       <div class="sep"></div>
-      <button data-act="export-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H4.5A1.5 1.5 0 0 0 3 4.5V6c0 1-1 2-2 2 1 0 2 1 2 2v1.5A1.5 1.5 0 0 0 4.5 13H6"/><path d="M10 3h1.5A1.5 1.5 0 0 1 13 4.5V6c0 1 1 2 2 2-1 0-2 1-2 2v1.5a1.5 1.5 0 0 1-1.5 1.5H10"/></svg>下载 JSON</button>
-      <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>复制 JSON</button>
-      <button data-act="copy-kroki"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 5-3 3 3 3M10.5 5l3 3-3 3"/></svg>复制 kroki 代码块</button>
-      <button data-act="copy-link"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.6 2.9a2.55 2.55 0 0 1 3.6 3.6L10.6 8"/><path d="m9 11.5-1.6 1.6a2.55 2.55 0 0 1-3.6-3.6L5.4 8"/></svg>复制分享链接</button>
+      <button data-act="export-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H4.5A1.5 1.5 0 0 0 3 4.5V6c0 1-1 2-2 2 1 0 2 1 2 2v1.5A1.5 1.5 0 0 0 4.5 13H6"/><path d="M10 3h1.5A1.5 1.5 0 0 1 13 4.5V6c0 1 1 2 2 2-1 0-2 1-2 2v1.5a1.5 1.5 0 0 1-1.5 1.5H10"/></svg><span data-i18n="下载 JSON">下载 JSON</span></button>
+      <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg><span data-i18n="复制 JSON">复制 JSON</span></button>
+      <button data-act="copy-kroki"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 5-3 3 3 3M10.5 5l3 3-3 3"/></svg><span data-i18n="复制 kroki 代码块">复制 kroki 代码块</span></button>
+      <button data-act="copy-link"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.6 2.9a2.55 2.55 0 0 1 3.6 3.6L10.6 8"/><path d="m9 11.5-1.6 1.6a2.55 2.55 0 0 1-3.6-3.6L5.4 8"/></svg><span data-i18n="复制分享链接">复制分享链接</span></button>
     </div>
   </div>
 </header>
 
 <main class="workspace">
-  <aside class="side" aria-label="通道与分组">
+  <aside class="side" aria-label="通道与分组" data-i18n-aria="通道与分组">
     <div class="add-lane-btns">
-      <button class="btn" data-act="add-bit" title="添加一条数字信号通道">＋信号</button>
-      <button class="btn" data-act="add-clock" title="添加时钟通道，自动填充 8 拍时钟">＋时钟</button>
-      <button class="btn" data-act="add-bus" title="添加总线通道，可填写数据标签">＋总线</button>
-      <button class="btn" data-act="add-spacer" title="添加空白占位通道">＋占位</button>
-      <button class="btn" data-act="add-group" title="添加分组，把相邻通道收进组里">＋分组</button>
+      <button class="btn" data-act="add-bit" data-i18n-title="添加一条数字信号通道"><span data-i18n="＋信号">＋信号</span></button>
+      <button class="btn" data-act="add-clock" data-i18n-title="添加时钟通道，自动填充 8 拍时钟"><span data-i18n="＋时钟">＋时钟</span></button>
+      <button class="btn" data-act="add-bus" data-i18n-title="添加总线通道，可填写数据标签"><span data-i18n="＋总线">＋总线</span></button>
+      <button class="btn" data-act="add-spacer" data-i18n-title="添加空白占位通道"><span data-i18n="＋占位">＋占位</span></button>
+      <button class="btn" data-act="add-group" data-i18n-title="添加分组，把相邻通道收进组里"><span data-i18n="＋分组">＋分组</span></button>
     </div>
     <div class="side-openers">
-      <button class="btn" data-act="open-edge-pop" title="放置节点后在弹窗里连线（箭头列表与添加）">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg>节点
+      <button class="btn" data-act="open-edge-pop" data-i18n-title="放置节点后在弹窗里连线（箭头列表与添加）">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg><span data-i18n="节点">节点</span>
       </button>
-      <button class="btn" data-act="open-cfg-pop" title="标题、刻度、缩放、皮肤、裁剪等图表参数">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表
+      <button class="btn" data-act="open-cfg-pop" data-i18n-title="标题、刻度、缩放、皮肤、裁剪等图表参数">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg><span data-i18n="图表">图表</span>
       </button>
-      <button class="btn" data-act="clear-doc" title="清空所有信号，恢复为空白文档（Ctrl+Z 可撤销）">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.2A1.5 1.5 0 0 0 6.1 14h3.8a1.5 1.5 0 0 0 1.5-1.3l.6-8.2"/></svg>清空
+      <button class="btn" data-act="clear-doc" data-i18n-title="清空所有信号，恢复为空白文档（Ctrl+Z 可撤销）">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.2A1.5 1.5 0 0 0 6.1 14h3.8a1.5 1.5 0 0 0 1.5-1.3l.6-8.2"/></svg><span data-i18n="清空">清空</span>
       </button>
     </div>
   </aside>
@@ -1178,43 +1177,43 @@ html[data-mobile] {
   <div class="main-col">
   <section class="editor-col">
     <div class="editor-toolbar">
-      <button class="icon-btn" id="sideDockBtn" title="显示通道与分组面板" aria-label="显示或隐藏通道与分组面板" aria-pressed="false">
+      <button class="icon-btn" id="sideDockBtn" data-i18n-title="显示通道与分组面板" aria-pressed="false">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M6.5 2.5v11"/></svg>
       </button>
-      <button class="icon-btn" id="undoBtn" title="撤销 (Ctrl+Z)" aria-label="撤销" disabled>
+      <button class="icon-btn" id="undoBtn" data-i18n-title="撤销 (Ctrl+Z)" aria-label="撤销" data-i18n-aria="撤销" disabled>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5 3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </button>
-      <button class="icon-btn" id="redoBtn" title="重做 (Ctrl+Y)" aria-label="重做" disabled>
+      <button class="icon-btn" id="redoBtn" data-i18n-title="重做 (Ctrl+Y)" aria-label="重做" data-i18n-aria="重做" disabled>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m10 3.5 3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H10"/></svg>
       </button>
-      <div class="col-stepper" role="group" aria-label="网格拍数增减">
-        <button class="btn ghost" data-act="add-col" data-n="-4" title="网格减少 4 拍">−4</button>
-        <button class="btn ghost" data-act="add-col" data-n="-1" title="网格减少 1 拍">−</button>
-        <button class="btn ghost" data-act="add-col" data-n="1" title="网格增加 1 拍">＋</button>
-        <button class="btn ghost" data-act="add-col" data-n="4" title="网格增加 4 拍">＋4</button>
+      <div class="col-stepper" role="group" aria-label="网格拍数增减" data-i18n-aria="网格拍数增减">
+        <button class="btn ghost" data-act="add-col" data-n="-4" data-i18n-title="网格减少 4 拍">−4</button>
+        <button class="btn ghost" data-act="add-col" data-n="-1" data-i18n-title="网格减少 1 拍">−</button>
+        <button class="btn ghost" data-act="add-col" data-n="1" data-i18n-title="网格增加 1 拍">＋</button>
+        <button class="btn ghost" data-act="add-col" data-n="4" data-i18n-title="网格增加 4 拍">＋4</button>
       </div>
-      <button class="chain-pill" id="chainBtn" data-act="toggle-autochain" aria-pressed="false" title="自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）"><span class="chain-title"><span class="ct-full">自动模式</span><span class="ct-short">自动</span></span><span class="chain-sep"></span><span class="chain-state" data-s="off"></span></button>
-      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明">说明<span class="hint-pop" role="tooltip">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 选中格滚轮切换状态 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
+      <button class="chain-pill" id="chainBtn" data-act="toggle-autochain" aria-pressed="false" title="自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）"><span class="chain-title"><span class="ct-full">自动</span><span class="ct-short">自动</span></span></button>
+      <span class="hint" id="hintBox" tabindex="0" aria-label="操作说明" data-i18n-aria="操作说明"><span data-i18n="说明">说明</span><span class="hint-pop" role="tooltip" data-i18n="左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 选中格滚轮切换状态 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做">左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 选中格滚轮切换状态 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做</span></span>
     </div>
     <div class="grid-scroll" id="gridScroll"><div class="grid-inner" id="gridInner"></div></div>
-    <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷"></div>
+    <div class="palette" id="palette" role="toolbar" aria-label="波形状态笔刷" data-i18n-aria="波形状态笔刷"></div>
     <div id="brushFan"></div>
   </section>
 
 
-  <div class="split main-split" id="splitMain" title="拖动调整预览区大小 · 双击重置"></div>
+  <div class="split main-split" id="splitMain" data-i18n-title="拖动调整预览区大小 · 双击重置"></div>
 
   <section class="right-col">
     <div class="right-tabs">
-      <button class="tab active" data-tab="preview">实时预览</button>
-      <button class="tab" data-tab="code">WaveJSON 代码</button>
+      <button class="tab active" data-tab="preview" data-i18n="实时预览">实时预览</button>
+      <button class="tab" data-tab="code" data-i18n="WaveJSON 代码">WaveJSON 代码</button>
       <span class="rt-spacer"></span>
       <div class="right-toolbar" id="previewTools">
-        <button class="icon-btn" data-act="zoom-out" title="缩小" aria-label="缩小预览"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m14 14-3.2-3.2M5 7h4"/></svg></button>
+        <button class="icon-btn" data-act="zoom-out" data-i18n-title="缩小" aria-label="缩小预览" data-i18n-aria="缩小"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m14 14-3.2-3.2M5 7h4"/></svg></button>
         <span class="zoom-label" id="zoomLabel">100%</span>
-        <button class="icon-btn" data-act="zoom-in" title="放大" aria-label="放大预览"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m14 14-3.2-3.2M5 7h4M7 5v4"/></svg></button>
-        <button class="icon-btn" data-act="zoom-fit" title="重置缩放" aria-label="重置缩放"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V3.5A1.5 1.5 0 0 1 3.5 2H6M10 2h2.5A1.5 1.5 0 0 1 14 3.5V6M14 10v2.5a1.5 1.5 0 0 1-1.5 1.5H10M6 14H3.5A1.5 1.5 0 0 1 2 12.5V10"/></svg></button>
-        <button class="icon-btn rt-close" id="paneCloseBtn" title="收起" aria-label="收起预览/代码"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+        <button class="icon-btn" data-act="zoom-in" data-i18n-title="放大" aria-label="放大预览" data-i18n-aria="放大"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m14 14-3.2-3.2M5 7h4M7 5v4"/></svg></button>
+        <button class="icon-btn" data-act="zoom-fit" data-i18n-title="重置缩放" aria-label="重置缩放" data-i18n-aria="重置缩放"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6V3.5A1.5 1.5 0 0 1 3.5 2H6M10 2h2.5A1.5 1.5 0 0 1 14 3.5V6M14 10v2.5a1.5 1.5 0 0 1-1.5 1.5H10M6 14H3.5A1.5 1.5 0 0 1 2 12.5V10"/></svg></button>
+        <button class="icon-btn rt-close" id="paneCloseBtn" data-i18n-title="收起" aria-label="收起预览/代码" data-i18n-aria="收起"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
       </div>
     </div>
     <div class="pane active" id="pane-preview">
@@ -1222,128 +1221,128 @@ html[data-mobile] {
     </div>
     <div class="pane" id="pane-code">
       <div class="code-wrap">
-        <textarea id="codeArea" spellcheck="false" aria-label="WaveJSON 代码"></textarea>
+        <textarea id="codeArea" spellcheck="false" aria-label="WaveJSON 代码" data-i18n-aria="WaveJSON 代码"></textarea>
         <div class="code-foot">
-          <div class="seg" id="codeModeSeg" role="group" aria-label="代码显示模式">
-            <button data-mode="relax" title="舒缓：短对象单行、复杂对象展开">舒缓</button>
-            <button data-mode="compact" title="紧凑：每个对象/数组都写成单行">紧凑</button>
+          <div class="seg" id="codeModeSeg" role="group" aria-label="代码显示模式" data-i18n-aria="代码显示模式">
+            <button data-mode="relax" data-i18n-title="舒缓：短对象单行、复杂对象展开" data-i18n="舒缓">舒缓</button>
+            <button data-mode="compact" data-i18n-title="紧凑：每个对象/数组都写成单行" data-i18n="紧凑">紧凑</button>
           </div>
-          <span class="code-ok" id="codeStatus">改动会自动同步到左侧网格</span>
-          <button class="btn primary" data-act="apply-code">应用到图表</button>
+          <span class="code-ok" id="codeStatus" data-i18n="改动会自动同步到左侧网格">改动会自动同步到左侧网格</span>
+          <button class="btn primary" data-act="apply-code" data-i18n="应用到图表">应用到图表</button>
         </div>
       </div>
     </div>
   </section>
   <div class="mobile-pane-btns">
-    <button class="btn" id="mPaneBtnPreview">实时预览</button>
-    <button class="btn" id="mPaneBtnCode">WaveJSON 代码</button>
+    <button class="btn" id="mPaneBtnPreview" data-i18n="实时预览">实时预览</button>
+    <button class="btn" id="mPaneBtnCode" data-i18n="WaveJSON 代码">WaveJSON 代码</button>
   </div>
   </div>
-  <aside id="brushCol" aria-label="笔刷面板"></aside>
+  <aside id="brushCol" aria-label="笔刷面板" data-i18n-aria="笔刷面板"></aside>
 </main>
 
-<div class="popover" id="cellPop" role="dialog" aria-label="单元格状态"></div>
-<div class="popover" id="morePop" role="menu" aria-label="更多操作"></div>
+<div class="popover" id="cellPop" role="dialog" aria-label="单元格状态" data-i18n-aria="单元格状态"></div>
+<div class="popover" id="morePop" role="menu" aria-label="更多操作" data-i18n-aria="更多操作"></div>
 
 <div class="modal-mask" id="pasteMask">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="粘贴 WaveJSON">
-    <h3>粘贴 WaveJSON</h3>
-    <p>把官方编辑器或别处的 WaveJSON 粘进来，解析后会转成可点击编辑的网格。</p>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="粘贴 WaveJSON" data-i18n-aria="粘贴 WaveJSON">
+    <h3 data-i18n="粘贴 WaveJSON">粘贴 WaveJSON</h3>
+    <p data-i18n="把官方编辑器或别处的 WaveJSON 粘进来，解析后会转成可点击编辑的网格。">把官方编辑器或别处的 WaveJSON 粘进来，解析后会转成可点击编辑的网格。</p>
     <textarea id="pasteArea" spellcheck="false" placeholder='{ "signal": [ { "name": "clk", "wave": "p..." } ] }'></textarea>
     <div class="m-err" id="pasteErr"></div>
     <div class="m-foot">
-      <button class="btn ghost" data-act="paste-cancel">取消</button>
-      <button class="btn primary" data-act="paste-ok">解析并导入</button>
+      <button class="btn ghost" data-act="paste-cancel" data-i18n="取消">取消</button>
+      <button class="btn primary" data-act="paste-ok" data-i18n="解析并导入">解析并导入</button>
     </div>
   </div>
 </div>
 
 <div class="modal-mask" id="aboutMask">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目">
-    <h3>WaveDrom-Gui <span class="ver-badge" data-app-version>dev</span></h3>
-    <p>单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
-    <p>支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
-    <p>仓库地址：<a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="关于本项目" data-i18n-aria="关于本项目">
+    <h3><span data-i18n="关于">关于</span> WaveDrom-Gui <span class="ver-badge" data-app-version>dev</span></h3>
+    <p data-i18n="单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。">单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。</p>
+    <p data-i18n="支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。">支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。</p>
+    <p><span data-i18n="仓库地址：">仓库地址：</span><a href="https://cnb.cool/linshi-2026/wavedrom-gui" target="_blank" rel="noopener">cnb.cool/linshi-2026/wavedrom-gui</a></p>
     <div class="m-foot">
-      <button class="btn ghost" data-act="about-close">关闭</button>
-      <button class="btn primary" data-act="about-repo">打开仓库 ↗</button>
+      <button class="btn ghost" data-act="about-close" data-i18n="关闭">关闭</button>
+      <button class="btn primary" data-act="about-repo" data-i18n="打开仓库 ↗">打开仓库 ↗</button>
     </div>
   </div>
 </div>
 
 <div class="modal-mask" id="shortcutMask">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="快捷键">
-    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/></svg>快捷键</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="快捷键" data-i18n-aria="快捷键">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/></svg><span data-i18n="快捷键">快捷键</span></h3>
     <div class="sc-groups">
       <div class="sc-group">
-        <div class="sc-gt">通用</div>
-        <div class="sc-row"><span class="sc-k"><kbd>Ctrl</kbd>+<kbd>Z</kbd></span><span class="sc-d">撤销</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></span><span class="sc-d">重做</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>+</kbd></span><span class="sc-d">网格加 1 拍</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>−</kbd></span><span class="sc-d">网格减 1 拍</span></div>
-        <div class="sc-row"><span class="sc-k">选中格上滚动滚轮</span><span class="sc-d">循环切换状态（按通道类型：时钟 / 信号 / 总线；单格通道给全集）</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>Esc</kbd></span><span class="sc-d">关闭弹窗 / 菜单，或笔刷回「选择」</span></div>
+        <div class="sc-gt" data-i18n="通用">通用</div>
+        <div class="sc-row"><span class="sc-k"><kbd>Ctrl</kbd>+<kbd>Z</kbd></span><span class="sc-d" data-i18n="撤销">撤销</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Ctrl</kbd>+<kbd>Y</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></span><span class="sc-d" data-i18n="重做">重做</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>+</kbd></span><span class="sc-d" data-i18n="网格加 1 拍">网格加 1 拍</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>−</kbd></span><span class="sc-d" data-i18n="网格减 1 拍">网格减 1 拍</span></div>
+        <div class="sc-row"><span class="sc-k" data-i18n="选中格上滚动滚轮">选中格上滚动滚轮</span><span class="sc-d" data-i18n="循环切换状态（按通道类型：时钟 / 信号 / 总线；单格通道给全集）">循环切换状态（按通道类型：时钟 / 信号 / 总线；单格通道给全集）</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Esc</kbd></span><span class="sc-d" data-i18n="关闭弹窗 / 菜单，或笔刷回「选择」">关闭弹窗 / 菜单，或笔刷回「选择」</span></div>
       </div>
       <div class="sc-group">
-        <div class="sc-gt">笔刷（字符直切）</div>
-        <div class="sc-row"><span class="sc-k"><kbd>0</kbd> <kbd>1</kbd></span><span class="sc-d">低 / 高电平</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>p</kbd> <kbd>n</kbd> <kbd>P</kbd> <kbd>N</kbd></span><span class="sc-d">时钟 / 反相 / 带边沿标记</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>u</kbd> <kbd>d</kbd> <kbd>U</kbd> <kbd>D</kbd></span><span class="sc-d">上升 / 下降沿</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>h</kbd> <kbd>l</kbd> <kbd>H</kbd> <kbd>L</kbd></span><span class="sc-d">高 / 低电平段</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>x</kbd> <kbd>z</kbd></span><span class="sc-d">不确定态 / 高阻</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>=</kbd> <kbd>2</kbd>–<kbd>9</kbd></span><span class="sc-d">数据框（多 bit 总线）</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>|</kbd> <kbd>.</kbd></span><span class="sc-d">间隙 / 延续上一拍</span></div>
+        <div class="sc-gt" data-i18n="笔刷（字符直切）">笔刷（字符直切）</div>
+        <div class="sc-row"><span class="sc-k"><kbd>0</kbd> <kbd>1</kbd></span><span class="sc-d" data-i18n="低 / 高电平">低 / 高电平</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>p</kbd> <kbd>n</kbd> <kbd>P</kbd> <kbd>N</kbd></span><span class="sc-d" data-i18n="时钟 / 反相 / 带边沿标记">时钟 / 反相 / 带边沿标记</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>u</kbd> <kbd>d</kbd> <kbd>U</kbd> <kbd>D</kbd></span><span class="sc-d" data-i18n="上升 / 下降沿">上升 / 下降沿</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>h</kbd> <kbd>l</kbd> <kbd>H</kbd> <kbd>L</kbd></span><span class="sc-d" data-i18n="高 / 低电平段">高 / 低电平段</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>x</kbd> <kbd>z</kbd></span><span class="sc-d" data-i18n="不确定态 / 高阻">不确定态 / 高阻</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>=</kbd> <kbd>2</kbd>–<kbd>9</kbd></span><span class="sc-d" data-i18n="数据框（多 bit 总线）">数据框（多 bit 总线）</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>|</kbd> <kbd>.</kbd></span><span class="sc-d" data-i18n="间隙 / 延续上一拍">间隙 / 延续上一拍</span></div>
       </div>
       <div class="sc-group">
-        <div class="sc-gt">自动模式（连续编辑）</div>
-        <div class="sc-row"><span class="sc-k">鼠标中键点单元格</span><span class="sc-d">一步启动模式并选中该格</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></span><span class="sc-d">移动选中格（面板打开则跟随）</span></div>
-        <div class="sc-row"><span class="sc-k">笔刷字符键 / 点笔刷 / 左键选状态</span><span class="sc-d">给当前格上色并自动右移</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>Enter</kbd></span><span class="sc-d">开 / 关当前格状态面板</span></div>
-        <div class="sc-row"><span class="sc-k"><kbd>Esc</kbd></span><span class="sc-d">先关面板，再按退出模式</span></div>
+        <div class="sc-gt" data-i18n="自动模式（连续编辑）">自动模式（连续编辑）</div>
+        <div class="sc-row"><span class="sc-k" data-i18n="鼠标中键点单元格">鼠标中键点单元格</span><span class="sc-d" data-i18n="一步启动模式并选中该格">一步启动模式并选中该格</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></span><span class="sc-d" data-i18n="移动选中格（面板打开则跟随）">移动选中格（面板打开则跟随）</span></div>
+        <div class="sc-row"><span class="sc-k" data-i18n="笔刷字符键 / 点笔刷 / 左键选状态">笔刷字符键 / 点笔刷 / 左键选状态</span><span class="sc-d" data-i18n="给当前格上色并自动右移">给当前格上色并自动右移</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Enter</kbd></span><span class="sc-d" data-i18n="开 / 关当前格状态面板">开 / 关当前格状态面板</span></div>
+        <div class="sc-row"><span class="sc-k"><kbd>Esc</kbd></span><span class="sc-d" data-i18n="先关面板，再按退出模式">先关面板，再按退出模式</span></div>
       </div>
     </div>
     <div class="m-foot">
-      <button class="btn primary" data-act="shortcut-close">知道了</button>
+      <button class="btn primary" data-act="shortcut-close" data-i18n="知道了">知道了</button>
     </div>
   </div>
 </div>
 
 <div class="modal-mask side-pop" id="edgeMask">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="边与箭头">
-    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg>边与箭头
-      <button class="icon-btn pop-close" data-act="edge-close" title="关闭" aria-label="关闭边与箭头"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="边与箭头" data-i18n-aria="边与箭头">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg><span data-i18n="边与箭头">边与箭头</span>
+      <button class="icon-btn pop-close" data-act="edge-close" data-i18n-title="关闭" aria-label="关闭边与箭头" data-i18n-aria="关闭边与箭头"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
     </h3>
     <div class="modal-body">
-      <div class="edge-hint">先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。</div>
+      <div class="edge-hint" data-i18n="先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。">先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。</div>
       <div class="edge-list" id="edgeList"></div>
-      <div class="add-lane-btns"><button class="btn" data-act="add-edge">＋添加箭头</button></div>
+      <div class="add-lane-btns"><button class="btn" data-act="add-edge" data-i18n="＋添加箭头">＋添加箭头</button></div>
     </div>
   </div>
 </div>
 
 <div class="modal-mask side-pop" id="cfgMask">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="图表设置">
-    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表设置
-      <button class="icon-btn pop-close" data-act="cfg-close" title="关闭" aria-label="关闭图表设置"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="图表设置" data-i18n-aria="图表设置">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg><span data-i18n="图表设置">图表设置</span>
+      <button class="icon-btn pop-close" data-act="cfg-close" data-i18n-title="关闭" aria-label="关闭图表设置" data-i18n-aria="关闭图表设置"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
     </h3>
     <div class="modal-body" id="cfgBody">
-      <div class="cfg-group">标题区</div>
-      <div class="field"><label for="headText">标题文字</label><input type="text" id="headText" placeholder="如：DDR 读时序"></div>
-      <div class="field"><label for="headTick">刻度（0 起）</label><input type="text" id="headTick" placeholder="0、5 2、a, b, c"></div>
-      <div class="field"><label for="headTock">刻度（倒标）</label><input type="text" id="headTock" placeholder="9、5 2、a, b, c"></div>
-      <div class="field"><label for="headEvery">隔几拍标一次</label><input type="number" id="headEvery" min="1" step="1" placeholder="—"></div>
-      <div class="cfg-group">底部区</div>
-      <div class="field"><label for="footText">底部文字</label><input type="text" id="footText" placeholder="备注、说明"></div>
-      <div class="field"><label for="footTick">刻度（0 起）</label><input type="text" id="footTick" placeholder="0、5 2、a, b, c"></div>
-      <div class="field"><label for="footTock">刻度（倒标）</label><input type="text" id="footTock" placeholder="9、5 2、a, b, c"></div>
-      <div class="cfg-group">波形</div>
-      <div class="field"><label for="hscale">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
-      <div class="field"><label for="skin">皮肤</label><select id="skin"><option value="default">default（标准）</option><option value="narrow">narrow（紧凑）</option></select></div>
-      <div class="cfg-group">裁剪</div>
-      <div class="field"><label for="hbMin">起始拍</label><input type="number" id="hbMin" min="0" step="1" placeholder="—（不裁剪）"></div>
-      <div class="field"><label for="hbMax">结束拍</label><input type="number" id="hbMax" min="0" step="1" placeholder="—（不裁剪）"></div>
-      <div class="field"><label></label><span style="font-size:11px;color:var(--faint)">预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。</span></div>
+      <div class="cfg-group" data-i18n="标题区">标题区</div>
+      <div class="field"><label for="headText" data-i18n="标题文字">标题文字</label><input type="text" id="headText" data-i18n-ph="如：DDR 读时序" placeholder="如：DDR 读时序"></div>
+      <div class="field"><label for="headTick" data-i18n="刻度（0 起）">刻度（0 起）</label><input type="text" id="headTick" placeholder="0、5 2、a, b, c"></div>
+      <div class="field"><label for="headTock" data-i18n="刻度（倒标）">刻度（倒标）</label><input type="text" id="headTock" placeholder="9、5 2、a, b, c"></div>
+      <div class="field"><label for="headEvery" data-i18n="隔几拍标一次">隔几拍标一次</label><input type="number" id="headEvery" min="1" step="1" placeholder="—"></div>
+      <div class="cfg-group" data-i18n="底部区">底部区</div>
+      <div class="field"><label for="footText" data-i18n="底部文字">底部文字</label><input type="text" id="footText" data-i18n-ph="备注、说明" placeholder="备注、说明"></div>
+      <div class="field"><label for="footTick" data-i18n="刻度（0 起）">刻度（0 起）</label><input type="text" id="footTick" placeholder="0、5 2、a, b, c"></div>
+      <div class="field"><label for="footTock" data-i18n="刻度（倒标）">刻度（倒标）</label><input type="text" id="footTock" placeholder="9、5 2、a, b, c"></div>
+      <div class="cfg-group" data-i18n="波形">波形</div>
+      <div class="field"><label for="hscale" data-i18n="水平缩放">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
+      <div class="field"><label for="skin" data-i18n="皮肤">皮肤</label><select id="skin"><option value="default" data-i18n="default（标准）">default（标准）</option><option value="narrow" data-i18n="narrow（紧凑）">narrow（紧凑）</option></select></div>
+      <div class="cfg-group" data-i18n="裁剪">裁剪</div>
+      <div class="field"><label for="hbMin" data-i18n="起始拍">起始拍</label><input type="number" id="hbMin" min="0" step="1" data-i18n-ph="—（不裁剪）" placeholder="—（不裁剪）"></div>
+      <div class="field"><label for="hbMax" data-i18n="结束拍">结束拍</label><input type="number" id="hbMax" min="0" step="1" data-i18n-ph="—（不裁剪）" placeholder="—（不裁剪）"></div>
+      <div class="field"><label></label><span style="font-size:11px;color:var(--faint)" data-i18n="预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。">预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。</span></div>
     </div>
   </div>
 </div>
@@ -1352,8 +1351,8 @@ html[data-mobile] {
 <div id="dropZone" aria-hidden="true">
   <div class="dz-card">
     <svg class="dz-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
-    <div class="dz-title">松开即可导入</div>
-    <div class="dz-sub">支持 PNG / SVG / JSON（PNG、SVG 需带内嵌 WaveJSON）</div>
+    <div class="dz-title" data-i18n="松开即可导入">松开即可导入</div>
+    <div class="dz-sub" data-i18n="支持 PNG / SVG / JSON（PNG、SVG 需带内嵌 WaveJSON）">支持 PNG / SVG / JSON（PNG、SVG 需带内嵌 WaveJSON）</div>
   </div>
 </div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
@@ -1378,12 +1377,261 @@ try { module.exports = WaveSkin; } catch(err) {}
 <script>
 'use strict';
 /* WaveDrom 可视化编辑器 —— 单文件应用逻辑 */
+/* ---------- 界面语言（顶栏地球按钮）：中文为基准，英文走词典；默认跟随系统 ---------- */
+const I18N_EN = {
+  /* 顶栏与菜单骨架 */
+  '设置': 'Settings', '导入': 'Import', '导出': 'Export',
+  '导入示例': 'Examples', '打开文件（JSON / SVG / PNG）…': 'Open file (JSON / SVG / PNG)…',
+  '粘贴 WaveJSON…': 'Paste WaveJSON…', '也可把文件直接拖进窗口': 'You can also drag a file into the window',
+  'WaveDrom 语法教程': 'WaveDrom tutorial',
+  '下载 SVG': 'Download SVG', '下载 PNG（2×）': 'Download PNG (2×)',
+  '下载编辑区 SVG': 'Download editor SVG', '下载编辑区 PNG（2×）': 'Download editor PNG (2×)',
+  '下载 JSON': 'Download JSON', '复制 JSON': 'Copy JSON', '复制 kroki 代码块': 'Copy kroki snippet', '复制分享链接': 'Copy share link',
+  '界面语言 / Language': 'Language / 界面语言', '跟随系统 / Auto': 'Follow system / Auto', '简体中文': '简体中文', 'English': 'English',
+  /* 设置菜单 */
+  '外观': 'Look', '主题': 'Theme', '浅色': 'Light', '深色': 'Dark',
+  '波形轨迹': 'Trace', '纤细': 'Slim', '荧光辉光': 'Glow',
+  '波形背景': 'Wave bg', '默认': 'Default', '纯白': 'White', '米纸': 'Paper', '雾蓝': 'Mist', '苔绿': 'Sage',
+  '信号名底色': 'Name bg', '独立底色': 'Separate', '与波形同色': 'As waveform',
+  '斑马纹': 'Zebra', '显示': 'On', '隐藏': 'Off',
+  '界面字体': 'UI font', '数据·代码字体': 'Data font',
+  '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans', '系统字体': 'System',
+  '视图': 'View', '布局方向': 'Layout', '预览在右侧': 'Preview right', '预览在下方': 'Preview below',
+  '视图模式': 'View mode', '自动': 'Auto', '简约模式': 'Mobile layout',
+  '窗口显示': 'Panels', '实时预览': 'Live preview', 'WaveJSON 代码': 'WaveJSON code',
+  '节点': 'Nodes', '节点位置': 'Position', '节点样式': 'Style', '仅字母': 'Letter only', '圈+字母': 'Circled', '点': 'Dot',
+  '节点大小': 'Size', '靠边内缩': 'Edge inset',
+  '笔刷': 'Brush', '笔刷栏默认样式': 'Bar style', '下横条': 'Bottom bar', '右纵条': 'Right column', '右下角': 'Corner',
+  '数据标签': 'Labels', '标签保持': 'Keep labels', '换字符即清除': 'Clear on change',
+  '帮助与关于': 'Help & About', '快捷键': 'Shortcuts', '关于': 'About', '打开仓库': 'Open repo',
+  /* 侧栏面板 */
+  '＋信号': '+Signal', '＋时钟': '+Clock', '＋总线': '+Bus', '＋占位': '+Spacer', '＋分组': '+Group',
+  '边与箭头': 'Edges & arrows', '图表设置': 'Chart settings',
+  '清空': 'Clear',
+  '放置节点后在弹窗里连线（箭头列表与添加）': 'Place nodes in cells, then connect arrows here',
+  '标题、刻度、缩放、皮肤、裁剪等图表参数': 'Title, ticks, scale, skin, crop…',
+  '清空所有信号，恢复为空白文档（Ctrl+Z 可撤销）': 'Clear all signals, back to empty doc (Ctrl+Z to undo)',
+  /* 编辑工具栏 */
+  '自动模式': 'Auto mode', '自动右移': 'Auto →', '自动下移': 'Auto ↓', '右移': '→', '下移': '↓',
+  '启动': 'Start', '退出': 'Exit',
+  '撤销 (Ctrl+Z)': 'Undo (Ctrl+Z)', '重做 (Ctrl+Y)': 'Redo (Ctrl+Y)', '撤销': 'Undo', '重做': 'Redo',
+  '网格拍数增减': 'Cycle count', '说明': 'Help',
+  '左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 选中格滚轮切换状态 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做': 'Left-click to set a state; data-cell popup offers label, fill color and node placement · scroll on a selected cell to cycle states · pick a brush then click/drag to paint (drag right = hold) · right-click to erase · Ctrl+Z undo / Ctrl+Y redo',
+  /* 右栏 */
+  '缩小': 'Zoom out', '放大': 'Zoom in', '重置缩放': 'Reset zoom', '收起': 'Collapse',
+  /* 图表设置弹窗 */
+  '标题区': 'Header', '标题文字': 'Title text', '刻度（0 起）': 'Ticks (from 0)', '刻度（倒标）': 'Ticks (reversed)',
+  '隔几拍标一次': 'Label every', '底部区': 'Footer', '底部文字': 'Footer text',
+  '波形': 'Waveform', '水平缩放': 'H-scale', '皮肤': 'Skin', '图表': 'Chart',
+  'default（标准）': 'default (standard)', 'narrow（紧凑）': 'narrow (compact)',
+  '裁剪': 'Crop', '起始拍': 'From cycle', '结束拍': 'To cycle',
+  '—（不裁剪）': '— (no crop)',
+  '预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。': 'Crop preview and editor together (official semantics, end exclusive); leave "to" empty = crop to content end.',
+  /* 边与箭头弹窗 */
+  '先在单元格弹窗里「放置节点」，再在两个节点之间连箭头。': 'Place nodes via the cell popup first, then connect arrows between two of them.',
+  '＋添加箭头': '+ Add arrow',
+  /* 状态面板与单元格弹窗 */
+  '延续 (.)': 'Hold (.)', '当前：': 'Now: ', '标签': 'Label', '数据标签': 'Label',
+  '⊕ 节点': '⊕ Node', '清除本格': 'Erase cell',
+  /* 更多操作菜单 */
+  '更多操作': 'More', '复制通道': 'Duplicate', '移入上方最近的分组': 'Move into nearest group above',
+  '移出所在分组': 'Leave group', '通道属性（period / phase）': 'Lane properties (period / phase)',
+  '在组内添加通道': 'Add lane to group', '添加子分组': 'Add subgroup',
+  '删除': 'Delete', '删除分组（组内通道上移保留）': 'Delete group (lanes move up)',
+  /* 弹窗 */
+  '粘贴 WaveJSON': 'Paste WaveJSON',
+  '把官方编辑器或别处的 WaveJSON 粘进来，解析后会转成可点击编辑的网格。': 'Paste WaveJSON from the official editor or elsewhere; it will be parsed into the clickable grid.',
+  '取消': 'Cancel', '解析并导入': 'Parse & import', '解析失败：': 'Parse error: ',
+  '关于本项目': 'About',
+  '单文件 HTML 应用，零构建、离线可用：鼠标点击编辑时序图，同时官方引擎实时渲染，同步生成 WaveJSON。内嵌官方 WaveDrom v3.5.0 渲染库与 default / narrow 两套皮肤。': 'Single-file HTML app — zero build, works offline: click to edit the timing diagram while the official engine renders live and WaveJSON stays in sync. Ships with the official WaveDrom v3.5.0 renderer and the default / narrow skins.',
+  '支持深浅主题、常用wavedrom语法，以及 SVG / PNG / JSON / 分享链接导出。': 'Light/dark themes, common WaveDrom syntax, and SVG / PNG / JSON / share-link export.',
+  '仓库地址：': 'Repository: ', '关闭': 'Close', '打开仓库 ↗': 'Open repo ↗',
+  /* 快捷键弹窗 */
+  '通用': 'General', '网格加 1 拍': 'Add 1 cycle', '网格减 1 拍': 'Remove 1 cycle',
+  '选中格上滚动滚轮': 'Scroll on a selected cell',
+  '循环切换状态（按通道类型：时钟 / 信号 / 总线；单格通道给全集）': 'Cycle its state (per lane type: clock / signal / bus; single-cell lanes get the full set)',
+  '关闭弹窗 / 菜单，或笔刷回「选择」': 'Close popup / menu, or set brush back to "select"',
+  '笔刷（字符直切）': 'Brushes (direct keys)', '低 / 高电平': 'Low / High', '时钟 / 反相 / 带边沿标记': 'Clock / inverted / arrowed',
+  '上升 / 下降沿': 'Rise / fall', '高 / 低电平段': 'High / low segment', '不确定态 / 高阻': 'X / High-Z',
+  '数据框（多 bit 总线）': 'Data frame (multi-bit bus)', '间隙 / 延续上一拍': 'Gap / hold previous',
+  '自动模式（连续编辑）': 'Auto mode (continuous editing)',
+  '鼠标中键点单元格': 'Middle-click a cell', '一步启动模式并选中该格': 'Start the mode and select that cell in one step',
+  '移动选中格（面板打开则跟随）': 'Move the selected cell (panel follows when open)',
+  '笔刷字符键 / 点笔刷 / 左键选状态': 'Brush key / click brush / left-click a state',
+  '给当前格上色并自动右移': 'Paint the cell and advance',
+  '开 / 关当前格状态面板': 'Toggle the cell state panel',
+  '先关面板，再按退出模式': 'Closes the panel first, then exits the mode',
+  '知道了': 'Got it',
+  /* 笔刷栏 */
+  '选择': 'Select', '清除': 'Erase', '延续': 'Hold',
+  '电平': 'Levels', '时钟': 'Clock', '沿': 'Edges', '数据': 'Data', '不定': 'X/Z', '间隙': 'Gap', '总线': 'Bus', '其他': 'Other',
+  '折叠笔刷栏': 'Collapse brush bar', '展开为横条': 'Expand to bar', '折叠为右下角按钮': 'Fold to corner button',
+  '展开为右侧面板': 'Expand to side panel', '折叠为右纵条': 'Fold to right column',
+  '波形状态笔刷': 'Waveform state brushes',
+  /* 网格与状态 */
+  '信号 \\ 拍': 'Signal \\ cycle', '信号 \ 拍': 'Signal \ cycle',
+  '从一条信号开始': 'Start with a signal',
+  '添加通道后，点击网格中的每一拍来画出波形，右侧会实时渲染成时序图。': 'Add a lane, then click the cells to paint the waveform — the live preview renders it as a timing diagram.',
+  '＋ 添加一条信号': '+ Add a signal', '载入示例': 'Load example', '空白占位': 'Spacer',
+  '未命名': 'Unnamed', '空白文档': 'Empty document',
+  /* toast / 提示 */
+  '已到最后一行末尾，自动连续模式停留在当前格': 'End of the last row — auto mode stays on the current cell',
+  '已到最后一行，自动连续模式停留在当前格': 'Last row reached — auto mode stays on the current cell',
+  '自动连续模式：已切换为逐格下移': 'Auto mode: switched to stepping down',
+  '自动连续模式已启动（逐格右移）：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）': 'Auto mode started (stepping right): middle-click a cell to begin (next time, middle-click does start + select in one step)',
+  '已清空为空白文档（Ctrl+Z 可撤销）': 'Cleared to an empty document (Ctrl+Z to undo)',
+  '分组已添加，用通道按钮里的「移入分组」收纳通道': 'Group added — use lane "move into group" to collect lanes',
+  '至少需要两个节点标记，先在单元格里放置节点': 'Need two node marks — place nodes in cells first',
+  '代码已应用到图表': 'Code applied to the diagram',
+  '导入成功': 'Imported', '已载入示例：': 'Loaded example: ', '已新建空白文档': 'New empty document created',
+  '信号列宽已恢复自动': 'Name-column width back to auto',
+  '节点字母（a–Z 共 52 个）已用完': 'Node letters (a–Z, 52) exhausted',
+  '已经在最上了': 'Already at the top', '已经在最下了': 'Already at the bottom',
+  /* 笔刷状态名 */
+  '低电平': 'Low', '高电平': 'High', '反相时钟': 'Clock inv', '时钟·箭头': 'Clock ↗', '反相时钟·箭头': 'Clock ↘',
+  '上升沿': 'Rise', '下降沿': 'Fall', '不确定': 'X', '高阻': 'High-Z',
+  '高·直沿': 'High seg', '低·直沿': 'Low seg', '高·直沿带箭头': 'High seg ↗', '低·直沿带箭头': 'Low seg ↘',
+  '数据·白': 'Data · white', '数据·黄': 'Data · yellow', '数据·橙': 'Data · orange', '数据·蓝': 'Data · blue',
+  '数据·青': 'Data · cyan', '数据·绿': 'Data · green', '数据·紫': 'Data · violet', '数据·粉': 'Data · pink',
+  /* 箭头样式名 */
+  '尾箭头': 'Arrow', '直线': 'Line', '曲线尾箭头': 'Curve arrow', '曲线': 'Curve',
+  '直转曲箭头': 'Line→curve arrow', '直转曲': 'Line→curve', '曲转直': 'Curve→line', '曲转直箭头': 'Curve→line arrow',
+  '双向箭头': 'Both arrows', '双向曲线': 'Both curves', '双向直转曲': 'Both line→curve',
+  '直折向下': 'Bend down', '竖起尾箭头': 'Rise arrow', '直折下箭头': 'Bend down arrow',
+  '直折下双箭头': 'Bend down both', '直折下再折': 'Bend down again', '双向直折下': 'Both bend down',
+  '双向直折下双箭头': 'Both bend down both', '两端圆点': 'End dots',
+  /* title / aria */
+  '添加一条数字信号通道': 'Add a digital signal lane', '添加时钟通道，自动填充 8 拍时钟': 'Add a clock lane pre-filled with 8 cycles',
+  '添加总线通道，可填写数据标签': 'Add a bus lane with data labels', '添加空白占位通道': 'Add an empty spacer lane',
+  '添加分组，把相邻通道收进组里': 'Add a group to wrap adjacent lanes',
+  '显示通道与分组面板': 'Show lanes & groups panel', '隐藏通道与分组面板': 'Hide lanes & groups panel',
+  '显示或隐藏通道与分组面板': 'Show or hide the lanes & groups panel',
+  '操作说明': 'Help', '网格拍数增减': 'Cycle count',
+  '当前版本 dev，点击打开仓库首页': 'Version dev — click to open the repo',
+  '当前版本 ': 'Version ', '，点击打开仓库首页': ' — click to open the repo', 'phase 相位': 'phase',
+  '说不定有新版了，快点击去仓库首页看看吧！': 'Maybe a new version is out — click to visit the repo!',
+  '松开即可导入': 'Drop to import',
+  '支持 PNG / SVG / JSON（PNG、SVG 需带内嵌 WaveJSON）': 'PNG / SVG / JSON (PNG & SVG must embed WaveJSON)',
+  '清除（右键单击单元格即可）': 'Erase (right-click a cell works too)',
+  '延续（.）—— 让上一拍的状态再延续一拍': 'Hold (.) — extend the previous cycle one more',
+  '笔刷：': 'Brush: ', '笔刷组': ' brush set', '笔刷': 'Brush',
+  '显示/隐藏名称列操作按钮（拖拽·更多·删除）': 'Toggle name-column actions (drag · more · delete)',
+  '关闭边与箭头': 'Close edges', '关闭图表设置': 'Close chart settings',
+  '行内小工具：总是显示（点击改为悬停显示）': 'Inline tools: always on (click to switch to hover)',
+  '行内小工具：悬停显示（点击改为总是显示）': 'Inline tools: hover (click to switch to always on)',
+  '折叠通道树（只保留添加按钮）': 'Fold the lane tree (keep add buttons only)',
+  '展开通道树': 'Unfold the lane tree',
+  '拖动调整信号列宽 · 双击恢复自动': 'Drag to resize the name column · double-click to reset',
+  '拖动调整预览区大小 · 双击重置': 'Drag to resize the preview · double-click to reset',
+  '节点 X ✕': 'Node X ✕', '移除节点标记': 'Remove the node mark', '放置节点（可连箭头）': 'Place a node (connectable arrow)',
+  '数据格标签输入': 'Data label input',
+  '界面语言': 'Language', '通道与分组': 'Lanes & groups',
+  '自动 →': 'Auto →', '自动 ↓': 'Auto ↓',
+  '按屏宽判断桌面/手机布局': 'Pick desktop/mobile layout by viewport width',
+  '固定使用手机版布局': 'Always use the mobile layout',
+  '" 不可用': '" unavailable',
+  '自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）': 'Auto mode: lock a cell and keep painting, stepping right (middle-click a cell to start+select; click again to switch to stepping down)',
+  '自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出': 'Auto mode (stepping right): keys / click / brush paint the cell and step right; click to switch to stepping down, ESC exits',
+  '自动连续模式进行中（逐格下移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并下移；点此退出，ESC 也可退出': 'Auto mode (stepping down): keys / click / brush paint the cell and step down; click to exit, ESC also exits',
+  '代码显示模式': 'Code display mode', '舒缓': 'Relaxed', '紧凑': 'Compact', '应用到图表': 'Apply to diagram',
+  '舒缓：短对象单行、复杂对象展开': 'Relaxed: short objects inline, complex ones expanded',
+  '紧凑：每个对象/数组都写成单行': 'Compact: every object/array on one line',
+  '单元格状态': 'Cell state',
+  '网格减少 4 拍': 'Remove 4 cycles', '网格减少 1 拍': 'Remove 1 cycle',
+  '网格增加 1 拍': 'Add 1 cycle', '网格增加 4 拍': 'Add 4 cycles',
+  '通道名称': 'Lane name', '分组名称': 'Group name', '分组': 'Group',
+  '拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）': 'Drag to reorder (drop on an edge = insert there, drop on a group row = move into it)',
+  '如：DDR 读时序': 'e.g. DDR read timing', '备注、说明': 'Notes…',
+  '顶层必须是一个 JSON 对象': 'Top level must be a JSON object', '"signal" 必须是数组': '"signal" must be an array',
+  '使用鼠标右键点击对应单元格即可清除': 'Right-click a cell to erase it',
+  '展开分组': 'Expand group', '折叠分组': 'Collapse group', '展开分组：': 'Expand group: ', '折叠分组：': 'Collapse group: ',
+  '删除箭头': 'Delete arrow', '改动会自动同步到左侧网格': 'Edits sync to the grid automatically',
+  '渲染库未加载': 'Renderer not loaded', '渲染 API 缺失': 'Render API missing', '渲染失败：': 'Render failed: ',
+  '皮肤 "': 'Skin "', ' 不可用': ' unavailable',
+  '已钉住：选择笔刷后弹层保持（点击改回自动收起）': 'Pinned: the flyout stays open after picking a brush (click to unpin)',
+  '选择笔刷后自动收起（点击钉住弹层）': 'Flyout auto-closes after picking a brush (click to pin)',
+  '笔刷面板': 'Brush panel',
+  '恢复横向弹窗条': 'Back to compact bar', '恢复右纵条': 'Back to right column', '折叠为右纵条': 'Fold to right column',
+  '笔刷（悬停或点击展示面板）': 'Brushes (hover or click to open)',
+  '延续第 ': 'Hold of cycle ', ' 拍 · ': ' · ', '非波形末尾的延续格无内容可清除': 'Hold cells before the waveform end have nothing to erase',
+  '已清除第 ': 'Cleared cycle ', '该拍现延续第 ': 'now holds cycle ', ' 拍': '', '该拍变为延续': 'now a hold',
+  '展开状态字符': 'Expand state glyphs', '折叠状态字符': 'Collapse state glyphs',
+  '填充：': 'Fill: ', '自动·跟随通道': 'Auto · follow lane', '（官方填充）': ' (official fill)',
+  '官方填充色（写入 wave 数字槽位，官方完全识别）': 'Official fill colors (written as wave digits, fully recognized by WaveDrom)',
+  '节点标记': 'Node mark', '移除': 'Remove', '⊕ 放置节点': '⊕ Place node', '放置节点后可连箭头': 'Place nodes to connect arrows',
+  '清除本格': 'Erase cell', '通道属性': 'Lane properties',
+  'period 周期 —— 每拍占 N 个时间单位': 'period — each cycle spans N time units',
+  'phase 相位 —— 左移 0～1 拍（0.5 = 半拍）': 'phase — shift left 0–1 cycle (0.5 = half cycle)',
+  '典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。': 'Typical DDR use: CK with period=2, command/address with phase=0.5.',
+  '信号': 'Signal', '时钟': 'Clock', '总线': 'Bus',
+  '通道已添加，已预填 8 拍': ' lane added, pre-filled with 8 cycles',
+  '不是 PNG 文件': 'Not a PNG file', 'PNG 结构不完整（缺少 IEND）': 'Broken PNG (missing IEND)',
+  'PNG 里没有内嵌 WaveJSON（可能已被转存剥离）': 'No embedded WaveJSON in the PNG (may have been stripped)',
+  'SVG 里没有内嵌 WaveJSON': 'No embedded WaveJSON in the SVG',
+  '已删除末尾一拍（Ctrl+Z 可撤销）': 'Removed the last cycle (Ctrl+Z to undo)',
+  '已删除末尾 ': 'Removed the last ', ' 拍（Ctrl+Z 可撤销）': ' cycles (Ctrl+Z to undo)', '没有可删除的拍': 'Nothing left to remove',
+  'kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染': 'kroki block copied — paste into kroki-enabled Markdown to render',
+  '分享链接已复制（含完整图表数据）': 'Share link copied (contains the full diagram)',
+  '鼠标点击笔刷或按笔刷快捷键即可快速渲染并按当前方向自动跳到下一格': 'Click a brush or press its key — the cell is painted and the selection advances',
+  '使用方向键可快速调整选中的单元格': 'Use the arrow keys to move the selected cell',
+  '任何情况下用 + / − 快捷键都可以增减拍': '+ / − always add or remove cycles',
+  '选中单元格后，可使用回车键开关单元格状态面板': 'Press Enter to toggle the cell state panel',
+  '延续上一状态': 'Hold previous state',
+  '入门 · 官方默认': 'Getting started · official default',
+  '时钟与总线握手': 'Clock & bus handshake',
+  '分组与箭头': 'Groups & arrows',
+  'DDR 读时序': 'DDR read timing',
+  'Step 2 · 时钟': 'Step 2 · Clock',
+  'Step 3 · 数据与总线': 'Step 3 · Data & bus',
+  'Step 4 · 间隔与占位': 'Step 4 · Gaps & spacers',
+  'Step 5 · 分组': 'Step 5 · Groups',
+  'Step 6 · period 与 phase': 'Step 6 · period & phase',
+  'Step 7 · hscale 缩放': 'Step 7 · hscale',
+  'Step 7 · narrow 皮肤': 'Step 7 · narrow skin',
+  'Step 7 · 标题与刻度': 'Step 7 · Title & ticks',
+  'Step 8 · 样条箭头': 'Step 8 · Spline arrows',
+  'Step 8 · 直角箭头': 'Step 8 · Right-angle arrows',
+  '自动': 'Auto',
+  '还没有节点标记 —— 在网格单元格弹窗里点「放置节点」。': 'No node marks yet — click "place node" in a cell popup.',
+  '已有节点，添加一条箭头把它们连起来': 'node(s) placed — add an arrow to connect them',
+  '起点节点': 'From node', '终点节点': 'To node', '箭头样式': 'Arrow style', '选择样式': 'Pick a style',
+  '常用': 'Common', '更多': 'More', '箭头标注（可选）': 'Arrow label (optional)', '箭头标注': 'Arrow label',
+  '如 0x1F、D0、NOP': 'e.g. 0x1F, D0, NOP',
+  'JSON 已复制到剪贴板': 'JSON copied to clipboard',
+  '已复制（节点标记不复制，避免字母冲突）': 'Duplicated (node marks are not copied to avoid letter clashes)',
+  '显示模式': 'Style', '比例与边距': 'Scale & inset', '比例': 'Scale', '边距': 'Inset',
+  '节点显示比例': 'Node display scale', '节点圆标的整体大小': 'Overall size of node marks',
+  '靠边节点的横向内缩（px）': 'Horizontal inset of edge nodes (px)',
+  '小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头': 'Small values hug the lane edge; larger ones keep marks inside cells',
+  '当前节点位置水平居中，边距不生效（选左/右类位置后可调）': 'Centered node position — inset has no effect (pick a left/right position to adjust)',
+  '节点位置：': 'Node position: ',
+  '左上': 'Top left', '上中': 'Top mid', '右上': 'Top right', '左中': 'Left mid', '右中': 'Right mid',
+  '左下': 'Bottom left', '下中': 'Bottom mid', '右下': 'Bottom right',
+  '自动：同左中，但会躲开数据框标签': 'Auto: like left mid, but dodges data labels',
+};
+let uiLang = localStorage.getItem('wdgui-lang') || 'auto';
+const sysLang = () => (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+const effLang = () => uiLang === 'auto' ? sysLang() : uiLang;
+function t(s) { return effLang() === 'zh' ? s : (I18N_EN[s] ?? s); }
+/* 应用语言：静态 data-i18n 节点 + 动态区域重渲染 */
+function applyLang() {
+  document.documentElement.lang = effLang() === 'zh' ? 'zh-CN' : 'en';
+  document.title = 'WaveDrom-Gui · ' + (effLang() === 'zh' ? '时序图编辑器' : 'timing diagram editor');
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', t(el.dataset.i18nTitle)); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  renderGrid(); renderEdges(); renderBrushUI();
+  updateChainBtn();
+}
+
+
 
 function syncAppVersion() {
   const version = document.querySelector('meta[name="app-version"]')?.content.trim() || 'dev';
   document.querySelectorAll('[data-app-version]').forEach(el => { el.textContent = version; });
   const topBadge = document.querySelector('#verBadge');
-  if (topBadge) topBadge.setAttribute('aria-label', '当前版本 ' + version + '，点击打开仓库首页');
+  if (topBadge) topBadge.setAttribute('aria-label', t('当前版本 ') + version + t('，点击打开仓库首页'));
 }
 syncAppVersion();
 
@@ -1426,7 +1674,7 @@ function applySideDock() {
   relocatePalette(on);
   const b = document.getElementById('sideDockBtn');
   if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
-    b.title = on ? '隐藏通道与分组面板' : '显示通道与分组面板'; }
+    b.title = on ? t('隐藏通道与分组面板') : t('显示通道与分组面板'); }
 }
 /* 切换视图模式偏好（auto/simple）并即时生效 */
 function setViewModePref(mode) {
@@ -2117,8 +2365,8 @@ function parseEntry(e) {
   return lane;
 }
 function parseDoc(j) {
-  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error('顶层必须是一个 JSON 对象');
-  if (j.signal !== undefined && !Array.isArray(j.signal)) throw new Error('"signal" 必须是数组');
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error(t('顶层必须是一个 JSON 对象'));
+  if (j.signal !== undefined && !Array.isArray(j.signal)) throw new Error(t('"signal" 必须是数组'));
   const st = {
     tree: (j.signal || []).map(parseEntry),
     edges: [], rawEdges: [],
@@ -2491,7 +2739,7 @@ function cellTip(msg, lane, t) {
   cellTipTimer = setTimeout(() => tip.classList.remove('show'), 1800);
 }
 /* 清除笔刷的引导提示：左键清除与右键清除重复，该笔刷不再激活，只作引导 */
-const ERASE_HINT = '使用鼠标右键点击对应单元格即可清除';
+const ERASE_HINT = '使用鼠标右键点击对应单元格即可清除'; // t() at use
 /* 锚定到任意元素的提示气泡（复用 #cellTip 与其箭头样式），el 不在文档时退化为 toast */
 function brushTip(msg, el) {
   if (!el || !el.isConnected) { toast(msg); return; }
@@ -2597,9 +2845,9 @@ function renderGrid() {
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, H.text)));
   }
   const timeRow = h('div', { class: 'time-row' },
-    h('div', { class: 'time-corner' }, state.hb ? `信号 \\ 拍 ${win.a}–${win.b - 1}` : '信号 \\ 拍',
+    h('div', { class: 'time-corner' }, state.hb ? `${t('信号 \\ 拍')} ${win.a}–${win.b - 1}` : t('信号 \\ 拍'),
       (() => {
-        const b = h('button', { class: 'icon-btn ha-toggle', title: '显示/隐藏名称列操作按钮（拖拽·更多·删除）', 'aria-label': '显示或隐藏名称列操作按钮' });
+        const b = h('button', { class: 'icon-btn ha-toggle', title: t('显示/隐藏名称列操作按钮（拖拽·更多·删除）'), 'aria-label': t('显示/隐藏名称列操作按钮（拖拽·更多·删除）') });
         b.appendChild(icon('<path d="M3 5.5h10M3 10.5h10"/><circle cx="6" cy="5.5" r="1.7"/><circle cx="10" cy="10.5" r="1.7"/>', 13));
         b.addEventListener('click', ev => {
           ev.stopPropagation();
@@ -2657,7 +2905,7 @@ function renderGrid() {
       h('div', { class: 'strip-corner' }),
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, F.text)));
   }
-  bindNameSplit(h('div', { class: 'name-split', title: '拖动调整信号列宽 · 双击恢复自动' }), inner);
+  bindNameSplit(h('div', { class: 'name-split', title: t('拖动调整信号列宽 · 双击恢复自动') }), inner);
   renderMiniEdges();
   if (autoChain && chainSel) restoreChainSelHighlight();
 }
@@ -2835,8 +3083,8 @@ function laneHeadActions(node, kind) {
     b.addEventListener('click', ev => { ev.stopPropagation(); fn(b); });
     return b;
   };
-  if (kind !== 'spacer') wrap.appendChild(mk(IC.more, '更多操作', btn => openMoreMenu(node, kind, btn)));
-  wrap.appendChild(mk(IC.trash, kind === 'group' ? '删除分组（组内通道上移保留）' : '删除', () => delNode(node), 'danger-hover'));
+  if (kind !== 'spacer') wrap.appendChild(mk(IC.more, t('更多操作'), btn => openMoreMenu(node, kind, btn)));
+  wrap.appendChild(mk(IC.trash, kind === 'group' ? t('删除分组（组内通道上移保留）') : t('删除'), () => delNode(node), 'danger-hover'));
   return wrap;
 }
 /* ⋯ 更多操作小菜单（固定定位弹层，窄侧栏也完整展示） */
@@ -2854,15 +3102,15 @@ function openMoreMenu(node, kind, anchor) {
     return b;
   };
   pop.textContent = '';
-  pop.appendChild(h('div', { class: 'pop-title' }, '更多操作 · ' + (node.name || '未命名')));
+  pop.appendChild(h('div', { class: 'pop-title' }, t('更多操作') + ' · ' + (node.name || t('未命名'))));
   if (kind === 'lane') {
-    pop.appendChild(mkItem(IC.copy, '复制通道', () => dupLane(node)));
-    pop.appendChild(mkItem(IC.into, '移入上方最近的分组', () => intoGroup(node)));
-    pop.appendChild(mkItem(IC.out, '移出所在分组', () => outOfGroup(node)));
-    pop.appendChild(mkItem(IC.gear, '通道属性（period / phase）', btn => openLanePropPop(node, btn)));
+    pop.appendChild(mkItem(IC.copy, t('复制通道'), () => dupLane(node)));
+    pop.appendChild(mkItem(IC.into, t('移入上方最近的分组'), () => intoGroup(node)));
+    pop.appendChild(mkItem(IC.out, t('移出所在分组'), () => outOfGroup(node)));
+    pop.appendChild(mkItem(IC.gear, t('通道属性（period / phase）'), btn => openLanePropPop(node, btn)));
   } else if (kind === 'group') {
-    pop.appendChild(mkItem(IC.plus, '在组内添加通道', () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
-    pop.appendChild(mkItem(IC.subgroup, '添加子分组', () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
+    pop.appendChild(mkItem(IC.plus, t('在组内添加通道'), () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
+    pop.appendChild(mkItem(IC.subgroup, t('添加子分组'), () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
   }
   pop.classList.add('open');
   const r = anchor.getBoundingClientRect();
@@ -2883,7 +3131,7 @@ function buildLaneRow(lane, depth, colCount, win) {
     dndGrip(),
     h('span', { class: 'dot' }),
     (() => {
-      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': '通道名称', title: lane.name || '未命名' });
+      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': t('通道名称'), title: lane.name || t('未命名') });
       inp.addEventListener('change', () => { lane.name = inp.value.trim(); update(true); });
       inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
       return inp;
@@ -2920,7 +3168,7 @@ function buildLaneRow(lane, depth, colCount, win) {
     track.appendChild(h('div', {
       class: 'cell' + (p ? '' : ' cell-mark'), 'data-t': t, 'data-lane': lane.id,
       style: `left:${left.toFixed(1)}px;width:${wpx}px`, role: 'button', tabindex: '-1',
-      'aria-label': `${lane.name || '未命名'} 第 ${t} 拍`,
+      'aria-label': `${lane.name || t('未命名')} · ${t}`,
     }));
   }
   row.appendChild(head); row.appendChild(track);
@@ -2931,10 +3179,10 @@ function buildGroupRow(group, depth) {
   const collapsed = collapsedGroups.has(group.id);
   const row = h('div', { class: 'lane-row group-row' + (collapsed ? ' collapsed' : ''), 'data-group': group.id });
   row.dataset.nodeId = group.id;
-  const inp = h('input', { class: 'gname', value: group.name, 'aria-label': '分组名称', title: group.name || '分组' });
+  const inp = h('input', { class: 'gname', value: group.name, 'aria-label': t('分组名称'), title: group.name || t('分组') });
   inp.addEventListener('change', () => { group.name = inp.value.trim() || '分组'; update(true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
-  const caret = h('button', { class: 'g-caret', title: collapsed ? '展开分组' : '折叠分组', 'aria-label': (collapsed ? '展开分组：' : '折叠分组：') + (group.name || '分组') });
+  const caret = h('button', { class: 'g-caret', title: collapsed ? t('展开分组') : t('折叠分组'), 'aria-label': (collapsed ? t('展开分组：') : t('折叠分组：')) + (group.name || t('分组')) });
   caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 12));
   caret.addEventListener('click', ev => {
     ev.stopPropagation();
@@ -2953,7 +3201,7 @@ function buildSpacerRow(sp, depth) {
   row.dataset.nodeId = sp.id;
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
     dndGrip(),
-    h('span', { class: 'spacer-label' }, '空白占位'));
+    h('span', { class: 'spacer-label' }, t('空白占位')));
   head.appendChild(laneHeadActions(sp, 'spacer'));
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
@@ -2963,11 +3211,11 @@ function buildSpacerRow(sp, depth) {
 function buildEmptyState() {
   return h('div', { class: 'grid-empty' },
     icon('<path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.3"/>', 40),
-    h('h2', null, '从一条信号开始'),
-    h('p', null, '添加通道后，点击网格中的每一拍来画出波形，右侧会实时渲染成时序图。'),
+    h('h2', null, t('从一条信号开始')),
+    h('p', null, t('添加通道后，点击网格中的每一拍来画出波形，右侧会实时渲染成时序图。')),
     h('div', { class: 'row' },
-      (() => { const b = h('button', { class: 'btn primary' }, '＋ 添加一条信号'); b.addEventListener('click', () => addLane('bit')); return b; })(),
-      (() => { const b = h('button', { class: 'btn' }, '载入示例'); b.addEventListener('click', () => loadExample(1)); return b; })()));
+      (() => { const b = h('button', { class: 'btn primary' }, t('＋ 添加一条信号')); b.addEventListener('click', () => addLane('bit')); return b; })(),
+      (() => { const b = h('button', { class: 'btn' }, t('载入示例')); b.addEventListener('click', () => loadExample(1)); return b; })()));
 }
 
 /* ---------- 渲染：箭头 ---------- */
@@ -2996,27 +3244,27 @@ function renderEdges() {
   list.textContent = '';
   const nodes = collectNodes();
   if (!nodes.length) {
-    list.appendChild(h('div', { class: 'edge-hint' }, '还没有节点标记 —— 在网格单元格弹窗里点「放置节点」。'));
+    list.appendChild(h('div', { class: 'edge-hint' }, t('还没有节点标记 —— 在网格单元格弹窗里点「放置节点」。')));
     return;
   }
   if (!state.edges.length) {
-    list.appendChild(h('div', { class: 'edge-hint' }, `已有 ${nodes.length} 个节点，添加一条箭头把它们连起来。`));
+    list.appendChild(h('div', { class: 'edge-hint' }, `${nodes.length} ${t('已有节点，添加一条箭头把它们连起来')}`));
   }
   state.edges.forEach((e, idx) => {
-    const fromSel = h('select', { 'aria-label': '起点节点' }, ...nodes.map(n => {
-      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || '未命名'}@${n.t}`);
+    const fromSel = h('select', { 'aria-label': t('起点节点') }, ...nodes.map(n => {
+      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || t('未命名')}@${n.t}`);
       if (n.letter === e.from) o.selected = true; return o;
     }));
-    const toSel = h('select', { 'aria-label': '终点节点' }, ...nodes.map(n => {
-      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || '未命名'}@${n.t}`);
+    const toSel = h('select', { 'aria-label': t('终点节点') }, ...nodes.map(n => {
+      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || t('未命名')}@${n.t}`);
       if (n.letter === e.to) o.selected = true; return o;
     }));
-    const styleSel = h('select', { 'aria-label': '箭头样式' },
-      h('option', { value: '', disabled: true, hidden: true }, '选择样式'),
-      h('optgroup', { label: '常用' }, ...EDGE_SPECS.slice(0, 9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${s.name}`); if (s.s === e.spec) o.selected = true; return o; })),
-      h('optgroup', { label: '更多' }, ...EDGE_SPECS.slice(9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${s.name}`); if (s.s === e.spec) o.selected = true; return o; })));
+    const styleSel = h('select', { 'aria-label': t('箭头样式') },
+      h('option', { value: '', disabled: true, hidden: true }, t('选择样式')),
+      h('optgroup', { label: t('常用') }, ...EDGE_SPECS.slice(0, 9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${t(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })),
+      h('optgroup', { label: t('更多') }, ...EDGE_SPECS.slice(9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${t(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })));
     const prevWrap = h('span', { class: 'preview' }); prevWrap.appendChild(edgePreviewSVG(e.spec));
-    const labelInp = h('input', { type: 'text', value: e.label, placeholder: '箭头标注（可选）', 'aria-label': '箭头标注' });
+    const labelInp = h('input', { type: 'text', value: e.label, placeholder: t('箭头标注（可选）'), 'aria-label': t('箭头标注') });
     labelInp.addEventListener('input', () => { commitTag = 'edge'; e.label = labelInp.value; scheduleUpdate(); });
     fromSel.addEventListener('change', () => { e.from = fromSel.value; scheduleUpdate(); });
     toSel.addEventListener('change', () => { e.to = toSel.value; scheduleUpdate(); });
@@ -3025,7 +3273,7 @@ function renderEdges() {
       prevWrap.textContent = ''; prevWrap.appendChild(edgePreviewSVG(e.spec));
       scheduleUpdate();
     });
-    const del = h('button', { class: 'icon-btn danger-hover del', title: '删除箭头', 'aria-label': '删除箭头' });
+    const del = h('button', { class: 'icon-btn danger-hover del', title: t('删除箭头'), 'aria-label': t('删除箭头') });
     del.appendChild(icon(IC.trash, 13));
     del.addEventListener('click', () => { state.edges.splice(idx, 1); update(); });
     list.appendChild(h('div', { class: 'edge-row' },
@@ -3104,7 +3352,7 @@ function renderCode() {
   if (document.activeElement !== ta) {
     ta.value = fmtJSON(buildJSON(), 0, codeCompact);
     const st = $('#codeStatus');
-    st.className = 'code-ok'; st.textContent = '改动会自动同步到左侧网格';
+    st.className = 'code-ok'; st.textContent = t('改动会自动同步到左侧网格');
   }
 }
 function renderPreview() {
@@ -3112,8 +3360,8 @@ function renderPreview() {
   host.textContent = '';
   const json = buildJSON();
   try {
-    if (!window.WaveDrom || !window.WaveSkin) throw new Error('渲染库未加载');
-    if (state.skin !== 'default' && !window.WaveSkin[state.skin]) throw new Error(`皮肤 "${state.skin}" 不可用`);
+    if (!window.WaveDrom || !window.WaveSkin) throw new Error(t('渲染库未加载'));
+    if (state.skin !== 'default' && !window.WaveSkin[state.skin]) throw new Error(t('皮肤 "') + state.skin + t('" 不可用'));
     const rwf = window.WaveDrom.renderWaveForm || window.WaveDrom.RenderWaveForm;
     if (typeof rwf !== 'function') throw new Error('渲染 API 缺失');
     rwf.call(window.WaveDrom, 0, json, 'wv');
@@ -3182,7 +3430,7 @@ function setBrush(id, anchor) {
     /* 桌面（精指针）：右键清除为主，清除笔刷仅作引导提示不激活；
        触屏（粗指针）：无右键，清除笔刷恢复为真实工具（点/拖单元格清除） */
     if (!matchMedia('(pointer: coarse)').matches) {
-      brushTip(ERASE_HINT, anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
+      brushTip(t(ERASE_HINT), anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
       closePop(); closeBrushFly(); closeBrushPanel();
       return;
     }
@@ -3216,15 +3464,15 @@ function brushFace(id, w, hgt, iconSize) {
 function brushBtn(id, variant) {
   const v = variant || 'bar';
   const sizeCls = v === 'fly' ? ' sm' : v === 'edge' ? ' edge' : '';
-  const name = id === 'select' ? '选择' : id === 'erase' ? '清除' : id === '.' ? '延续' : GLYPH_MAP[id].name;
+  const name = id === 'select' ? t('选择') : id === 'erase' ? t('清除') : id === '.' ? t('延续') : t(GLYPH_MAP[id].name);
   const b = h('button', {
     class: 'tool' + sizeCls + (brushActive(id) ? ' active' : ''),
-    'data-brush': id, title: id === '.' ? '延续（.）—— 让上一拍的状态再延续一拍' : id === 'erase' ? '清除（右键单击单元格即可）' : `${name}（${id}）`,
-    'aria-label': '笔刷：' + name,
+    'data-brush': id, title: id === '.' ? t('延续（.）—— 让上一拍的状态再延续一拍') : id === 'erase' ? t('清除（右键单击单元格即可）') : `${name}（${id}）`,
+    'aria-label': t('笔刷：') + name,
   });
   const dims = (v === 'bar' || v === 'panel') ? [30, 18, 18] : [26, 15, 15];
   b.appendChild(brushFace(id, dims[0], dims[1], dims[2]));
-  b.appendChild(h('span', { class: 'tlabel' }, id === 'select' ? '选择' : id === 'erase' ? '清除' : id === '.' ? '延续' : id));
+  b.appendChild(h('span', { class: 'tlabel' }, id === 'select' ? t('选择') : id === 'erase' ? t('清除') : id === '.' ? t('延续') : id));
   b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
   return b;
 }
@@ -3243,10 +3491,10 @@ function foldBtn(title, dir, onFold) {
 }
 /* 纯文本紧凑笔刷按钮（选择 / 清除 / 延续，无图标） */
 function brushTxtBtn(id) {
-  const name = id === 'select' ? '选择' : id === 'erase' ? '清除' : '延续';
+  const name = id === 'select' ? t('选择') : id === 'erase' ? t('清除') : t('延续');
   const b = h('button', {
     class: 'tool txt' + (brushActive(id) ? ' active' : ''),
-    'data-brush': id, title: id === 'erase' ? '清除（右键单击单元格即可）' : `${name}（${id}）`, 'aria-label': '笔刷：' + name,
+    'data-brush': id, title: id === 'erase' ? t('清除（右键单击单元格即可）') : `${name}（${id}）`, 'aria-label': t('笔刷：') + name,
   }, h('span', { class: 'tlabel' }, name));
   b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
   return b;
@@ -3254,8 +3502,8 @@ function brushTxtBtn(id) {
 function groupChip(g, vertical) {
   const chip = h('button', {
     class: 'tool ' + (vertical ? 'edge chip-v' : 'chip') + (g.items.some(brushActive) ? ' active' : ''),
-    title: g.name + '笔刷', 'aria-label': g.name + '笔刷组',
-  }, h('span', { class: 'chip-name' }, g.name));
+    title: t(g.name) + ' ' + t('笔刷'), 'aria-label': t(g.name) + ' ' + t('笔刷组'),
+  }, h('span', { class: 'chip-name' }, t(g.name)));
   chip.addEventListener('mouseenter', () => { clearTimeout(brushFlyHideTimer); openBrushFly(chip, g, true); });
   chip.addEventListener('mouseleave', () => scheduleHideBrushFly());
   chip.addEventListener('click', ev => {
@@ -3290,7 +3538,7 @@ function renderBrushUI() {
 }
 /* A 下横条：全量平铺，左端折叠按钮 → B */
 function buildBarPalette(pal) {
-  pal.appendChild(foldBtn('折叠笔刷栏', 'down', () => setBrushMode('compact')));
+  pal.appendChild(foldBtn(t('折叠笔刷栏'), 'down', () => setBrushMode('compact')));
   pal.appendChild(brushBtn('select'));
   pal.appendChild(brushBtn('erase'));
   pal.appendChild(brushBtn('.'));
@@ -3299,8 +3547,8 @@ function buildBarPalette(pal) {
 }
 /* B 横向弹窗条：紧凑纯文本，分组点击弹层；↑ 恢复 A，→ 折叠成 C */
 function buildCompactPalette(pal) {
-  pal.appendChild(foldBtn('展开为横条', 'up', () => setBrushMode('bar')));
-  pal.appendChild(foldBtn('折叠为右下角按钮', 'right', () => setBrushMode('fab')));
+  pal.appendChild(foldBtn(t('展开为横条'), 'up', () => setBrushMode('bar')));
+  pal.appendChild(foldBtn(t('折叠为右下角按钮'), 'right', () => setBrushMode('fab')));
   const mobile = isMobile();
   // 手机：延续已并入每个分组，不再单列独立笔刷
   (mobile ? ['select', 'erase'] : ['select', 'erase', '.']).forEach(id => pal.appendChild(brushTxtBtn(id)));
@@ -3312,8 +3560,8 @@ function buildCompactPalette(pal) {
 function buildVGroupPalette() {
   const root = $('#brushCol');
   root.appendChild(h('div', { class: 'be-top' },
-    foldBtn('折叠为右下角按钮', 'down', () => setBrushMode('fab')),
-    foldBtn('展开为右侧面板', 'left', () => setBrushMode('panel'))));
+    foldBtn(t('折叠为右下角按钮'), 'down', () => setBrushMode('fab')),
+    foldBtn(t('展开为右侧面板'), 'left', () => setBrushMode('panel'))));
   const col = h('div', { class: 'vgroup-col' });
   const mobile = isMobile();
   (mobile ? ['select', 'erase'] : ['select', 'erase', '.']).forEach(id => col.appendChild(brushTxtBtn(id)));
@@ -3351,7 +3599,7 @@ function openBrushFly(chip, g, byHover) {
   if (byHover) fly.dataset.openedByHover = '1'; else delete fly.dataset.openedByHover;
   const pin = h('button', {
     class: 'fly-pin' + (brushFlyKeep() ? ' on' : ''),
-    title: brushFlyKeep() ? '已钉住：选择笔刷后弹层保持（点击改回自动收起）' : '选择笔刷后自动收起（点击钉住弹层）',
+    title: brushFlyKeep() ? t('已钉住：选择笔刷后弹层保持（点击改回自动收起）') : t('选择笔刷后自动收起（点击钉住弹层）'),
     'aria-label': '钉住笔刷弹层', 'aria-pressed': String(brushFlyKeep()),
   });
   pin.appendChild(icon('<circle cx="8" cy="5.5" r="3.2"/><path d="M8 8.7V14"/>', 13));
@@ -3381,9 +3629,9 @@ function closeBrushFly() { const f = $('#brushFly'); if (f) { f.classList.remove
 /* C 右下角按钮：悬停 / 点击展示笔刷面板，离开按钮与面板区域或选择笔刷后自动隐藏 */
 let brushPanelHideTimer = null;
 function createBrushPanel() {
-  const panel = h('div', { class: 'popover open', role: 'dialog', 'aria-label': '笔刷面板' });
+  const panel = h('div', { class: 'popover open', role: 'dialog', 'aria-label': t('笔刷面板') });
   const tools = h('div', { class: 'pop-glyphs', style: 'margin-bottom:4px' });
-  [['select', '选择'], ['erase', '清除']].forEach(([id, name]) => {
+  [['select', t('选择')], ['erase', t('清除')]].forEach(([id, name]) => {
     const b = h('button', { class: 'pg' + (brushActive(id) ? ' active' : ''), title: name, 'aria-label': name });
     b.appendChild(brushFace(id, 26, 15, 15));
     b.appendChild(h('span', { class: 'tlabel' }, name));
@@ -3405,9 +3653,9 @@ function scheduleHideBrushPanel() {
 function buildFabCluster() {
   const root = $('#brushFan');
   const box = h('div', { class: 'fan-box' });
-  box.appendChild(foldBtn('恢复横向弹窗条', 'left', () => setBrushMode('compact')));
+  box.appendChild(foldBtn(t('恢复横向弹窗条'), 'left', () => setBrushMode('compact')));
   box.appendChild(foldBtn('恢复右纵条', 'up', () => setBrushMode('vgroup')));
-  const main = h('button', { class: 'fan-main', title: '笔刷（悬停或点击展示面板）', 'aria-label': '笔刷面板' }, '笔刷');
+  const main = h('button', { class: 'fan-main', title: t('笔刷（悬停或点击展示面板）'), 'aria-label': t('笔刷面板') }, t('笔刷'));
   main.addEventListener('click', ev => {
     ev.stopPropagation();
     if (document.querySelector('#brushPanel')) closeBrushPanel();
@@ -3532,7 +3780,7 @@ function clearCell(lane, t) {
   if (laneWaveStr(lane) === wave0 && laneLen(lane) === len0) {
     // 点了延续格且无任何可见变化
     const src = extendSource(lane, t);
-    cellTip((src >= 0 ? '延续第 ' + src + ' 拍 · ' : '') + '非波形末尾的延续格无内容可清除', lane, t);
+    cellTip((src >= 0 ? t('延续第 ') + src + t(' 拍 · ') : '') + t('非波形末尾的延续格无内容可清除'), lane, t);
   } else if (wasReal && laneLen(lane) === len0) {
     // 删的是真实字符且它不是最后一拍：该格变成延续格，前一个状态顺延流过来
     const src = extendSource(lane, t);
@@ -3583,19 +3831,18 @@ function updateChainBtn() {
   const btn = $('#chainBtn');
   if (!btn) return;
   const key = !autoChain ? 'off' : chainDir;
-  const LABELS = { off: ['自动模式', '自动'], col: ['自动右移', '右移'], row: ['自动下移', '下移'] };
+  /* 桌面 full / 手机 short：桌面统一「自动」+ 方向箭头，手机保留短词 */
+  const LABELS = { off: [t('自动'), t('自动')], col: [t('自动 →'), t('右移')], row: [t('自动 ↓'), t('下移')] };
   const full = btn.querySelector('.ct-full'), short = btn.querySelector('.ct-short');
   if (full) full.textContent = LABELS[key][0];
   if (short) short.textContent = LABELS[key][1];
-  const state = btn.querySelector('.chain-state');
-  if (state) state.dataset.s = autoChain ? 'on' : 'off';
   btn.classList.toggle('active', autoChain);
   btn.setAttribute('aria-pressed', autoChain ? 'true' : 'false');
   btn.title = !autoChain
-    ? '自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）'
+    ? t('自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）')
     : chainDir === 'col'
-      ? '自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出'
-      : '自动连续模式进行中（逐格下移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并下移；点此退出，ESC 也可退出';
+      ? t('自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出')
+      : t('自动连续模式进行中（逐格下移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并下移；点此退出，ESC 也可退出');
 }
 function clearChainHighlight() {
   document.querySelectorAll('#gridInner .cell.chain-sel').forEach(c => c.classList.remove('chain-sel'));
@@ -3625,7 +3872,7 @@ function setChainSel(lane, t) {
   if (cell) { cell.classList.add('chain-sel'); cell.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
   const tip = CHAIN_TIPS[chainSelCount]; // 前 4 次选中的分步引导；之后为 undefined 不提示
   chainSelCount++;
-  if (tip) toast(tip);
+  if (tip) toast(t(tip));
   if (wasPopOpen && changed) reopenPopAtChainSel();
 }
 function enterAutoChain(withCell) {
@@ -3636,7 +3883,7 @@ function enterAutoChain(withCell) {
   if (!withCell) {
     chainSel = null;
     clearChainHighlight();
-    toast('自动连续模式已启动（逐格右移）：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）');
+    toast(t('自动连续模式已启动（逐格右移）：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）'));
   }
 }
 function exitAutoChain() {
@@ -3657,13 +3904,13 @@ function advanceChain() {
   if (li < 0) { exitAutoChain(); return; }
   if (chainDir === 'row') {
     if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, Math.min(win.b - 1, Math.max(win.a, chainSel.t))); return; } }
-    toast('已到最后一行，自动连续模式停留在当前格');
+    toast(t('已到最后一行，自动连续模式停留在当前格'));
     restoreChainSelHighlight();
     return;
   }
   if (chainSel.t + 1 < win.b) { const lane = getLaneById(chainSel.laneId); if (lane) setChainSel(lane, chainSel.t + 1); return; }
   if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, win.a); return; } }
-  toast('已到最后一行末尾，自动连续模式停留在当前格');
+  toast(t('已到最后一行末尾，自动连续模式停留在当前格'));
   restoreChainSelHighlight();
 }
 /* 对当前选中格上色并右移；char 为合法波形字符 */
@@ -3719,7 +3966,7 @@ function buildGlyphGrid(parent, currentGlyph, onPick) {
     const b = h('button', { class: 'pg' + (currentGlyph === ch ? ' active' : ''), title: name, 'aria-label': name });
     const s = ch === '.' ? extendSample() : glyphSample(ch);
     b.appendChild(s);
-    b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? '延续' : ch));
+    b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? t('延续') : ch));
     b.addEventListener('click', ev => { ev.stopPropagation(); onPick(ch); });
     return b;
   };
@@ -3739,11 +3986,11 @@ function openPop(lane, t, anchor) {
   const slot = lane.slots[t];
   // 有效渲染状态：显式状态优先；空槽在通道长度内视为延续
   const eff = (slot && slot.glyph) || (t < laneLen(lane) ? '.' : null);
-  const glyphLabel = ch => ch === '.' ? '延续 (.)' : (GLYPH_MAP[ch] ? `${GLYPH_MAP[ch].name} (${ch})` : '');
+  const glyphLabel = ch => ch === '.' ? t('延续 (.)') : (GLYPH_MAP[ch] ? `${t(GLYPH_MAP[ch].name)} (${ch})` : '');
   const curLabel = eff ? glyphLabel(eff) : '';
   const title = h('div', { class: 'pop-title' },
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
-    h('span', { style: 'flex:1;min-width:0' }, (lane.name || '未命名') + ' · 第 ' + t + ' 拍' + (curLabel ? ' · 当前：' + curLabel : ' · 当前：空')));
+    h('span', { style: 'flex:1;min-width:0' }, (lane.name || t('未命名')) + ' · ' + t + (curLabel ? ' · ' + t('当前：') + curLabel : '')));
   pop.appendChild(title);
   const mobile = isMobile();
   if (!mobile) {
@@ -3761,7 +4008,7 @@ function openPop(lane, t, anchor) {
       glyphsWrap.style.display = popGlyphsCollapsed ? 'none' : '';
       foldGlyphs.textContent = '';
       foldGlyphs.appendChild(icon(FOLD_PATHS[popGlyphsCollapsed ? 'down' : 'up'], 12));
-      const lbl = popGlyphsCollapsed ? '展开状态字符' : '折叠状态字符';
+      const lbl = popGlyphsCollapsed ? t('展开状态字符') : t('折叠状态字符');
       foldGlyphs.title = lbl;
       foldGlyphs.setAttribute('aria-label', lbl);
     };
@@ -3780,11 +4027,11 @@ function openPop(lane, t, anchor) {
       setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
     }
     const letter = lane.nodeByT[t];
-    const nodeBtn = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, letter ? ('节点 ' + letter + ' ✕') : '⊕ 节点');
-    nodeBtn.title = letter ? '移除节点标记' : '放置节点（可连箭头）';
+    const nodeBtn = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, letter ? (t('节点') + ' ' + letter + ' ✕') : t('⊕ 节点'));
+    nodeBtn.title = letter ? t('移除节点标记') : t('放置节点（可连箭头）');
     nodeBtn.addEventListener('click', () => {
       if (letter) { delete lane.nodeByT[t]; update(); }
-      else { const L = nextNodeLetter(); if (!L) { toast('节点字母（a–Z 共 52 个）已用完', true); return; } lane.nodeByT[t] = L; update(true); }
+      else { const L = nextNodeLetter(); if (!L) { toast(t('节点字母（a–Z 共 52 个）已用完'), true); return; } lane.nodeByT[t] = L; update(true); }
       openPop(lane, t, anchor);
     });
     row.appendChild(nodeBtn);
@@ -3802,15 +4049,15 @@ function openPop(lane, t, anchor) {
   }
 
   if (slot && isData(slot.glyph)) {
-    const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '如 0x1F、D0、NOP', 'aria-label': '数据标签' });
+    const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: t('如 0x1F、D0、NOP'), 'aria-label': t('数据标签') });
     inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
-    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '数据标签'), inp));
+    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, t('数据标签')), inp));
     const row = h('div', { class: 'pop-colors' });
     const mkSw = (ch, label, bg) => {
       const b = h('button', {
         class: 'swatch' + (slot.glyph === ch ? ' active' : '') + (ch === '=' ? ' auto' : ''),
-        title: label, 'aria-label': '填充：' + label, type: 'button',
+        title: label, 'aria-label': t('填充：') + label, type: 'button',
       });
       b.style.background = bg;
       if (ch === '=') b.textContent = 'A';
@@ -3822,8 +4069,8 @@ function openPop(lane, t, anchor) {
       });
       return b;
     };
-    row.appendChild(mkSw('=', '自动·跟随通道', laneColor(lane)));
-    Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, '数据' + k + '（官方填充）', DIGIT_FILLS[k])));
+    row.appendChild(mkSw('=', t('自动·跟随通道'), laneColor(lane)));
+    Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, t('数据') + k + t('（官方填充）'), DIGIT_FILLS[k])));
     pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '官方填充色（写入 wave 数字槽位，官方完全识别）'), row));
     setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
   }
@@ -3831,12 +4078,12 @@ function openPop(lane, t, anchor) {
   const letter = lane.nodeByT[t];
   if (letter) {
     nodeRow.appendChild(h('span', { class: 'badge' }, letter));
-    nodeRow.appendChild(h('span', null, '节点标记'));
+    nodeRow.appendChild(h('span', null, t('节点标记')));
     const rm = h('button', { class: 'btn ghost', style: 'margin-left:auto;height:26px' }, '移除');
     rm.addEventListener('click', () => { delete lane.nodeByT[t]; update(); openPop(lane, t, anchor); });
     nodeRow.appendChild(rm);
   } else {
-    const add = h('button', { class: 'btn ghost', style: 'height:26px' }, '⊕ 放置节点');
+    const add = h('button', { class: 'btn ghost', style: 'height:26px' }, t('⊕ 放置节点'));
     add.addEventListener('click', () => {
       const L = nextNodeLetter();
       if (!L) { toast('节点字母（a–Z 共 52 个）已用完', true); return; }
@@ -3844,12 +4091,12 @@ function openPop(lane, t, anchor) {
       update(true);
       openPop(lane, t, anchor);
     });
-    nodeRow.appendChild(h('span', null, '放置节点后可连箭头'));
+    nodeRow.appendChild(h('span', null, t('放置节点后可连箭头')));
     nodeRow.appendChild(add);
   }
   pop.appendChild(nodeRow);
 
-  const clearBtn = h('button', { class: 'btn danger', style: 'flex:none' }, '清除本格');
+  const clearBtn = h('button', { class: 'btn danger', style: 'flex:none' }, t('清除本格'));
   clearBtn.addEventListener('click', () => { clearCell(lane, t); closePop(); });
   pop.appendChild(h('div', { class: 'pop-actions' }, clearBtn));
   pop.classList.add('open');
@@ -3886,14 +4133,14 @@ function openLanePropPop(lane, anchor) {
   const pop = $('#cellPop');
   popCell = null;
   pop.textContent = '';
-  pop.appendChild(h('div', { class: 'pop-title' }, '通道属性 · ' + (lane.name || '未命名')));
+  pop.appendChild(h('div', { class: 'pop-title' }, t('通道属性') + ' · ' + (lane.name || t('未命名'))));
   const pInp = h('input', { type: 'number', min: '1', step: '1', value: lane.period || '', placeholder: '1', 'aria-label': 'period 周期' });
-  const phInp = h('input', { type: 'number', step: '0.1', value: lane.phase ?? '', placeholder: '0', 'aria-label': 'phase 相位' });
+  const phInp = h('input', { type: 'number', step: '0.1', value: lane.phase ?? '', placeholder: '0', 'aria-label': t('phase 相位') });
   pInp.addEventListener('input', () => { lane.period = pInp.value === '' ? null : Math.max(1, +pInp.value); scheduleUpdate(); });
   phInp.addEventListener('input', () => { lane.phase = phInp.value === '' ? null : +phInp.value; scheduleUpdate(); });
-  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, 'period 周期 —— 每拍占 N 个时间单位'), pInp));
-  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, 'phase 相位 —— 左移 0～1 拍（0.5 = 半拍）'), phInp));
-  pop.appendChild(h('div', { style: 'font-size:11px;color:var(--faint);margin-top:8px' }, '典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。'));
+  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, t('period 周期 —— 每拍占 N 个时间单位')), pInp));
+  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, t('phase 相位 —— 左移 0～1 拍（0.5 = 半拍）')), phInp));
+  pop.appendChild(h('div', { style: 'font-size:11px;color:var(--faint);margin-top:8px' }, t('典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。')));
   pop.classList.add('open');
   const r = anchor.getBoundingClientRect();
   const pw = pop.offsetWidth, ph = pop.offsetHeight;
@@ -4252,7 +4499,7 @@ function dupLane(lane) {
   loc.list.splice(loc.index + 1, 0, copy);
   animateLanes = new Set([copy.id]);
   update(true);
-  toast('已复制（节点标记不复制，避免字母冲突）');
+  toast(t('已复制（节点标记不复制，避免字母冲突）'));
 }
 function intoGroup(node) {
   const loc = findLoc(node.id);
@@ -4299,7 +4546,7 @@ const rowDnd = {
   ghost: null, line: null, intoEl: null, hoverId: null, hoverPos: null, raf: 0, scroller: null,
 };
 function dndGrip() {
-  return h('span', { class: 'drag-grip', title: '拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）', 'aria-hidden': 'true' },
+  return h('span', { class: 'drag-grip', title: t('拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）'), 'aria-hidden': 'true' },
     icon('<path d="M5.5 4v.01M10.5 4v.01M5.5 8v.01M10.5 8v.01M5.5 12v.01M10.5 12v.01" stroke-width="2.1"/>', 13));
 }
 /* handle = 可拖起的元素（网格行头）；从输入框、按钮上按下不触发拖拽 */
@@ -4458,7 +4705,7 @@ function addLane(type) {
   animateLanes = new Set([lane.id]);
   update(true);
   animateLanes = null;
-  toast((type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + '通道已添加，已预填 8 拍');
+  toast(t(type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + t('通道已添加，已预填 8 拍'));
 }
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
@@ -4541,14 +4788,14 @@ function openExamplePop(anchorEl) {
     b.addEventListener('click', ev => { ev.stopPropagation(); closeSetPop(); closeMenus(); onPick(); });
     pop.appendChild(b);
   };
-  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(ex.name, () => loadExample(i)); });
+  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(t(ex.name), () => loadExample(i)); });
   pop.appendChild(h('div', { class: 'sep' }));
-  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(ex.name, () => loadExample(i)); });
+  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(t(ex.name), () => loadExample(i)); });
   pop.appendChild(h('div', { class: 'sep' }));
-  const clr = h('button', null, icon(IC.trash, 13), '空白文档');
+  const clr = h('button', null, icon(IC.trash, 13), t('空白文档'));
   clr.addEventListener('click', ev => {
     ev.stopPropagation(); closeSetPop(); closeMenus();
-    adoptState(parseDoc({ signal: [] })); syncSettings(); update(true); toast('已新建空白文档');
+    adoptState(parseDoc({ signal: [] })); syncSettings(); update(true); toast(t('已新建空白文档'));
   });
   pop.appendChild(clr);
   document.body.appendChild(pop);
@@ -4583,6 +4830,24 @@ function openSetPop(anchor, items, isActive, onPick) {
   pop.style.left = left + 'px';
   pop.style.top = Math.max(8, Math.min(r.top - 4, window.innerHeight - ph - 8)) + 'px';
   setPopEl = pop;
+}
+/* 语言菜单：跟随系统 / 简体中文 / English，选中打勾 */
+function buildLangMenu(menu) {
+  menu.textContent = '';
+  const LANGS = [['auto', t('跟随系统 / Auto')], ['zh', t('简体中文')], ['en', t('English')]];
+  LANGS.forEach(([v, label]) => {
+    const on = effLang() === v;
+    const b = h('button', { class: on ? 'active' : '' }, label);
+    if (on) { const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12); ck.setAttribute('class', 'check'); b.appendChild(ck); }
+    b.addEventListener('click', ev => {
+      ev.stopPropagation();
+      uiLang = v; localStorage.setItem('wdgui-lang', v);
+      closeMenus(); closeSetPop();
+      applyLang();
+      if (document.querySelector('#m-settings .menu').classList.contains('open')) buildSettingsMenu(document.querySelector('#m-settings .menu'));
+    });
+    menu.appendChild(b);
+  });
 }
 function buildSettingsMenu(menu) {
   closeSetPop();
@@ -4623,50 +4888,50 @@ function buildSettingsMenu(menu) {
     menu.appendChild(body);
   };
 
-  const THEMES = [['light', '浅色'], ['dark', '深色']];
-  const TRACES = [['slim', '纤细'], ['glow', '荧光辉光']];
-  const WBGS = [['default', '默认'], ['white', '纯白'], ['paper', '米纸'], ['mist', '雾蓝'], ['sage', '苔绿']];
-  const HEAD_BGS = [['own', '独立底色'], ['same', '与波形同色']];
-  const ZEBRAS = [['on', '显示'], ['off', '隐藏']];
-  const VIEWS = [['side', '预览在右侧'], ['below', '预览在下方']];
-  const VMODES = [['auto', '自动', '按屏宽判断桌面/手机布局'], ['simple', '简约模式', '固定使用手机版布局']];
-  const NMODES = [['bare', '仅字母'], ['letter', '圈+字母'], ['dot', '点']];
-  const LABELS = [['on', '标签保持'], ['off', '换字符即清除']];
+  const THEMES = [['light', t('浅色')], ['dark', t('深色')]];
+  const TRACES = [['slim', t('纤细')], ['glow', t('荧光辉光')]];
+  const WBGS = [['default', t('默认')], ['white', t('纯白')], ['paper', t('米纸')], ['mist', t('雾蓝')], ['sage', t('苔绿')]];
+  const HEAD_BGS = [['own', t('独立底色')], ['same', t('与波形同色')]];
+  const ZEBRAS = [['on', t('显示')], ['off', t('隐藏')]];
+  const VIEWS = [['side', t('预览在右侧')], ['below', t('预览在下方')]];
+  const VMODES = [['auto', t('自动'), t('按屏宽判断桌面/手机布局')], ['simple', t('简约模式'), t('固定使用手机版布局')]];
+  const NMODES = [['bare', t('仅字母')], ['letter', t('圈+字母')], ['dot', t('点')]];
+  const LABELS = [['on', t('标签保持')], ['off', t('换字符即清除')]];
   const curTrace = () => root.dataset.trace === 'glow' ? 'glow' : 'slim';
 
-  cat('look', '外观', () => labelOf(THEMES, root.dataset.theme, '深色') + '·' + labelOf(TRACES, curTrace(), '纤细'), body => {
-    row(body, '主题', THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
-    row(body, '波形轨迹', TRACES, curTrace, v => {
+  cat('look', t('外观'), () => labelOf(THEMES, root.dataset.theme, t('深色')) + ' · ' + labelOf(TRACES, curTrace(), t('纤细')), body => {
+    row(body, t('主题'), THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
+    row(body, t('波形轨迹'), TRACES, curTrace, v => {
       root.dataset.trace = v; localStorage.setItem('wdgui-trace', v); renderGrid();
     });
     /* 波形背景配色组：默认透出主题底色；深浅主题各自映射到对应的优雅底色 */
-    row(body, '波形背景', WBGS, () => root.dataset.wavebg || 'default', v => {
+    row(body, t('波形背景'), WBGS, () => root.dataset.wavebg || 'default', v => {
       root.dataset.wavebg = v; localStorage.setItem('wdgui-wavebg', v);
     });
     /* 信号名底色：默认独立（--panel），可选与波形区同色 */
-    row(body, '信号名底色', HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
+    row(body, t('信号名底色'), HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
       if (v === 'same') { root.dataset.headSame = '1'; localStorage.setItem('wdgui-head-same', '1'); }
       else { delete root.dataset.headSame; localStorage.setItem('wdgui-head-same', '0'); }
     });
     /* 斑马纹：奇数行淡底条纹，便于横向追踪行 */
-    row(body, '斑马纹', ZEBRAS, () => root.dataset.zebra !== '0' ? 'on' : 'off', v => {
+    row(body, t('斑马纹'), ZEBRAS, () => root.dataset.zebra !== '0' ? 'on' : 'off', v => {
       root.dataset.zebra = v === 'on' ? '1' : '0';
       localStorage.setItem('wdgui-zebra', v === 'on' ? '1' : '0');
     });
-    row(body, '界面字体', FONT_CHOICES, () => state_font.ui, v => {
+    row(body, t('界面字体'), FONT_CHOICES.map(x => [x[0], t(x[1])]), () => state_font.ui, v => {
       state_font.ui = v; localStorage.setItem('wdgui-uifont', v); applyFonts();
     });
-    row(body, '数据·代码字体', FONT_CHOICES_DATA, () => state_font.data, v => {
+    row(body, t('数据·代码字体'), FONT_CHOICES_DATA.map(x => [x[0], t(x[1])]), () => state_font.data, v => {
       state_font.data = v; localStorage.setItem('wdgui-dfont', v); applyFonts();
     });
   });
 
-  cat('view', '视图', () => labelOf(VIEWS, root.dataset.view, '预览在右侧'), body => {
-    row(body, '布局方向', VIEWS, () => root.dataset.view, v => setViewMode(v));
-    row(body, '视图模式', VMODES, viewMode, v => setViewModePref(v));
+  cat('view', t('视图'), () => labelOf(VIEWS, root.dataset.view, t('预览在右侧')), body => {
+    row(body, t('布局方向'), VIEWS, () => root.dataset.view, v => setViewMode(v));
+    row(body, t('视图模式'), VMODES, viewMode, v => setViewModePref(v));
     /* 窗口显示是两个各自独立的开关，不能压成 N 选 1，保持可勾选的方格 */
-    body.appendChild(h('div', { class: 'menu-sec' }, '窗口显示'));
-    menuOptGrid(body, 2, [['preview', '实时预览'], ['code', 'WaveJSON']],
+    body.appendChild(h('div', { class: 'menu-sec' }, t('窗口显示')));
+    menuOptGrid(body, 2, [['preview', t('实时预览')], ['code', 'WaveJSON']],
       v => root.dataset[v === 'preview' ? 'showPreview' : 'showCode'] !== '0',
       v => {
         const key = v === 'preview' ? 'showPreview' : 'showCode';
@@ -4675,15 +4940,15 @@ function buildSettingsMenu(menu) {
       });
   });
 
-  cat('node', '节点', () => POS_NAMES_SHORT[state_node.pos] + '·' + labelOf(NMODES, state_node.mode, '仅字母'), body => {
+  cat('node', t('节点'), () => t(POS_NAMES_SHORT[state_node.pos]) + ' · ' + labelOf(NMODES, state_node.mode, t('仅字母')), body => {
     /* 九宫格保留：方位靠空间布局表达，压成一行会丢掉这个直觉 */
-    body.appendChild(h('div', { class: 'menu-sec' }, '节点位置'));
+    body.appendChild(h('div', { class: 'menu-sec' }, t('节点位置')));
     const grid = h('div', { class: 'pos-grid' });
     Object.keys(POS_NAMES).forEach(k => {
       const b = h('button', {
         class: (state_node.pos === k ? 'active' : '') + (k === 'auto' ? ' pos-auto' : ''),
-        title: POS_NAMES[k], 'aria-label': '节点位置：' + POS_NAMES[k],
-      }, POS_GLYPH[k]);
+        title: t(POS_NAMES[k]), 'aria-label': t('节点位置：') + t(POS_NAMES[k]),
+      }, t(POS_GLYPH[k]));
       b.addEventListener('click', ev => {
         ev.stopPropagation();
         state_node.pos = k; localStorage.setItem('wdgui-node-pos', k);
@@ -4692,52 +4957,52 @@ function buildSettingsMenu(menu) {
       grid.appendChild(b);
     });
     body.appendChild(grid);
-    row(body, '显示模式', NMODES, () => state_node.mode, v => {
+    row(body, t('显示模式'), NMODES, () => state_node.mode, v => {
       state_node.mode = v; localStorage.setItem('wdgui-node-mode', v); renderGrid();
     });
-    row(body, '数据标签', LABELS, () => keepLabel ? 'on' : 'off', v => {
+    row(body, t('数据标签'), LABELS, () => keepLabel ? 'on' : 'off', v => {
       keepLabel = v === 'on'; localStorage.setItem('wdgui-keep-label', v);
       if (!keepLabel) labelStash = null;
     });
     /* 比例/边距是连续值，保留并排滑块 */
     const edgePos = NODE_POS_KEYS[state_node.pos][0] !== .5;
-    body.appendChild(h('div', { class: 'menu-sec' }, '比例与边距'));
+    body.appendChild(h('div', { class: 'menu-sec' }, t('比例与边距')));
     const srow = h('div', { class: 'slider-duo' });
-    srow.appendChild(settingsSliderCell('比例', {
+    srow.appendChild(settingsSliderCell(t('比例'), {
       min: 50, max: 150, step: 5, value: Math.round(state_node.scale * 100),
-      fmt: v => v + '%', aria: '节点显示比例', title: '节点圆标的整体大小',
+      fmt: v => v + '%', aria: t('节点显示比例'), title: t('节点圆标的整体大小'),
       onInput: v => { state_node.scale = v / 100; localStorage.setItem('wdgui-node-scale', String(v / 100)); },
     }));
-    srow.appendChild(settingsSliderCell('边距', {
+    srow.appendChild(settingsSliderCell(t('边距'), {
       min: 0, max: 9, step: 1, value: state_node.inset, dim: !edgePos,
-      fmt: v => v + 'p', aria: '靠边节点的横向内缩（px）',
+      fmt: v => v + 'p', aria: t('靠边节点的横向内缩（px）'),
       title: edgePos
-        ? '小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头'
-        : '当前节点位置水平居中，边距不生效（选左/右类位置后可调）',
+        ? t('小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头')
+        : t('当前节点位置水平居中，边距不生效（选左/右类位置后可调）'),
       onInput: v => { state_node.inset = v; localStorage.setItem('wdgui-node-inset', String(v)); },
     }));
     body.appendChild(srow);
   });
 
-  cat('brush', '笔刷', () => labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条'), body => {
-    row(body, '笔刷栏默认样式', BRUSH_DEFAULTS, () => state_brush.def, v => {
+  cat('brush', t('笔刷'), () => t(labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条')), body => {
+    row(body, t('笔刷栏默认样式'), BRUSH_DEFAULTS.map(x => [x[0], t(x[1])]), () => state_brush.def, v => {
       state_brush.def = v; localStorage.setItem('wdgui-brush-default', v);
       state_brush.mode = v; renderBrushUI();
     });
   });
 
   /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
-  cat('help', '帮助与关于', () => '', body => {
+  cat('help', t('帮助与关于'), () => '', body => {
     const act = (label, iconPath, onPick) => {
       const b = h('button', { class: 'set-row', title: label }, icon(iconPath, 13), h('span', null, label));
       b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); onPick(); });
       body.appendChild(b);
     };
-    act('快捷键', '<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>',
+    act(t('快捷键'), '<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>',
       () => handleAct('open-shortcut'));
-    act('WaveDrom 语法教程', '<path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/>',
+    act(t('WaveDrom 语法教程'), '<path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/>',
       () => handleAct('open-tutorial'));
-    act('关于', '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/>',
+    act(t('关于'), '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/>',
       () => handleAct('open-about'));
   });
 }
@@ -4777,7 +5042,7 @@ function positionMenu(wrap, menu) {
   menu.style.right = 'auto';
 }
 function bindMenus() {
-  [['#m-import', null], ['#m-export', null], ['#m-settings', buildSettingsMenu]].forEach(([sel, builder]) => {
+  [['#m-lang', buildLangMenu], ['#m-import', null], ['#m-export', null], ['#m-settings', buildSettingsMenu]].forEach(([sel, builder]) => {
     const wrap = $(sel);
     const btn = wrap.querySelector(':scope > button');
     const menu = wrap.querySelector(':scope > .menu');
@@ -4812,7 +5077,7 @@ function loadExample(i) {
   animateLanes = new Set(allLanes().map(l => l.id));
   update(true);
   animateLanes = null;
-  toast('已载入示例：' + EXAMPLES[i].name);
+  toast(t('已载入示例：') + t(EXAMPLES[i].name));
 }
 function applyDocJSON(json) {
   adoptState(parseDoc(json));
@@ -5170,7 +5435,7 @@ function buildEditorSvg() {
     } else if (r.dataset.spacer) {
       const lb = head.querySelector('.spacer-label');
       const fsS = fsOf(lb, 11.5);
-      txt(svg, (lb || head).offsetLeft, cy + fsS * 0.35, '空白占位', { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
+      txt(svg, (lb || head).offsetLeft, cy + fsS * 0.35, t('空白占位'), { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
     }
   });
   return svg;
@@ -5196,16 +5461,16 @@ function handleAct(act, btn) {
     case 'add-bus': addLane('bus'); break;
     case 'add-spacer': state.tree.push({ kind: 'spacer', id: nextId() }); update(true); break;
     case 'add-group': {
-      const g = newGroup('分组 ' + (state.tree.filter(n => n.kind === 'group').length + 1));
+      const g = newGroup(t('分组') + ' ' + (state.tree.filter(n => n.kind === 'group').length + 1));
       state.tree.push(g);
       update(true);
-      toast('分组已添加，用通道按钮里的「移入分组」收纳通道');
+      toast(t('分组已添加，用通道按钮里的「移入分组」收纳通道'));
       break;
     }
     case 'toggle-autochain': {
       /* 三态循环：关闭 → 自动右移 → 自动下移 → 关闭 */
       if (!autoChain) enterAutoChain(false);
-      else if (chainDir === 'col') { chainDir = 'row'; updateChainBtn(); toast('自动连续模式：已切换为逐格下移'); }
+      else if (chainDir === 'col') { chainDir = 'row'; updateChainBtn(); toast(t('自动连续模式：已切换为逐格下移')); }
       else exitAutoChain();
       break;
     }
@@ -5232,9 +5497,9 @@ function handleAct(act, btn) {
             if (!deleted) break;
             removed++;
           }
-          toast(removed === 1 ? '已删除末尾一拍（Ctrl+Z 可撤销）'
-            : removed > 1 ? `已删除末尾 ${removed} 拍（Ctrl+Z 可撤销）`
-            : '没有可删除的拍');
+          toast(removed === 1 ? t('已删除末尾一拍（Ctrl+Z 可撤销）')
+            : removed > 1 ? t('已删除末尾 ') + removed + t(' 拍（Ctrl+Z 可撤销）')
+            : t('没有可删除的拍'));
           break;
         }
       }
@@ -5244,7 +5509,7 @@ function handleAct(act, btn) {
     }
     case 'add-edge': {
       const nodes = collectNodes();
-      if (nodes.length < 2) { toast('至少需要两个节点标记，先在单元格里放置节点', true); return; }
+      if (nodes.length < 2) { toast(t('至少需要两个节点标记，先在单元格里放置节点'), true); return; }
       const used = new Set(state.edges.map(e => e.from + e.spec + e.to));
       let from = nodes[0].letter, to = nodes[1].letter;
       outer: for (const a of nodes) for (const b of nodes) {
@@ -5260,10 +5525,10 @@ function handleAct(act, btn) {
         applyDocJSON(j);
         $('#codeArea').blur();
         renderCode();
-        toast('代码已应用到图表');
+        toast(t('代码已应用到图表'));
       } catch (e) {
         const st = $('#codeStatus');
-        st.className = 'code-err'; st.textContent = '解析失败：' + e.message;
+        st.className = 'code-err'; st.textContent = t('解析失败：') + e.message;
       }
       break;
     }
@@ -5280,8 +5545,8 @@ function handleAct(act, btn) {
         applyDocJSON(j);
         $('#pasteMask').classList.remove('open');
         $('#pasteArea').value = '';
-        toast('导入成功');
-      } catch (e) { $('#pasteErr').textContent = '解析失败：' + e.message; }
+        toast(t('导入成功'));
+      } catch (e) { $('#pasteErr').textContent = t('解析失败：') + e.message; }
       break;
     }
     case 'open-tutorial': window.open('https://wavedrom.com/tutorial.html', '_blank'); break;
@@ -5299,7 +5564,7 @@ function handleAct(act, btn) {
       adoptState(parseDoc({ signal: [] }));
       syncSettings();
       update(true);
-      toast('已清空为空白文档（Ctrl+Z 可撤销）');
+      toast(t('已清空为空白文档（Ctrl+Z 可撤销）'));
       break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
@@ -5349,15 +5614,15 @@ function handleAct(act, btn) {
       break;
     }
     case 'export-json': download(exportBaseName() + '.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
-    case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), 'JSON 已复制到剪贴板'); break;
+    case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), t('JSON 已复制到剪贴板')); break;
     case 'copy-kroki': {
       const block = '```kroki\nwavedrom\n' + fmtJSON(buildJSON(), 0, codeCompact) + '\n```';
-      copyText(block, 'kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染');
+      copyText(block, t('kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染'));
       break;
     }
     case 'copy-link': {
       persist();
-      copyText(location.href, '分享链接已复制（含完整图表数据）');
+      copyText(location.href, t('分享链接已复制（含完整图表数据）'));
       break;
     }
     case 'zoom-in': state.zoom = Math.min(3, state.zoom + 0.15); applyZoom(); break;
@@ -5430,7 +5695,7 @@ function bindNameSplit(el, container) {
     delete state.sizes.namew;
     saveSizes();
     update(true);
-    toast('信号列宽已恢复自动');
+    toast(t('信号列宽已恢复自动'));
   });
 }
 window.addEventListener('mousemove', ev => {
@@ -5641,6 +5906,7 @@ function init() {
   renderGrid();
   renderCode();
   renderPreview();
+  applyLang();
   animateLanes = new Set(allLanes().map(l => l.id));
   renderGrid();
   animateLanes = null;
