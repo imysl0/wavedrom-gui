@@ -1,5 +1,7 @@
 # WaveDrom Web 编辑器（index.html）
 
+**简体中文** | [English](./EDITOR.en.md)
+
 单文件 HTML 应用（约 300+ KB，零构建、离线可用）：用鼠标点击/拖拽编辑 WaveDrom 时序图，右侧官方引擎实时渲染，左侧同步生成 WaveJSON 代码，兼容大部分 WaveDrom 常用语法。
 
 ![整体截图](./images/wavedrom-gui.png)

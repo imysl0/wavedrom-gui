@@ -1,5 +1,7 @@
 # WaveDrom-Gui
 
+**简体中文** | [English](./README.en.md)
+
 WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，一个无浏览器的 **命令行渲染 Skill**，以及一个 **VSCode 插件**（开发中）。它们通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
 
 ![整体截图](./images/wavedrom-gui.png)
@@ -15,8 +17,9 @@ WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即�
 - **分组、节点与箭头**：嵌套分组折叠同步，覆盖全部官方箭头写法，period/phase/hscale/hbounds 完整支持
 - **导入导出闭环**：导出的 SVG/PNG 内嵌 WaveJSON 元数据（图片可直接再导入还原图表，与 Skill 导出互通），宽松 WaveJSON 解析（`//` 注释、免引号键等，与官方编辑器一致），JSON / kroki 代码块 / 分享链接
 - **深度可调**：深浅双主题、可拖拽分割条布局、界面与代码字体独立选择、100 步撤销重做，偏好全部持久化
+- **双语界面**：默认跟随系统语言（中文 / English），顶栏地球按钮随时切换
 
-👉 详细功能说明见 [EDITOR.md](./EDITOR.md)。
+👉 详细功能说明见 [EDITOR.md](./EDITOR.md)（英文版 [EDITOR.en.md](./EDITOR.en.md)）。
 
 ## 产品二：wavedrom-render Skill
 
