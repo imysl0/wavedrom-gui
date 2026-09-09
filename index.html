@@ -1612,15 +1612,15 @@ const I18N_EN = {
 let uiLang = localStorage.getItem('wdgui-lang') || 'auto';
 const sysLang = () => (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
 const effLang = () => uiLang === 'auto' ? sysLang() : uiLang;
-function T(s) { return effLang() === 'zh' ? s : (I18N_EN[s] ?? s); }
+function i18n(s) { return effLang() === 'zh' ? s : (I18N_EN[s] ?? s); }
 /* 应用语言：静态 data-i18n 节点 + 动态区域重渲染 */
 function applyLang() {
   document.documentElement.lang = effLang() === 'zh' ? 'zh-CN' : 'en';
   document.title = 'WaveDrom-Gui · ' + (effLang() === 'zh' ? '时序图编辑器' : 'timing diagram editor');
-  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = T(el.dataset.i18n); });
-  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = T(el.dataset.i18nTitle); el.setAttribute('aria-label', T(el.dataset.i18nTitle)); });
-  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', T(el.dataset.i18nAria)); });
-  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = T(el.dataset.i18nPh); });
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = i18n(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = i18n(el.dataset.i18nTitle); el.setAttribute('aria-label', i18n(el.dataset.i18nTitle)); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', i18n(el.dataset.i18nAria)); });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = i18n(el.dataset.i18nPh); });
   renderGrid(); renderEdges(); renderBrushUI();
   updateChainBtn();
 }
@@ -1631,7 +1631,7 @@ function syncAppVersion() {
   const version = document.querySelector('meta[name="app-version"]')?.content.trim() || 'dev';
   document.querySelectorAll('[data-app-version]').forEach(el => { el.textContent = version; });
   const topBadge = document.querySelector('#verBadge');
-  if (topBadge) topBadge.setAttribute('aria-label', T('当前版本 ') + version + T('，点击打开仓库首页'));
+  if (topBadge) topBadge.setAttribute('aria-label', i18n('当前版本 ') + version + i18n('，点击打开仓库首页'));
 }
 syncAppVersion();
 
@@ -1674,7 +1674,7 @@ function applySideDock() {
   relocatePalette(on);
   const b = document.getElementById('sideDockBtn');
   if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
-    b.title = on ? T('隐藏通道与分组面板') : T('显示通道与分组面板'); }
+    b.title = on ? i18n('隐藏通道与分组面板') : i18n('显示通道与分组面板'); }
 }
 /* 切换视图模式偏好（auto/simple）并即时生效 */
 function setViewModePref(mode) {
@@ -2365,8 +2365,8 @@ function parseEntry(e) {
   return lane;
 }
 function parseDoc(j) {
-  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error(T('顶层必须是一个 JSON 对象'));
-  if (j.signal !== undefined && !Array.isArray(j.signal)) throw new Error(T('"signal" 必须是数组'));
+  if (!j || typeof j !== 'object' || Array.isArray(j)) throw new Error(i18n('顶层必须是一个 JSON 对象'));
+  if (j.signal !== undefined && !Array.isArray(j.signal)) throw new Error(i18n('"signal" 必须是数组'));
   const st = {
     tree: (j.signal || []).map(parseEntry),
     edges: [], rawEdges: [],
@@ -2739,7 +2739,7 @@ function cellTip(msg, lane, t) {
   cellTipTimer = setTimeout(() => tip.classList.remove('show'), 1800);
 }
 /* 清除笔刷的引导提示：左键清除与右键清除重复，该笔刷不再激活，只作引导 */
-const ERASE_HINT = '使用鼠标右键点击对应单元格即可清除'; // T() at use
+const ERASE_HINT = '使用鼠标右键点击对应单元格即可清除'; // i18n() at use
 /* 锚定到任意元素的提示气泡（复用 #cellTip 与其箭头样式），el 不在文档时退化为 toast */
 function brushTip(msg, el) {
   if (!el || !el.isConnected) { toast(msg); return; }
@@ -2845,9 +2845,9 @@ function renderGrid() {
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, H.text)));
   }
   const timeRow = h('div', { class: 'time-row' },
-    h('div', { class: 'time-corner' }, state.hb ? `${T('信号 \\ 拍')} ${win.a}–${win.b - 1}` : T('信号 \\ 拍'),
+    h('div', { class: 'time-corner' }, state.hb ? `${i18n('信号 \\ 拍')} ${win.a}–${win.b - 1}` : i18n('信号 \\ 拍'),
       (() => {
-        const b = h('button', { class: 'icon-btn ha-toggle', title: T('显示/隐藏名称列操作按钮（拖拽·更多·删除）'), 'aria-label': T('显示/隐藏名称列操作按钮（拖拽·更多·删除）') });
+        const b = h('button', { class: 'icon-btn ha-toggle', title: i18n('显示/隐藏名称列操作按钮（拖拽·更多·删除）'), 'aria-label': i18n('显示/隐藏名称列操作按钮（拖拽·更多·删除）') });
         b.appendChild(icon('<path d="M3 5.5h10M3 10.5h10"/><circle cx="6" cy="5.5" r="1.7"/><circle cx="10" cy="10.5" r="1.7"/>', 13));
         b.addEventListener('click', ev => {
           ev.stopPropagation();
@@ -2905,7 +2905,7 @@ function renderGrid() {
       h('div', { class: 'strip-corner' }),
       h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, F.text)));
   }
-  bindNameSplit(h('div', { class: 'name-split', title: T('拖动调整信号列宽 · 双击恢复自动') }), inner);
+  bindNameSplit(h('div', { class: 'name-split', title: i18n('拖动调整信号列宽 · 双击恢复自动') }), inner);
   renderMiniEdges();
   if (autoChain && chainSel) restoreChainSelHighlight();
 }
@@ -3083,8 +3083,8 @@ function laneHeadActions(node, kind) {
     b.addEventListener('click', ev => { ev.stopPropagation(); fn(b); });
     return b;
   };
-  if (kind !== 'spacer') wrap.appendChild(mk(IC.more, T('更多操作'), btn => openMoreMenu(node, kind, btn)));
-  wrap.appendChild(mk(IC.trash, kind === 'group' ? T('删除分组（组内通道上移保留）') : T('删除'), () => delNode(node), 'danger-hover'));
+  if (kind !== 'spacer') wrap.appendChild(mk(IC.more, i18n('更多操作'), btn => openMoreMenu(node, kind, btn)));
+  wrap.appendChild(mk(IC.trash, kind === 'group' ? i18n('删除分组（组内通道上移保留）') : i18n('删除'), () => delNode(node), 'danger-hover'));
   return wrap;
 }
 /* ⋯ 更多操作小菜单（固定定位弹层，窄侧栏也完整展示） */
@@ -3102,15 +3102,15 @@ function openMoreMenu(node, kind, anchor) {
     return b;
   };
   pop.textContent = '';
-  pop.appendChild(h('div', { class: 'pop-title' }, T('更多操作') + ' · ' + (node.name || T('未命名'))));
+  pop.appendChild(h('div', { class: 'pop-title' }, i18n('更多操作') + ' · ' + (node.name || i18n('未命名'))));
   if (kind === 'lane') {
-    pop.appendChild(mkItem(IC.copy, T('复制通道'), () => dupLane(node)));
-    pop.appendChild(mkItem(IC.into, T('移入上方最近的分组'), () => intoGroup(node)));
-    pop.appendChild(mkItem(IC.out, T('移出所在分组'), () => outOfGroup(node)));
-    pop.appendChild(mkItem(IC.gear, T('通道属性（period / phase）'), btn => openLanePropPop(node, btn)));
+    pop.appendChild(mkItem(IC.copy, i18n('复制通道'), () => dupLane(node)));
+    pop.appendChild(mkItem(IC.into, i18n('移入上方最近的分组'), () => intoGroup(node)));
+    pop.appendChild(mkItem(IC.out, i18n('移出所在分组'), () => outOfGroup(node)));
+    pop.appendChild(mkItem(IC.gear, i18n('通道属性（period / phase）'), btn => openLanePropPop(node, btn)));
   } else if (kind === 'group') {
-    pop.appendChild(mkItem(IC.plus, T('在组内添加通道'), () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
-    pop.appendChild(mkItem(IC.subgroup, T('添加子分组'), () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
+    pop.appendChild(mkItem(IC.plus, i18n('在组内添加通道'), () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
+    pop.appendChild(mkItem(IC.subgroup, i18n('添加子分组'), () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
   }
   pop.classList.add('open');
   const r = anchor.getBoundingClientRect();
@@ -3131,7 +3131,7 @@ function buildLaneRow(lane, depth, colCount, win) {
     dndGrip(),
     h('span', { class: 'dot' }),
     (() => {
-      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': T('通道名称'), title: lane.name || T('未命名') });
+      const inp = h('input', { class: 'lane-name', value: lane.name, 'aria-label': i18n('通道名称'), title: lane.name || i18n('未命名') });
       inp.addEventListener('change', () => { lane.name = inp.value.trim(); update(true); });
       inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
       return inp;
@@ -3168,7 +3168,7 @@ function buildLaneRow(lane, depth, colCount, win) {
     track.appendChild(h('div', {
       class: 'cell' + (p ? '' : ' cell-mark'), 'data-t': t, 'data-lane': lane.id,
       style: `left:${left.toFixed(1)}px;width:${wpx}px`, role: 'button', tabindex: '-1',
-      'aria-label': `${lane.name || T('未命名')} · ${t}`,
+      'aria-label': `${lane.name || i18n('未命名')} · ${t}`,
     }));
   }
   row.appendChild(head); row.appendChild(track);
@@ -3179,10 +3179,10 @@ function buildGroupRow(group, depth) {
   const collapsed = collapsedGroups.has(group.id);
   const row = h('div', { class: 'lane-row group-row' + (collapsed ? ' collapsed' : ''), 'data-group': group.id });
   row.dataset.nodeId = group.id;
-  const inp = h('input', { class: 'gname', value: group.name, 'aria-label': T('分组名称'), title: group.name || T('分组') });
+  const inp = h('input', { class: 'gname', value: group.name, 'aria-label': i18n('分组名称'), title: group.name || i18n('分组') });
   inp.addEventListener('change', () => { group.name = inp.value.trim() || '分组'; update(true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
-  const caret = h('button', { class: 'g-caret', title: collapsed ? T('展开分组') : T('折叠分组'), 'aria-label': (collapsed ? T('展开分组：') : T('折叠分组：')) + (group.name || T('分组')) });
+  const caret = h('button', { class: 'g-caret', title: collapsed ? i18n('展开分组') : i18n('折叠分组'), 'aria-label': (collapsed ? i18n('展开分组：') : i18n('折叠分组：')) + (group.name || i18n('分组')) });
   caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 12));
   caret.addEventListener('click', ev => {
     ev.stopPropagation();
@@ -3201,7 +3201,7 @@ function buildSpacerRow(sp, depth) {
   row.dataset.nodeId = sp.id;
   const head = h('div', { class: 'lane-head' }, indentEl(depth),
     dndGrip(),
-    h('span', { class: 'spacer-label' }, T('空白占位')));
+    h('span', { class: 'spacer-label' }, i18n('空白占位')));
   head.appendChild(laneHeadActions(sp, 'spacer'));
   const track = h('div', { class: 'lane-track', style: 'width:' + gridWidth() + 'px' });
   row.appendChild(head); row.appendChild(track);
@@ -3211,11 +3211,11 @@ function buildSpacerRow(sp, depth) {
 function buildEmptyState() {
   return h('div', { class: 'grid-empty' },
     icon('<path d="M1 11h3V5h4v8h4V5h4v6h3" stroke-width="1.3"/>', 40),
-    h('h2', null, T('从一条信号开始')),
-    h('p', null, T('添加通道后，点击网格中的每一拍来画出波形，右侧会实时渲染成时序图。')),
+    h('h2', null, i18n('从一条信号开始')),
+    h('p', null, i18n('添加通道后，点击网格中的每一拍来画出波形，右侧会实时渲染成时序图。')),
     h('div', { class: 'row' },
-      (() => { const b = h('button', { class: 'btn primary' }, T('＋ 添加一条信号')); b.addEventListener('click', () => addLane('bit')); return b; })(),
-      (() => { const b = h('button', { class: 'btn' }, T('载入示例')); b.addEventListener('click', () => loadExample(1)); return b; })()));
+      (() => { const b = h('button', { class: 'btn primary' }, i18n('＋ 添加一条信号')); b.addEventListener('click', () => addLane('bit')); return b; })(),
+      (() => { const b = h('button', { class: 'btn' }, i18n('载入示例')); b.addEventListener('click', () => loadExample(1)); return b; })()));
 }
 
 /* ---------- 渲染：箭头 ---------- */
@@ -3244,27 +3244,27 @@ function renderEdges() {
   list.textContent = '';
   const nodes = collectNodes();
   if (!nodes.length) {
-    list.appendChild(h('div', { class: 'edge-hint' }, T('还没有节点标记 —— 在网格单元格弹窗里点「放置节点」。')));
+    list.appendChild(h('div', { class: 'edge-hint' }, i18n('还没有节点标记 —— 在网格单元格弹窗里点「放置节点」。')));
     return;
   }
   if (!state.edges.length) {
-    list.appendChild(h('div', { class: 'edge-hint' }, `${nodes.length} ${T('已有节点，添加一条箭头把它们连起来')}`));
+    list.appendChild(h('div', { class: 'edge-hint' }, `${nodes.length} ${i18n('已有节点，添加一条箭头把它们连起来')}`));
   }
   state.edges.forEach((e, idx) => {
-    const fromSel = h('select', { 'aria-label': T('起点节点') }, ...nodes.map(n => {
-      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || T('未命名')}@${n.t}`);
+    const fromSel = h('select', { 'aria-label': i18n('起点节点') }, ...nodes.map(n => {
+      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || i18n('未命名')}@${n.t}`);
       if (n.letter === e.from) o.selected = true; return o;
     }));
-    const toSel = h('select', { 'aria-label': T('终点节点') }, ...nodes.map(n => {
-      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || T('未命名')}@${n.t}`);
+    const toSel = h('select', { 'aria-label': i18n('终点节点') }, ...nodes.map(n => {
+      const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || i18n('未命名')}@${n.t}`);
       if (n.letter === e.to) o.selected = true; return o;
     }));
-    const styleSel = h('select', { 'aria-label': T('箭头样式') },
-      h('option', { value: '', disabled: true, hidden: true }, T('选择样式')),
-      h('optgroup', { label: T('常用') }, ...EDGE_SPECS.slice(0, 9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${T(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })),
-      h('optgroup', { label: T('更多') }, ...EDGE_SPECS.slice(9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${T(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })));
+    const styleSel = h('select', { 'aria-label': i18n('箭头样式') },
+      h('option', { value: '', disabled: true, hidden: true }, i18n('选择样式')),
+      h('optgroup', { label: i18n('常用') }, ...EDGE_SPECS.slice(0, 9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${i18n(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })),
+      h('optgroup', { label: i18n('更多') }, ...EDGE_SPECS.slice(9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${i18n(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })));
     const prevWrap = h('span', { class: 'preview' }); prevWrap.appendChild(edgePreviewSVG(e.spec));
-    const labelInp = h('input', { type: 'text', value: e.label, placeholder: T('箭头标注（可选）'), 'aria-label': T('箭头标注') });
+    const labelInp = h('input', { type: 'text', value: e.label, placeholder: i18n('箭头标注（可选）'), 'aria-label': i18n('箭头标注') });
     labelInp.addEventListener('input', () => { commitTag = 'edge'; e.label = labelInp.value; scheduleUpdate(); });
     fromSel.addEventListener('change', () => { e.from = fromSel.value; scheduleUpdate(); });
     toSel.addEventListener('change', () => { e.to = toSel.value; scheduleUpdate(); });
@@ -3273,7 +3273,7 @@ function renderEdges() {
       prevWrap.textContent = ''; prevWrap.appendChild(edgePreviewSVG(e.spec));
       scheduleUpdate();
     });
-    const del = h('button', { class: 'icon-btn danger-hover del', title: T('删除箭头'), 'aria-label': T('删除箭头') });
+    const del = h('button', { class: 'icon-btn danger-hover del', title: i18n('删除箭头'), 'aria-label': i18n('删除箭头') });
     del.appendChild(icon(IC.trash, 13));
     del.addEventListener('click', () => { state.edges.splice(idx, 1); update(); });
     list.appendChild(h('div', { class: 'edge-row' },
@@ -3352,7 +3352,7 @@ function renderCode() {
   if (document.activeElement !== ta) {
     ta.value = fmtJSON(buildJSON(), 0, codeCompact);
     const st = $('#codeStatus');
-    st.className = 'code-ok'; st.textContent = T('改动会自动同步到左侧网格');
+    st.className = 'code-ok'; st.textContent = i18n('改动会自动同步到左侧网格');
   }
 }
 function renderPreview() {
@@ -3360,8 +3360,8 @@ function renderPreview() {
   host.textContent = '';
   const json = buildJSON();
   try {
-    if (!window.WaveDrom || !window.WaveSkin) throw new Error(T('渲染库未加载'));
-    if (state.skin !== 'default' && !window.WaveSkin[state.skin]) throw new Error(T('皮肤 "') + state.skin + T('" 不可用'));
+    if (!window.WaveDrom || !window.WaveSkin) throw new Error(i18n('渲染库未加载'));
+    if (state.skin !== 'default' && !window.WaveSkin[state.skin]) throw new Error(i18n('皮肤 "') + state.skin + i18n('" 不可用'));
     const rwf = window.WaveDrom.renderWaveForm || window.WaveDrom.RenderWaveForm;
     if (typeof rwf !== 'function') throw new Error('渲染 API 缺失');
     rwf.call(window.WaveDrom, 0, json, 'wv');
@@ -3430,7 +3430,7 @@ function setBrush(id, anchor) {
     /* 桌面（精指针）：右键清除为主，清除笔刷仅作引导提示不激活；
        触屏（粗指针）：无右键，清除笔刷恢复为真实工具（点/拖单元格清除） */
     if (!matchMedia('(pointer: coarse)').matches) {
-      brushTip(T(ERASE_HINT), anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
+      brushTip(i18n(ERASE_HINT), anchor || [...document.querySelectorAll('[data-brush="erase"]')].find(b => b.offsetParent));
       closePop(); closeBrushFly(); closeBrushPanel();
       return;
     }
@@ -3464,15 +3464,15 @@ function brushFace(id, w, hgt, iconSize) {
 function brushBtn(id, variant) {
   const v = variant || 'bar';
   const sizeCls = v === 'fly' ? ' sm' : v === 'edge' ? ' edge' : '';
-  const name = id === 'select' ? T('选择') : id === 'erase' ? T('清除') : id === '.' ? T('延续') : T(GLYPH_MAP[id].name);
+  const name = id === 'select' ? i18n('选择') : id === 'erase' ? i18n('清除') : id === '.' ? i18n('延续') : i18n(GLYPH_MAP[id].name);
   const b = h('button', {
     class: 'tool' + sizeCls + (brushActive(id) ? ' active' : ''),
-    'data-brush': id, title: id === '.' ? T('延续（.）—— 让上一拍的状态再延续一拍') : id === 'erase' ? T('清除（右键单击单元格即可）') : `${name} (${id})`,
-    'aria-label': T('笔刷：') + name,
+    'data-brush': id, title: id === '.' ? i18n('延续（.）—— 让上一拍的状态再延续一拍') : id === 'erase' ? i18n('清除（右键单击单元格即可）') : `${name} (${id})`,
+    'aria-label': i18n('笔刷：') + name,
   });
   const dims = (v === 'bar' || v === 'panel') ? [30, 18, 18] : [26, 15, 15];
   b.appendChild(brushFace(id, dims[0], dims[1], dims[2]));
-  b.appendChild(h('span', { class: 'tlabel' }, id === 'select' ? T('选择') : id === 'erase' ? T('清除') : id === '.' ? T('延续') : id));
+  b.appendChild(h('span', { class: 'tlabel' }, id === 'select' ? i18n('选择') : id === 'erase' ? i18n('清除') : id === '.' ? i18n('延续') : id));
   b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
   return b;
 }
@@ -3491,10 +3491,10 @@ function foldBtn(title, dir, onFold) {
 }
 /* 纯文本紧凑笔刷按钮（选择 / 清除 / 延续，无图标） */
 function brushTxtBtn(id) {
-  const name = id === 'select' ? T('选择') : id === 'erase' ? T('清除') : T('延续');
+  const name = id === 'select' ? i18n('选择') : id === 'erase' ? i18n('清除') : i18n('延续');
   const b = h('button', {
     class: 'tool txt' + (brushActive(id) ? ' active' : ''),
-    'data-brush': id, title: id === 'erase' ? T('清除（右键单击单元格即可）') : `${name} (${id})`, 'aria-label': T('笔刷：') + name,
+    'data-brush': id, title: id === 'erase' ? i18n('清除（右键单击单元格即可）') : `${name} (${id})`, 'aria-label': i18n('笔刷：') + name,
   }, h('span', { class: 'tlabel' }, name));
   b.addEventListener('click', ev => { ev.stopPropagation(); setBrush(id, b); });
   return b;
@@ -3502,8 +3502,8 @@ function brushTxtBtn(id) {
 function groupChip(g, vertical) {
   const chip = h('button', {
     class: 'tool ' + (vertical ? 'edge chip-v' : 'chip') + (g.items.some(brushActive) ? ' active' : ''),
-    title: T(g.name) + ' ' + T('笔刷'), 'aria-label': T(g.name) + ' ' + T('笔刷组'),
-  }, h('span', { class: 'chip-name' }, T(g.name)));
+    title: i18n(g.name) + ' ' + i18n('笔刷'), 'aria-label': i18n(g.name) + ' ' + i18n('笔刷组'),
+  }, h('span', { class: 'chip-name' }, i18n(g.name)));
   chip.addEventListener('mouseenter', () => { clearTimeout(brushFlyHideTimer); openBrushFly(chip, g, true); });
   chip.addEventListener('mouseleave', () => scheduleHideBrushFly());
   chip.addEventListener('click', ev => {
@@ -3538,7 +3538,7 @@ function renderBrushUI() {
 }
 /* A 下横条：全量平铺，左端折叠按钮 → B */
 function buildBarPalette(pal) {
-  pal.appendChild(foldBtn(T('折叠笔刷栏'), 'down', () => setBrushMode('compact')));
+  pal.appendChild(foldBtn(i18n('折叠笔刷栏'), 'down', () => setBrushMode('compact')));
   pal.appendChild(brushBtn('select'));
   pal.appendChild(brushBtn('erase'));
   pal.appendChild(brushBtn('.'));
@@ -3547,8 +3547,8 @@ function buildBarPalette(pal) {
 }
 /* B 横向弹窗条：紧凑纯文本，分组点击弹层；↑ 恢复 A，→ 折叠成 C */
 function buildCompactPalette(pal) {
-  pal.appendChild(foldBtn(T('展开为横条'), 'up', () => setBrushMode('bar')));
-  pal.appendChild(foldBtn(T('折叠为右下角按钮'), 'right', () => setBrushMode('fab')));
+  pal.appendChild(foldBtn(i18n('展开为横条'), 'up', () => setBrushMode('bar')));
+  pal.appendChild(foldBtn(i18n('折叠为右下角按钮'), 'right', () => setBrushMode('fab')));
   const mobile = isMobile();
   // 手机：延续已并入每个分组，不再单列独立笔刷
   (mobile ? ['select', 'erase'] : ['select', 'erase', '.']).forEach(id => pal.appendChild(brushTxtBtn(id)));
@@ -3560,8 +3560,8 @@ function buildCompactPalette(pal) {
 function buildVGroupPalette() {
   const root = $('#brushCol');
   root.appendChild(h('div', { class: 'be-top' },
-    foldBtn(T('折叠为右下角按钮'), 'down', () => setBrushMode('fab')),
-    foldBtn(T('展开为右侧面板'), 'left', () => setBrushMode('panel'))));
+    foldBtn(i18n('折叠为右下角按钮'), 'down', () => setBrushMode('fab')),
+    foldBtn(i18n('展开为右侧面板'), 'left', () => setBrushMode('panel'))));
   const col = h('div', { class: 'vgroup-col' });
   const mobile = isMobile();
   (mobile ? ['select', 'erase'] : ['select', 'erase', '.']).forEach(id => col.appendChild(brushTxtBtn(id)));
@@ -3599,7 +3599,7 @@ function openBrushFly(chip, g, byHover) {
   if (byHover) fly.dataset.openedByHover = '1'; else delete fly.dataset.openedByHover;
   const pin = h('button', {
     class: 'fly-pin' + (brushFlyKeep() ? ' on' : ''),
-    title: brushFlyKeep() ? T('已钉住：选择笔刷后弹层保持（点击改回自动收起）') : T('选择笔刷后自动收起（点击钉住弹层）'),
+    title: brushFlyKeep() ? i18n('已钉住：选择笔刷后弹层保持（点击改回自动收起）') : i18n('选择笔刷后自动收起（点击钉住弹层）'),
     'aria-label': '钉住笔刷弹层', 'aria-pressed': String(brushFlyKeep()),
   });
   pin.appendChild(icon('<circle cx="8" cy="5.5" r="3.2"/><path d="M8 8.7V14"/>', 13));
@@ -3629,9 +3629,9 @@ function closeBrushFly() { const f = $('#brushFly'); if (f) { f.classList.remove
 /* C 右下角按钮：悬停 / 点击展示笔刷面板，离开按钮与面板区域或选择笔刷后自动隐藏 */
 let brushPanelHideTimer = null;
 function createBrushPanel() {
-  const panel = h('div', { class: 'popover open', role: 'dialog', 'aria-label': T('笔刷面板') });
+  const panel = h('div', { class: 'popover open', role: 'dialog', 'aria-label': i18n('笔刷面板') });
   const tools = h('div', { class: 'pop-glyphs', style: 'margin-bottom:4px' });
-  [['select', T('选择')], ['erase', T('清除')]].forEach(([id, name]) => {
+  [['select', i18n('选择')], ['erase', i18n('清除')]].forEach(([id, name]) => {
     const b = h('button', { class: 'pg' + (brushActive(id) ? ' active' : ''), title: name, 'aria-label': name });
     b.appendChild(brushFace(id, 26, 15, 15));
     b.appendChild(h('span', { class: 'tlabel' }, name));
@@ -3653,9 +3653,9 @@ function scheduleHideBrushPanel() {
 function buildFabCluster() {
   const root = $('#brushFan');
   const box = h('div', { class: 'fan-box' });
-  box.appendChild(foldBtn(T('恢复横向弹窗条'), 'left', () => setBrushMode('compact')));
+  box.appendChild(foldBtn(i18n('恢复横向弹窗条'), 'left', () => setBrushMode('compact')));
   box.appendChild(foldBtn('恢复右纵条', 'up', () => setBrushMode('vgroup')));
-  const main = h('button', { class: 'fan-main', title: T('笔刷（悬停或点击展示面板）'), 'aria-label': T('笔刷面板') }, T('笔刷'));
+  const main = h('button', { class: 'fan-main', title: i18n('笔刷（悬停或点击展示面板）'), 'aria-label': i18n('笔刷面板') }, i18n('笔刷'));
   main.addEventListener('click', ev => {
     ev.stopPropagation();
     if (document.querySelector('#brushPanel')) closeBrushPanel();
@@ -3780,7 +3780,7 @@ function clearCell(lane, t) {
   if (laneWaveStr(lane) === wave0 && laneLen(lane) === len0) {
     // 点了延续格且无任何可见变化
     const src = extendSource(lane, t);
-    cellTip((src >= 0 ? T('延续第 ') + src + T(' 拍 · ') : '') + T('非波形末尾的延续格无内容可清除'), lane, t);
+    cellTip((src >= 0 ? i18n('延续第 ') + src + i18n(' 拍 · ') : '') + i18n('非波形末尾的延续格无内容可清除'), lane, t);
   } else if (wasReal && laneLen(lane) === len0) {
     // 删的是真实字符且它不是最后一拍：该格变成延续格，前一个状态顺延流过来
     const src = extendSource(lane, t);
@@ -3832,17 +3832,17 @@ function updateChainBtn() {
   if (!btn) return;
   const key = !autoChain ? 'off' : chainDir;
   /* 桌面 full / 手机 short：桌面统一「自动」+ 方向箭头，手机保留短词 */
-  const LABELS = { off: [T('自动'), T('自动')], col: [T('自动 →'), T('右移')], row: [T('自动 ↓'), T('下移')] };
+  const LABELS = { off: [i18n('自动'), i18n('自动')], col: [i18n('自动 →'), i18n('右移')], row: [i18n('自动 ↓'), i18n('下移')] };
   const full = btn.querySelector('.ct-full'), short = btn.querySelector('.ct-short');
   if (full) full.textContent = LABELS[key][0];
   if (short) short.textContent = LABELS[key][1];
   btn.classList.toggle('active', autoChain);
   btn.setAttribute('aria-pressed', autoChain ? 'true' : 'false');
   btn.title = !autoChain
-    ? T('自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）')
+    ? i18n('自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）')
     : chainDir === 'col'
-      ? T('自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出')
-      : T('自动连续模式进行中（逐格下移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并下移；点此退出，ESC 也可退出');
+      ? i18n('自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出')
+      : i18n('自动连续模式进行中（逐格下移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并下移；点此退出，ESC 也可退出');
 }
 function clearChainHighlight() {
   document.querySelectorAll('#gridInner .cell.chain-sel').forEach(c => c.classList.remove('chain-sel'));
@@ -3872,7 +3872,7 @@ function setChainSel(lane, t) {
   if (cell) { cell.classList.add('chain-sel'); cell.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
   const tip = CHAIN_TIPS[chainSelCount]; // 前 4 次选中的分步引导；之后为 undefined 不提示
   chainSelCount++;
-  if (tip) toast(T(tip));
+  if (tip) toast(i18n(tip));
   if (wasPopOpen && changed) reopenPopAtChainSel();
 }
 function enterAutoChain(withCell) {
@@ -3883,7 +3883,7 @@ function enterAutoChain(withCell) {
   if (!withCell) {
     chainSel = null;
     clearChainHighlight();
-    toast(T('自动连续模式已启动（逐格右移）：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）'));
+    toast(i18n('自动连续模式已启动（逐格右移）：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）'));
   }
 }
 function exitAutoChain() {
@@ -3904,13 +3904,13 @@ function advanceChain() {
   if (li < 0) { exitAutoChain(); return; }
   if (chainDir === 'row') {
     if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, Math.min(win.b - 1, Math.max(win.a, chainSel.t))); return; } }
-    toast(T('已到最后一行，自动连续模式停留在当前格'));
+    toast(i18n('已到最后一行，自动连续模式停留在当前格'));
     restoreChainSelHighlight();
     return;
   }
   if (chainSel.t + 1 < win.b) { const lane = getLaneById(chainSel.laneId); if (lane) setChainSel(lane, chainSel.t + 1); return; }
   if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, win.a); return; } }
-  toast(T('已到最后一行末尾，自动连续模式停留在当前格'));
+  toast(i18n('已到最后一行末尾，自动连续模式停留在当前格'));
   restoreChainSelHighlight();
 }
 /* 对当前选中格上色并右移；char 为合法波形字符 */
@@ -3966,7 +3966,7 @@ function buildGlyphGrid(parent, currentGlyph, onPick) {
     const b = h('button', { class: 'pg' + (currentGlyph === ch ? ' active' : ''), title: name, 'aria-label': name });
     const s = ch === '.' ? extendSample() : glyphSample(ch);
     b.appendChild(s);
-    b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? T('延续') : ch));
+    b.appendChild(h('span', { class: 'tlabel' }, ch === '.' ? i18n('延续') : ch));
     b.addEventListener('click', ev => { ev.stopPropagation(); onPick(ch); });
     return b;
   };
@@ -3986,11 +3986,11 @@ function openPop(lane, t, anchor) {
   const slot = lane.slots[t];
   // 有效渲染状态：显式状态优先；空槽在通道长度内视为延续
   const eff = (slot && slot.glyph) || (t < laneLen(lane) ? '.' : null);
-  const glyphLabel = ch => ch === '.' ? T('延续 (.)') : (GLYPH_MAP[ch] ? `${T(GLYPH_MAP[ch].name)} (${ch})` : '');
+  const glyphLabel = ch => ch === '.' ? i18n('延续 (.)') : (GLYPH_MAP[ch] ? `${i18n(GLYPH_MAP[ch].name)} (${ch})` : '');
   const curLabel = eff ? glyphLabel(eff) : '';
   const title = h('div', { class: 'pop-title' },
     h('span', { class: 'dot', style: 'width:8px;height:8px;border-radius:50%;background:' + laneColor(lane) }),
-    h('span', { style: 'flex:1;min-width:0' }, (lane.name || T('未命名')) + ' · ' + t + (curLabel ? ' · ' + T('当前：') + curLabel : '')));
+    h('span', { style: 'flex:1;min-width:0' }, (lane.name || i18n('未命名')) + ' · ' + t + (curLabel ? ' · ' + i18n('当前：') + curLabel : '')));
   pop.appendChild(title);
   const mobile = isMobile();
   if (!mobile) {
@@ -4008,7 +4008,7 @@ function openPop(lane, t, anchor) {
       glyphsWrap.style.display = popGlyphsCollapsed ? 'none' : '';
       foldGlyphs.textContent = '';
       foldGlyphs.appendChild(icon(FOLD_PATHS[popGlyphsCollapsed ? 'down' : 'up'], 12));
-      const lbl = popGlyphsCollapsed ? T('展开状态字符') : T('折叠状态字符');
+      const lbl = popGlyphsCollapsed ? i18n('展开状态字符') : i18n('折叠状态字符');
       foldGlyphs.title = lbl;
       foldGlyphs.setAttribute('aria-label', lbl);
     };
@@ -4027,11 +4027,11 @@ function openPop(lane, t, anchor) {
       setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
     }
     const letter = lane.nodeByT[t];
-    const nodeBtn = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, letter ? (T('节点') + ' ' + letter + ' ✕') : T('⊕ 节点'));
-    nodeBtn.title = letter ? T('移除节点标记') : T('放置节点（可连箭头）');
+    const nodeBtn = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, letter ? (i18n('节点') + ' ' + letter + ' ✕') : i18n('⊕ 节点'));
+    nodeBtn.title = letter ? i18n('移除节点标记') : i18n('放置节点（可连箭头）');
     nodeBtn.addEventListener('click', () => {
       if (letter) { delete lane.nodeByT[t]; update(); }
-      else { const L = nextNodeLetter(); if (!L) { toast(T('节点字母（a–Z 共 52 个）已用完'), true); return; } lane.nodeByT[t] = L; update(true); }
+      else { const L = nextNodeLetter(); if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; } lane.nodeByT[t] = L; update(true); }
       openPop(lane, t, anchor);
     });
     row.appendChild(nodeBtn);
@@ -4049,15 +4049,15 @@ function openPop(lane, t, anchor) {
   }
 
   if (slot && isData(slot.glyph)) {
-    const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: T('如 0x1F、D0、NOP'), 'aria-label': T('数据标签') });
+    const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: i18n('如 0x1F、D0、NOP'), 'aria-label': i18n('数据标签') });
     inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
-    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, T('数据标签')), inp));
+    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('数据标签')), inp));
     const row = h('div', { class: 'pop-colors' });
     const mkSw = (ch, label, bg) => {
       const b = h('button', {
         class: 'swatch' + (slot.glyph === ch ? ' active' : '') + (ch === '=' ? ' auto' : ''),
-        title: label, 'aria-label': T('填充：') + label, type: 'button',
+        title: label, 'aria-label': i18n('填充：') + label, type: 'button',
       });
       b.style.background = bg;
       if (ch === '=') b.textContent = 'A';
@@ -4069,8 +4069,8 @@ function openPop(lane, t, anchor) {
       });
       return b;
     };
-    row.appendChild(mkSw('=', T('自动·跟随通道'), laneColor(lane)));
-    Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, T('数据') + k + T('（官方填充）'), DIGIT_FILLS[k])));
+    row.appendChild(mkSw('=', i18n('自动·跟随通道'), laneColor(lane)));
+    Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, i18n('数据') + k + i18n('（官方填充）'), DIGIT_FILLS[k])));
     pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '官方填充色（写入 wave 数字槽位，官方完全识别）'), row));
     setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
   }
@@ -4078,12 +4078,12 @@ function openPop(lane, t, anchor) {
   const letter = lane.nodeByT[t];
   if (letter) {
     nodeRow.appendChild(h('span', { class: 'badge' }, letter));
-    nodeRow.appendChild(h('span', null, T('节点标记')));
+    nodeRow.appendChild(h('span', null, i18n('节点标记')));
     const rm = h('button', { class: 'btn ghost', style: 'margin-left:auto;height:26px' }, '移除');
     rm.addEventListener('click', () => { delete lane.nodeByT[t]; update(); openPop(lane, t, anchor); });
     nodeRow.appendChild(rm);
   } else {
-    const add = h('button', { class: 'btn ghost', style: 'height:26px' }, T('⊕ 放置节点'));
+    const add = h('button', { class: 'btn ghost', style: 'height:26px' }, i18n('⊕ 放置节点'));
     add.addEventListener('click', () => {
       const L = nextNodeLetter();
       if (!L) { toast('节点字母（a–Z 共 52 个）已用完', true); return; }
@@ -4091,12 +4091,12 @@ function openPop(lane, t, anchor) {
       update(true);
       openPop(lane, t, anchor);
     });
-    nodeRow.appendChild(h('span', null, T('放置节点后可连箭头')));
+    nodeRow.appendChild(h('span', null, i18n('放置节点后可连箭头')));
     nodeRow.appendChild(add);
   }
   pop.appendChild(nodeRow);
 
-  const clearBtn = h('button', { class: 'btn danger', style: 'flex:none' }, T('清除本格'));
+  const clearBtn = h('button', { class: 'btn danger', style: 'flex:none' }, i18n('清除本格'));
   clearBtn.addEventListener('click', () => { clearCell(lane, t); closePop(); });
   pop.appendChild(h('div', { class: 'pop-actions' }, clearBtn));
   pop.classList.add('open');
@@ -4133,14 +4133,14 @@ function openLanePropPop(lane, anchor) {
   const pop = $('#cellPop');
   popCell = null;
   pop.textContent = '';
-  pop.appendChild(h('div', { class: 'pop-title' }, T('通道属性') + ' · ' + (lane.name || T('未命名'))));
+  pop.appendChild(h('div', { class: 'pop-title' }, i18n('通道属性') + ' · ' + (lane.name || i18n('未命名'))));
   const pInp = h('input', { type: 'number', min: '1', step: '1', value: lane.period || '', placeholder: '1', 'aria-label': 'period 周期' });
-  const phInp = h('input', { type: 'number', step: '0.1', value: lane.phase ?? '', placeholder: '0', 'aria-label': T('phase 相位') });
+  const phInp = h('input', { type: 'number', step: '0.1', value: lane.phase ?? '', placeholder: '0', 'aria-label': i18n('phase 相位') });
   pInp.addEventListener('input', () => { lane.period = pInp.value === '' ? null : Math.max(1, +pInp.value); scheduleUpdate(); });
   phInp.addEventListener('input', () => { lane.phase = phInp.value === '' ? null : +phInp.value; scheduleUpdate(); });
-  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, T('period 周期 —— 每拍占 N 个时间单位')), pInp));
-  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, T('phase 相位 —— 左移 0～1 拍（0.5 = 半拍）')), phInp));
-  pop.appendChild(h('div', { style: 'font-size:11px;color:var(--faint);margin-top:8px' }, T('典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。')));
+  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('period 周期 —— 每拍占 N 个时间单位')), pInp));
+  pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('phase 相位 —— 左移 0～1 拍（0.5 = 半拍）')), phInp));
+  pop.appendChild(h('div', { style: 'font-size:11px;color:var(--faint);margin-top:8px' }, i18n('典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。')));
   pop.classList.add('open');
   const r = anchor.getBoundingClientRect();
   const pw = pop.offsetWidth, ph = pop.offsetHeight;
@@ -4499,7 +4499,7 @@ function dupLane(lane) {
   loc.list.splice(loc.index + 1, 0, copy);
   animateLanes = new Set([copy.id]);
   update(true);
-  toast(T('已复制（节点标记不复制，避免字母冲突）'));
+  toast(i18n('已复制（节点标记不复制，避免字母冲突）'));
 }
 function intoGroup(node) {
   const loc = findLoc(node.id);
@@ -4546,7 +4546,7 @@ const rowDnd = {
   ghost: null, line: null, intoEl: null, hoverId: null, hoverPos: null, raf: 0, scroller: null,
 };
 function dndGrip() {
-  return h('span', { class: 'drag-grip', title: T('拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）'), 'aria-hidden': 'true' },
+  return h('span', { class: 'drag-grip', title: i18n('拖动调整顺序（上/下沿 = 移到此处，组行中部 = 移入分组）'), 'aria-hidden': 'true' },
     icon('<path d="M5.5 4v.01M10.5 4v.01M5.5 8v.01M10.5 8v.01M5.5 12v.01M10.5 12v.01" stroke-width="2.1"/>', 13));
 }
 /* handle = 可拖起的元素（网格行头）；从输入框、按钮上按下不触发拖拽 */
@@ -4705,7 +4705,7 @@ function addLane(type) {
   animateLanes = new Set([lane.id]);
   update(true);
   animateLanes = null;
-  toast(T(type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + T('通道已添加，已预填 8 拍'));
+  toast(i18n(type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + i18n('通道已添加，已预填 8 拍'));
 }
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
@@ -4788,14 +4788,14 @@ function openExamplePop(anchorEl) {
     b.addEventListener('click', ev => { ev.stopPropagation(); closeSetPop(); closeMenus(); onPick(); });
     pop.appendChild(b);
   };
-  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(T(ex.name), () => loadExample(i)); });
+  EXAMPLES.forEach((ex, i) => { if (!ex.tut) add(i18n(ex.name), () => loadExample(i)); });
   pop.appendChild(h('div', { class: 'sep' }));
-  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(T(ex.name), () => loadExample(i)); });
+  EXAMPLES.forEach((ex, i) => { if (ex.tut) add(i18n(ex.name), () => loadExample(i)); });
   pop.appendChild(h('div', { class: 'sep' }));
-  const clr = h('button', null, icon(IC.trash, 13), T('空白文档'));
+  const clr = h('button', null, icon(IC.trash, 13), i18n('空白文档'));
   clr.addEventListener('click', ev => {
     ev.stopPropagation(); closeSetPop(); closeMenus();
-    adoptState(parseDoc({ signal: [] })); syncSettings(); update(true); toast(T('已新建空白文档'));
+    adoptState(parseDoc({ signal: [] })); syncSettings(); update(true); toast(i18n('已新建空白文档'));
   });
   pop.appendChild(clr);
   document.body.appendChild(pop);
@@ -4834,7 +4834,7 @@ function openSetPop(anchor, items, isActive, onPick) {
 /* 语言菜单：跟随系统 / 简体中文 / English，选中打勾 */
 function buildLangMenu(menu) {
   menu.textContent = '';
-  const LANGS = [['auto', T('跟随系统 / Auto')], ['zh', T('简体中文')], ['en', T('English')]];
+  const LANGS = [['auto', i18n('跟随系统 / Auto')], ['zh', i18n('简体中文')], ['en', i18n('English')]];
   LANGS.forEach(([v, label]) => {
     const on = effLang() === v;
     const b = h('button', { class: on ? 'active' : '' }, label);
@@ -4888,50 +4888,50 @@ function buildSettingsMenu(menu) {
     menu.appendChild(body);
   };
 
-  const THEMES = [['light', T('浅色')], ['dark', T('深色')]];
-  const TRACES = [['slim', T('纤细')], ['glow', T('荧光辉光')]];
-  const WBGS = [['default', T('默认')], ['white', T('纯白')], ['paper', T('米纸')], ['mist', T('雾蓝')], ['sage', T('苔绿')]];
-  const HEAD_BGS = [['own', T('独立底色')], ['same', T('与波形同色')]];
-  const ZEBRAS = [['on', T('显示')], ['off', T('隐藏')]];
-  const VIEWS = [['side', T('预览在右侧')], ['below', T('预览在下方')]];
-  const VMODES = [['auto', T('自动'), T('按屏宽判断桌面/手机布局')], ['simple', T('简约模式'), T('固定使用手机版布局')]];
-  const NMODES = [['bare', T('仅字母')], ['letter', T('圈+字母')], ['dot', T('点')]];
-  const LABELS = [['on', T('标签保持')], ['off', T('换字符即清除')]];
+  const THEMES = [['light', i18n('浅色')], ['dark', i18n('深色')]];
+  const TRACES = [['slim', i18n('纤细')], ['glow', i18n('荧光辉光')]];
+  const WBGS = [['default', i18n('默认')], ['white', i18n('纯白')], ['paper', i18n('米纸')], ['mist', i18n('雾蓝')], ['sage', i18n('苔绿')]];
+  const HEAD_BGS = [['own', i18n('独立底色')], ['same', i18n('与波形同色')]];
+  const ZEBRAS = [['on', i18n('显示')], ['off', i18n('隐藏')]];
+  const VIEWS = [['side', i18n('预览在右侧')], ['below', i18n('预览在下方')]];
+  const VMODES = [['auto', i18n('自动'), i18n('按屏宽判断桌面/手机布局')], ['simple', i18n('简约模式'), i18n('固定使用手机版布局')]];
+  const NMODES = [['bare', i18n('仅字母')], ['letter', i18n('圈+字母')], ['dot', i18n('点')]];
+  const LABELS = [['on', i18n('标签保持')], ['off', i18n('换字符即清除')]];
   const curTrace = () => root.dataset.trace === 'glow' ? 'glow' : 'slim';
 
-  cat('look', T('外观'), () => labelOf(THEMES, root.dataset.theme, T('深色')) + ' · ' + labelOf(TRACES, curTrace(), T('纤细')), body => {
-    row(body, T('主题'), THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
-    row(body, T('波形轨迹'), TRACES, curTrace, v => {
+  cat('look', i18n('外观'), () => labelOf(THEMES, root.dataset.theme, i18n('深色')) + ' · ' + labelOf(TRACES, curTrace(), i18n('纤细')), body => {
+    row(body, i18n('主题'), THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
+    row(body, i18n('波形轨迹'), TRACES, curTrace, v => {
       root.dataset.trace = v; localStorage.setItem('wdgui-trace', v); renderGrid();
     });
     /* 波形背景配色组：默认透出主题底色；深浅主题各自映射到对应的优雅底色 */
-    row(body, T('波形背景'), WBGS, () => root.dataset.wavebg || 'default', v => {
+    row(body, i18n('波形背景'), WBGS, () => root.dataset.wavebg || 'default', v => {
       root.dataset.wavebg = v; localStorage.setItem('wdgui-wavebg', v);
     });
     /* 信号名底色：默认独立（--panel），可选与波形区同色 */
-    row(body, T('信号名底色'), HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
+    row(body, i18n('信号名底色'), HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
       if (v === 'same') { root.dataset.headSame = '1'; localStorage.setItem('wdgui-head-same', '1'); }
       else { delete root.dataset.headSame; localStorage.setItem('wdgui-head-same', '0'); }
     });
     /* 斑马纹：奇数行淡底条纹，便于横向追踪行 */
-    row(body, T('斑马纹'), ZEBRAS, () => root.dataset.zebra !== '0' ? 'on' : 'off', v => {
+    row(body, i18n('斑马纹'), ZEBRAS, () => root.dataset.zebra !== '0' ? 'on' : 'off', v => {
       root.dataset.zebra = v === 'on' ? '1' : '0';
       localStorage.setItem('wdgui-zebra', v === 'on' ? '1' : '0');
     });
-    row(body, T('界面字体'), FONT_CHOICES.map(x => [x[0], T(x[1])]), () => state_font.ui, v => {
+    row(body, i18n('界面字体'), FONT_CHOICES.map(x => [x[0], i18n(x[1])]), () => state_font.ui, v => {
       state_font.ui = v; localStorage.setItem('wdgui-uifont', v); applyFonts();
     });
-    row(body, T('数据·代码字体'), FONT_CHOICES_DATA.map(x => [x[0], T(x[1])]), () => state_font.data, v => {
+    row(body, i18n('数据·代码字体'), FONT_CHOICES_DATA.map(x => [x[0], i18n(x[1])]), () => state_font.data, v => {
       state_font.data = v; localStorage.setItem('wdgui-dfont', v); applyFonts();
     });
   });
 
-  cat('view', T('视图'), () => labelOf(VIEWS, root.dataset.view, T('预览在右侧')), body => {
-    row(body, T('布局方向'), VIEWS, () => root.dataset.view, v => setViewMode(v));
-    row(body, T('视图模式'), VMODES, viewMode, v => setViewModePref(v));
+  cat('view', i18n('视图'), () => labelOf(VIEWS, root.dataset.view, i18n('预览在右侧')), body => {
+    row(body, i18n('布局方向'), VIEWS, () => root.dataset.view, v => setViewMode(v));
+    row(body, i18n('视图模式'), VMODES, viewMode, v => setViewModePref(v));
     /* 窗口显示是两个各自独立的开关，不能压成 N 选 1，保持可勾选的方格 */
-    body.appendChild(h('div', { class: 'menu-sec' }, T('窗口显示')));
-    menuOptGrid(body, 2, [['preview', T('实时预览')], ['code', 'WaveJSON']],
+    body.appendChild(h('div', { class: 'menu-sec' }, i18n('窗口显示')));
+    menuOptGrid(body, 2, [['preview', i18n('实时预览')], ['code', 'WaveJSON']],
       v => root.dataset[v === 'preview' ? 'showPreview' : 'showCode'] !== '0',
       v => {
         const key = v === 'preview' ? 'showPreview' : 'showCode';
@@ -4940,15 +4940,15 @@ function buildSettingsMenu(menu) {
       });
   });
 
-  cat('node', T('节点'), () => T(POS_NAMES_SHORT[state_node.pos]) + ' · ' + labelOf(NMODES, state_node.mode, T('仅字母')), body => {
+  cat('node', i18n('节点'), () => i18n(POS_NAMES_SHORT[state_node.pos]) + ' · ' + labelOf(NMODES, state_node.mode, i18n('仅字母')), body => {
     /* 九宫格保留：方位靠空间布局表达，压成一行会丢掉这个直觉 */
-    body.appendChild(h('div', { class: 'menu-sec' }, T('节点位置')));
+    body.appendChild(h('div', { class: 'menu-sec' }, i18n('节点位置')));
     const grid = h('div', { class: 'pos-grid' });
     Object.keys(POS_NAMES).forEach(k => {
       const b = h('button', {
         class: (state_node.pos === k ? 'active' : '') + (k === 'auto' ? ' pos-auto' : ''),
-        title: T(POS_NAMES[k]), 'aria-label': T('节点位置：') + T(POS_NAMES[k]),
-      }, T(POS_GLYPH[k]));
+        title: i18n(POS_NAMES[k]), 'aria-label': i18n('节点位置：') + i18n(POS_NAMES[k]),
+      }, i18n(POS_GLYPH[k]));
       b.addEventListener('click', ev => {
         ev.stopPropagation();
         state_node.pos = k; localStorage.setItem('wdgui-node-pos', k);
@@ -4957,52 +4957,52 @@ function buildSettingsMenu(menu) {
       grid.appendChild(b);
     });
     body.appendChild(grid);
-    row(body, T('显示模式'), NMODES, () => state_node.mode, v => {
+    row(body, i18n('显示模式'), NMODES, () => state_node.mode, v => {
       state_node.mode = v; localStorage.setItem('wdgui-node-mode', v); renderGrid();
     });
-    row(body, T('数据标签'), LABELS, () => keepLabel ? 'on' : 'off', v => {
+    row(body, i18n('数据标签'), LABELS, () => keepLabel ? 'on' : 'off', v => {
       keepLabel = v === 'on'; localStorage.setItem('wdgui-keep-label', v);
       if (!keepLabel) labelStash = null;
     });
     /* 比例/边距是连续值，保留并排滑块 */
     const edgePos = NODE_POS_KEYS[state_node.pos][0] !== .5;
-    body.appendChild(h('div', { class: 'menu-sec' }, T('比例与边距')));
+    body.appendChild(h('div', { class: 'menu-sec' }, i18n('比例与边距')));
     const srow = h('div', { class: 'slider-duo' });
-    srow.appendChild(settingsSliderCell(T('比例'), {
+    srow.appendChild(settingsSliderCell(i18n('比例'), {
       min: 50, max: 150, step: 5, value: Math.round(state_node.scale * 100),
-      fmt: v => v + '%', aria: T('节点显示比例'), title: T('节点圆标的整体大小'),
+      fmt: v => v + '%', aria: i18n('节点显示比例'), title: i18n('节点圆标的整体大小'),
       onInput: v => { state_node.scale = v / 100; localStorage.setItem('wdgui-node-scale', String(v / 100)); },
     }));
-    srow.appendChild(settingsSliderCell(T('边距'), {
+    srow.appendChild(settingsSliderCell(i18n('边距'), {
       min: 0, max: 9, step: 1, value: state_node.inset, dim: !edgePos,
-      fmt: v => v + 'p', aria: T('靠边节点的横向内缩（px）'),
+      fmt: v => v + 'p', aria: i18n('靠边节点的横向内缩（px）'),
       title: edgePos
-        ? T('小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头')
-        : T('当前节点位置水平居中，边距不生效（选左/右类位置后可调）'),
+        ? i18n('小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头')
+        : i18n('当前节点位置水平居中，边距不生效（选左/右类位置后可调）'),
       onInput: v => { state_node.inset = v; localStorage.setItem('wdgui-node-inset', String(v)); },
     }));
     body.appendChild(srow);
   });
 
-  cat('brush', T('笔刷'), () => T(labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条')), body => {
-    row(body, T('笔刷栏默认样式'), BRUSH_DEFAULTS.map(x => [x[0], T(x[1])]), () => state_brush.def, v => {
+  cat('brush', i18n('笔刷'), () => i18n(labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条')), body => {
+    row(body, i18n('笔刷栏默认样式'), BRUSH_DEFAULTS.map(x => [x[0], i18n(x[1])]), () => state_brush.def, v => {
       state_brush.def = v; localStorage.setItem('wdgui-brush-default', v);
       state_brush.mode = v; renderBrushUI();
     });
   });
 
   /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
-  cat('help', T('帮助与关于'), () => '', body => {
+  cat('help', i18n('帮助与关于'), () => '', body => {
     const act = (label, iconPath, onPick) => {
       const b = h('button', { class: 'set-row', title: label }, icon(iconPath, 13), h('span', null, label));
       b.addEventListener('click', ev => { ev.stopPropagation(); closeMenus(); onPick(); });
       body.appendChild(b);
     };
-    act(T('快捷键'), '<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>',
+    act(i18n('快捷键'), '<rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h0M6.5 6.5h0M9 6.5h0M11.5 6.5h0M4 9.3h6"/>',
       () => handleAct('open-shortcut'));
-    act(T('WaveDrom 语法教程'), '<path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/>',
+    act(i18n('WaveDrom 语法教程'), '<path d="M2 3.5A1.5 1.5 0 0 1 3.5 2H7v11H3.5A1.5 1.5 0 0 0 2 14.5z"/><path d="M14 3.5A1.5 1.5 0 0 0 12.5 2H9v11h3.5a1.5 1.5 0 0 1 1.5 1.5z"/>',
       () => handleAct('open-tutorial'));
-    act(T('关于'), '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/>',
+    act(i18n('关于'), '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.4M8 5.1v0" stroke-width="1.5"/>',
       () => handleAct('open-about'));
   });
 }
@@ -5077,7 +5077,7 @@ function loadExample(i) {
   animateLanes = new Set(allLanes().map(l => l.id));
   update(true);
   animateLanes = null;
-  toast(T('已载入示例：') + T(EXAMPLES[i].name));
+  toast(i18n('已载入示例：') + i18n(EXAMPLES[i].name));
 }
 function applyDocJSON(json) {
   adoptState(parseDoc(json));
@@ -5435,7 +5435,7 @@ function buildEditorSvg() {
     } else if (r.dataset.spacer) {
       const lb = head.querySelector('.spacer-label');
       const fsS = fsOf(lb, 11.5);
-      txt(svg, (lb || head).offsetLeft, cy + fsS * 0.35, T('空白占位'), { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
+      txt(svg, (lb || head).offsetLeft, cy + fsS * 0.35, i18n('空白占位'), { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
     }
   });
   return svg;
@@ -5461,16 +5461,16 @@ function handleAct(act, btn) {
     case 'add-bus': addLane('bus'); break;
     case 'add-spacer': state.tree.push({ kind: 'spacer', id: nextId() }); update(true); break;
     case 'add-group': {
-      const g = newGroup(T('分组') + ' ' + (state.tree.filter(n => n.kind === 'group').length + 1));
+      const g = newGroup(i18n('分组') + ' ' + (state.tree.filter(n => n.kind === 'group').length + 1));
       state.tree.push(g);
       update(true);
-      toast(T('分组已添加，用通道按钮里的「移入分组」收纳通道'));
+      toast(i18n('分组已添加，用通道按钮里的「移入分组」收纳通道'));
       break;
     }
     case 'toggle-autochain': {
       /* 三态循环：关闭 → 自动右移 → 自动下移 → 关闭 */
       if (!autoChain) enterAutoChain(false);
-      else if (chainDir === 'col') { chainDir = 'row'; updateChainBtn(); toast(T('自动连续模式：已切换为逐格下移')); }
+      else if (chainDir === 'col') { chainDir = 'row'; updateChainBtn(); toast(i18n('自动连续模式：已切换为逐格下移')); }
       else exitAutoChain();
       break;
     }
@@ -5497,9 +5497,9 @@ function handleAct(act, btn) {
             if (!deleted) break;
             removed++;
           }
-          toast(removed === 1 ? T('已删除末尾一拍（Ctrl+Z 可撤销）')
-            : removed > 1 ? T('已删除末尾 ') + removed + T(' 拍（Ctrl+Z 可撤销）')
-            : T('没有可删除的拍'));
+          toast(removed === 1 ? i18n('已删除末尾一拍（Ctrl+Z 可撤销）')
+            : removed > 1 ? i18n('已删除末尾 ') + removed + i18n(' 拍（Ctrl+Z 可撤销）')
+            : i18n('没有可删除的拍'));
           break;
         }
       }
@@ -5509,7 +5509,7 @@ function handleAct(act, btn) {
     }
     case 'add-edge': {
       const nodes = collectNodes();
-      if (nodes.length < 2) { toast(T('至少需要两个节点标记，先在单元格里放置节点'), true); return; }
+      if (nodes.length < 2) { toast(i18n('至少需要两个节点标记，先在单元格里放置节点'), true); return; }
       const used = new Set(state.edges.map(e => e.from + e.spec + e.to));
       let from = nodes[0].letter, to = nodes[1].letter;
       outer: for (const a of nodes) for (const b of nodes) {
@@ -5525,10 +5525,10 @@ function handleAct(act, btn) {
         applyDocJSON(j);
         $('#codeArea').blur();
         renderCode();
-        toast(T('代码已应用到图表'));
+        toast(i18n('代码已应用到图表'));
       } catch (e) {
         const st = $('#codeStatus');
-        st.className = 'code-err'; st.textContent = T('解析失败：') + e.message;
+        st.className = 'code-err'; st.textContent = i18n('解析失败：') + e.message;
       }
       break;
     }
@@ -5545,8 +5545,8 @@ function handleAct(act, btn) {
         applyDocJSON(j);
         $('#pasteMask').classList.remove('open');
         $('#pasteArea').value = '';
-        toast(T('导入成功'));
-      } catch (e) { $('#pasteErr').textContent = T('解析失败：') + e.message; }
+        toast(i18n('导入成功'));
+      } catch (e) { $('#pasteErr').textContent = i18n('解析失败：') + e.message; }
       break;
     }
     case 'open-tutorial': window.open('https://wavedrom.com/tutorial.html', '_blank'); break;
@@ -5564,7 +5564,7 @@ function handleAct(act, btn) {
       adoptState(parseDoc({ signal: [] }));
       syncSettings();
       update(true);
-      toast(T('已清空为空白文档（Ctrl+Z 可撤销）'));
+      toast(i18n('已清空为空白文档（Ctrl+Z 可撤销）'));
       break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
@@ -5614,15 +5614,15 @@ function handleAct(act, btn) {
       break;
     }
     case 'export-json': download(exportBaseName() + '.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
-    case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), T('JSON 已复制到剪贴板')); break;
+    case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), i18n('JSON 已复制到剪贴板')); break;
     case 'copy-kroki': {
       const block = '```kroki\nwavedrom\n' + fmtJSON(buildJSON(), 0, codeCompact) + '\n```';
-      copyText(block, T('kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染'));
+      copyText(block, i18n('kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染'));
       break;
     }
     case 'copy-link': {
       persist();
-      copyText(location.href, T('分享链接已复制（含完整图表数据）'));
+      copyText(location.href, i18n('分享链接已复制（含完整图表数据）'));
       break;
     }
     case 'zoom-in': state.zoom = Math.min(3, state.zoom + 0.15); applyZoom(); break;
@@ -5695,7 +5695,7 @@ function bindNameSplit(el, container) {
     delete state.sizes.namew;
     saveSizes();
     update(true);
-    toast(T('信号列宽已恢复自动'));
+    toast(i18n('信号列宽已恢复自动'));
   });
 }
 window.addEventListener('mousemove', ev => {
