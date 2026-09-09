@@ -1148,6 +1148,7 @@ html[data-mobile] {
       <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg><span data-i18n="复制 JSON">复制 JSON</span></button>
       <button data-act="copy-kroki"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5.5 5-3 3 3 3M10.5 5l3 3-3 3"/></svg><span data-i18n="复制 kroki 代码块">复制 kroki 代码块</span></button>
       <button data-act="copy-link"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.6 2.9a2.55 2.55 0 0 1 3.6 3.6L10.6 8"/><path d="m9 11.5-1.6 1.6a2.55 2.55 0 0 1-3.6-3.6L5.4 8"/></svg><span data-i18n="复制分享链接">复制分享链接</span></button>
+      <button data-act="copy-link-zip"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5 9.5 6.5"/><path d="M7 4.5 8.6 2.9a2.55 2.55 0 0 1 3.6 3.6L10.6 8"/><path d="m9 11.5-1.6 1.6a2.55 2.55 0 0 1-3.6-3.6L5.4 8"/></svg><span data-i18n="复制分享链接（压缩）">复制分享链接（压缩）</span></button>
     </div>
   </div>
 </header>
@@ -1570,6 +1571,8 @@ const I18N_EN = {
   '已删除末尾一拍（Ctrl+Z 可撤销）': 'Removed the last cycle (Ctrl+Z to undo)',
   '已删除末尾 ': 'Removed the last ', ' 拍（Ctrl+Z 可撤销）': ' cycles (Ctrl+Z to undo)', '没有可删除的拍': 'Nothing left to remove',
   'kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染': 'kroki block copied — paste into kroki-enabled Markdown to render',
+  '复制分享链接（压缩）': 'Copy compressed share link',
+  '压缩分享链接已复制（含完整图表数据）': 'Compressed share link copied (contains the full diagram)',
   '分享链接已复制（含完整图表数据）': 'Share link copied (contains the full diagram)',
   '鼠标点击笔刷或按笔刷快捷键即可快速渲染并按当前方向自动跳到下一格': 'Click a brush or press its key — the cell is painted and the selection advances',
   '使用方向键可快速调整选中的单元格': 'Use the arrow keys to move the selected cell',
@@ -2665,6 +2668,14 @@ function glyphSample(ch) {
   return svg;
 }
 
+/* ---------- 分享链接压缩：lz-string v1.5.0 (MIT, github.com/pieroxy/lz-string) ----------
+   仅用于「复制分享链接（压缩）」。整库包在 IIFE 内、只暴露 LZShare：
+   既不污染全局 LZString，其内部 r/t/n/i 等短名也不会与页面标识符冲突。 */
+const LZShare = (function () {
+  var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",n="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",e={};function t(r,o){if(!e[r]){e[r]={};for(var n=0;n<r.length;n++)e[r][r.charAt(n)]=n}return e[r][o]}var i={compressToBase64:function(r){if(null==r)return"";var n=i._compress(r,6,function(r){return o.charAt(r)});switch(n.length%4){default:case 0:return n;case 1:return n+"===";case 2:return n+"==";case 3:return n+"="}},decompressFromBase64:function(r){return null==r?"":""==r?null:i._decompress(r.length,32,function(n){return t(o,r.charAt(n))})},compressToUTF16:function(o){return null==o?"":i._compress(o,15,function(o){return r(o+32)})+" "},decompressFromUTF16:function(r){return null==r?"":""==r?null:i._decompress(r.length,16384,function(o){return r.charCodeAt(o)-32})},compressToUint8Array:function(r){for(var o=i.compress(r),n=new Uint8Array(2*o.length),e=0,t=o.length;e<t;e++){var s=o.charCodeAt(e);n[2*e]=s>>>8,n[2*e+1]=s%256}return n},decompressFromUint8Array:function(o){if(null==o)return i.decompress(o);for(var n=new Array(o.length/2),e=0,t=n.length;e<t;e++)n[e]=256*o[2*e]+o[2*e+1];var s=[];return n.forEach(function(o){s.push(r(o))}),i.decompress(s.join(""))},compressToEncodedURIComponent:function(r){return null==r?"":i._compress(r,6,function(r){return n.charAt(r)})},decompressFromEncodedURIComponent:function(r){return null==r?"":""==r?null:(r=r.replace(/ /g,"+"),i._decompress(r.length,32,function(o){return t(n,r.charAt(o))}))},compress:function(o){return i._compress(o,16,function(o){return r(o)})},_compress:function(r,o,n){if(null==r)return"";var e,t,i,s={},u={},a="",p="",c="",l=2,f=3,h=2,d=[],m=0,v=0;for(i=0;i<r.length;i+=1)if(a=r.charAt(i),Object.prototype.hasOwnProperty.call(s,a)||(s[a]=f++,u[a]=!0),p=c+a,Object.prototype.hasOwnProperty.call(s,p))c=p;else{if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++),s[p]=f++,c=String(a)}if(""!==c){if(Object.prototype.hasOwnProperty.call(u,c)){if(c.charCodeAt(0)<256){for(e=0;e<h;e++)m<<=1,v==o-1?(v=0,d.push(n(m)),m=0):v++;for(t=c.charCodeAt(0),e=0;e<8;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;e<h;e++)m=m<<1|t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=c.charCodeAt(0),e=0;e<16;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}0==--l&&(l=Math.pow(2,h),h++),delete u[c]}else for(t=s[c],e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;0==--l&&(l=Math.pow(2,h),h++)}for(t=2,e=0;e<h;e++)m=m<<1|1&t,v==o-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;for(;;){if(m<<=1,v==o-1){d.push(n(m));break}v++}return d.join("")},decompress:function(r){return null==r?"":""==r?null:i._decompress(r.length,32768,function(o){return r.charCodeAt(o)})},_decompress:function(o,n,e){var t,i,s,u,a,p,c,l=[],f=4,h=4,d=3,m="",v=[],g={val:e(0),position:n,index:1};for(t=0;t<3;t+=1)l[t]=t;for(s=0,a=Math.pow(2,2),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;c=r(s);break;case 2:return""}for(l[3]=c,i=c,v.push(c);;){if(g.index>o)return"";for(s=0,a=Math.pow(2,d),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;switch(c=s){case 0:for(s=0,a=Math.pow(2,8),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 1:for(s=0,a=Math.pow(2,16),p=1;p!=a;)u=g.val&g.position,g.position>>=1,0==g.position&&(g.position=n,g.val=e(g.index++)),s|=(u>0?1:0)*p,p<<=1;l[h++]=r(s),c=h-1,f--;break;case 2:return v.join("")}if(0==f&&(f=Math.pow(2,d),d++),l[c])m=l[c];else{if(c!==h)return null;m=i+i.charAt(0)}v.push(m),l[h++]=i+m.charAt(0),i=m,0==--f&&(f=Math.pow(2,d),d++)}}};return i}();
+  return LZString;
+})();
+
 /* ---------- DOM 工具 ---------- */
 const $ = s => document.querySelector(s);
 function h(tag, attrs, ...kids) {
@@ -3440,8 +3451,8 @@ window.addEventListener('beforeunload', persist);
 function persist() {
   try {
     localStorage.setItem('wdgui-doc-v1', JSON.stringify(buildJSON()));
-    const hash = '#' + encodeURIComponent(JSON.stringify(buildJSON()));
-    history.replaceState(null, '', location.pathname + location.search + hash);
+    /* 地址栏不承载波形代码：编辑时不写 hash；从链接打开后残留的 hash 一并清掉 */
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   } catch (e) { /* 隐私模式等场景忽略 */ }
 }
 
@@ -5655,9 +5666,18 @@ function handleAct(act, btn) {
       copyText(block, i18n('kroki 代码块已复制 —— 粘贴到支持 kroki 的 Markdown 即可渲染'));
       break;
     }
-    case 'copy-link': {
+    case 'copy-link-zip': {
+      /* 压缩分享链接：JSON → lz-string → #LZ 前缀，比官方格式短约六成 */
       persist();
-      copyText(location.href, i18n('分享链接已复制（含完整图表数据）'));
+      const packed = LZShare.compressToEncodedURIComponent(JSON.stringify(buildJSON()));
+      copyText(location.href.split('#')[0] + '#LZ' + packed, i18n('压缩分享链接已复制（含完整图表数据）'));
+      break;
+    }
+    case 'copy-link': {
+      /* 地址栏不再承载波形代码，这里主动拼官方 WaveJSON 格式的链接（与官方编辑器互通） */
+      persist();
+      const url = location.href.split('#')[0] + '#' + encodeURIComponent(JSON.stringify(buildJSON()));
+      copyText(url, i18n('分享链接已复制（含完整图表数据）'));
       break;
     }
     case 'zoom-in': state.zoom = Math.min(3, state.zoom + 0.15); applyZoom(); break;
@@ -5833,12 +5853,27 @@ function applyHeadActions() {
   else delete document.documentElement.dataset.headActions;
 }
 /* ---------- 启动 ---------- */
+/* 从地址栏 hash 导入：支持压缩分享链接（#LZ…）与官方 WaveJSON 链接；
+   导入后立即把波形代码从地址栏移除 */
+function loadDocFromHash() {
+  const raw = location.hash.slice(1);
+  if (!raw) return false;
+  let ok = false;
+  if (raw.startsWith('LZ')) {
+    try {
+      const json = LZShare.decompressFromEncodedURIComponent(raw.slice(2));
+      if (json) { adoptState(parseDoc(parseWaveJSON(json))); ok = true; }
+    } catch (e) { /* 忽略坏链接 */ }
+  } else {
+    try { adoptState(parseDoc(parseWaveJSON(decodeURIComponent(raw)))); ok = true; } catch (e) { /* 忽略坏链接 */ }
+  }
+  if (ok) history.replaceState(null, '', location.pathname + location.search);
+  return ok;
+}
 function init() {
   scopeSkinFontRules();
   let restored = false;
-  if (location.hash.length > 1) {
-    try { adoptState(parseDoc(parseWaveJSON(decodeURIComponent(location.hash.slice(1))))); restored = true; } catch (e) { /* 忽略坏链接 */ }
-  }
+  if (location.hash.length > 1) restored = loadDocFromHash();
   if (!restored) {
     const saved = localStorage.getItem('wdgui-doc-v1');
     if (saved) { try { adoptState(parseDoc(JSON.parse(saved))); restored = true; } catch (e) { /* 忽略 */ } }
@@ -5854,6 +5889,13 @@ function init() {
     localStorage.setItem('wdgui-side-dock', sideDock() ? '0' : '1');
     applySideDock();
     state.autoFit = true; renderPreview();
+  });
+  /* 同一标签页内 hash 变化（粘贴新链接回车）不会重载页面，这里手动导入 */
+  let lastHash = location.hash;
+  window.addEventListener('hashchange', () => {
+    if (location.hash === lastHash) return;
+    lastHash = location.hash;
+    if (loadDocFromHash()) { syncSettings(); state.autoFit = true; update(true); }
   });
   /* 视口跨越 800px 时：重算有效手机态、修正面板显隐与笔刷栏归属、刷新笔刷 UI */
   const onNarrowChange = () => { applyViewMode(); applySideDock(); renderBrushUI(); };
