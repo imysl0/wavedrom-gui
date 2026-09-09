@@ -105,6 +105,38 @@ html[data-theme="light"] {
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+
+/* ============ 波形背景配色组（设置 → 外观「波形背景」）============
+   默认组 = var(--bg)（主题底色，历史效果）：必须是不透明实色——「信号名同色」会把它
+   用作 sticky 名称列的背景，透明会让横向滚动时的波形从名称列下穿过。 */
+:root { --wave-bg: var(--bg); }
+html[data-wavebg="white"] { --wave-bg: #000000; }
+html[data-wavebg="paper"] { --wave-bg: #171310; }
+html[data-wavebg="mist"]  { --wave-bg: #0A1226; }
+html[data-wavebg="sage"]  { --wave-bg: #0D1610; }
+html[data-theme="light"][data-wavebg="white"] { --wave-bg: #FFFFFF; }
+html[data-theme="light"][data-wavebg="paper"] { --wave-bg: #FAF6EC; }
+html[data-theme="light"][data-wavebg="mist"]  { --wave-bg: #EDF2F9; }
+html[data-theme="light"][data-wavebg="sage"]  { --wave-bg: #EFF5EA; }
+/* 信号名同色（设置 → 外观「信号名底色」）：名称列与波形区同底色，右缘分割线保留。
+   特异性刻意压在 hover/row-active 之下——悬停与选中反馈仍优先。 */
+[data-head-same] .lane-head { background: var(--wave-bg); }
+[data-head-same] .lane-row.group-row .lane-head,
+[data-head-same] .lane-row.spacer-row .lane-head { background: var(--wave-bg); }
+/* 斑马纹开关（设置 → 外观「斑马纹」）：关闭时波形奇数行恢复纯平底色（分组行的淡绿是功能色，不随此开关） */
+html[data-zebra="0"] .lane-row:nth-child(odd) .lane-track { background: transparent; }
+/* 同色 + 斑马纹：奇数行名称列与波形行同条纹。
+   条纹必须用「不透明底色 + 半透明渐变叠层」——名称列是 sticky，滚动时波形从它底下
+   穿过，直接把半透明 --row-alt 当背景会透出波形（与信号名叠加）。
+   :where 压低特异性：分组行专属底色、hover / row-active 反馈仍优先。 */
+:where([data-head-same][data-zebra="1"]) .lane-row:nth-child(odd) .lane-head {
+  background-color: var(--wave-bg);
+  background-image: linear-gradient(var(--row-alt), var(--row-alt));
+}
+[data-head-same][data-zebra="1"] .lane-row.spacer-row:nth-child(odd) .lane-head {
+  background-color: var(--wave-bg);
+  background-image: linear-gradient(var(--row-alt), var(--row-alt));
+}
 body {
   margin: 0;
   background: var(--bg);
@@ -480,7 +512,7 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 }
 .editor-toolbar .hint:hover .hint-pop, .editor-toolbar .hint.pinned .hint-pop { display: block; }
 
-.grid-scroll { flex: 1; overflow: auto; position: relative; }
+.grid-scroll { flex: 1; overflow: auto; position: relative; background: var(--wave-bg); }
 .grid-inner { min-width: max-content; padding-bottom: 40px; position: relative; }
 .mini-edges { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; }
 
@@ -1358,6 +1390,10 @@ document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === '
 document.documentElement.dataset.showPreview = localStorage.getItem('wdgui-show-preview') === '0' ? '0' : '1';
 document.documentElement.dataset.showCode = localStorage.getItem('wdgui-show-code') === '0' ? '0' : '1';
 document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
+/* 波形背景配色组与信号名同色（设置 → 外观） */
+document.documentElement.dataset.wavebg = localStorage.getItem('wdgui-wavebg') || 'default';
+if (localStorage.getItem('wdgui-head-same') === '1') document.documentElement.dataset.headSame = '1';
+document.documentElement.dataset.zebra = localStorage.getItem('wdgui-zebra') === '0' ? '0' : '1';
 /* ---------- 视图模式：auto=按屏宽判断桌面/手机；simple=强制手机（简约）布局 ---------- */
 const VIEWMODE_MQ = window.matchMedia('(max-width: 800px)');
 function viewMode() { return localStorage.getItem('wdgui-viewmode') === 'simple' ? 'simple' : 'auto'; }
@@ -4570,6 +4606,9 @@ function buildSettingsMenu(menu) {
 
   const THEMES = [['light', '浅色'], ['dark', '深色']];
   const TRACES = [['slim', '纤细'], ['glow', '荧光辉光']];
+  const WBGS = [['default', '默认'], ['white', '纯白'], ['paper', '米纸'], ['mist', '雾蓝'], ['sage', '苔绿']];
+  const HEAD_BGS = [['own', '独立底色'], ['same', '与波形同色']];
+  const ZEBRAS = [['on', '显示'], ['off', '隐藏']];
   const VIEWS = [['side', '预览在右侧'], ['below', '预览在下方']];
   const VMODES = [['auto', '自动', '按屏宽判断桌面/手机布局'], ['simple', '简约模式', '固定使用手机版布局']];
   const NMODES = [['bare', '仅字母'], ['letter', '圈+字母'], ['dot', '点']];
@@ -4580,6 +4619,20 @@ function buildSettingsMenu(menu) {
     row(body, '主题', THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
     row(body, '波形轨迹', TRACES, curTrace, v => {
       root.dataset.trace = v; localStorage.setItem('wdgui-trace', v); renderGrid();
+    });
+    /* 波形背景配色组：默认透出主题底色；深浅主题各自映射到对应的优雅底色 */
+    row(body, '波形背景', WBGS, () => root.dataset.wavebg || 'default', v => {
+      root.dataset.wavebg = v; localStorage.setItem('wdgui-wavebg', v);
+    });
+    /* 信号名底色：默认独立（--panel），可选与波形区同色 */
+    row(body, '信号名底色', HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
+      if (v === 'same') { root.dataset.headSame = '1'; localStorage.setItem('wdgui-head-same', '1'); }
+      else { delete root.dataset.headSame; localStorage.setItem('wdgui-head-same', '0'); }
+    });
+    /* 斑马纹：奇数行淡底条纹，便于横向追踪行 */
+    row(body, '斑马纹', ZEBRAS, () => root.dataset.zebra !== '0' ? 'on' : 'off', v => {
+      root.dataset.zebra = v === 'on' ? '1' : '0';
+      localStorage.setItem('wdgui-zebra', v === 'on' ? '1' : '0');
     });
     row(body, '界面字体', FONT_CHOICES, () => state_font.ui, v => {
       state_font.ui = v; localStorage.setItem('wdgui-uifont', v); applyFonts();
@@ -5004,7 +5057,11 @@ function buildEditorSvg() {
   const fsStripN = fsOf(inner.querySelector('.strip-num'), 12);
 
   const svg = el('svg', { xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}` });
-  el('rect', { x: 0, y: 0, width: W, height: H, fill: cssVar('--bg') }, svg);
+  /* 波形背景跟随「波形背景」配色组（默认组解析为主题底色）；同色开关时名称列同底色 */
+  const waveBg = () => { const v = cssVar('--wave-bg'); return (!v || v === 'transparent') ? cssVar('--bg') : v; };
+  const headBg = () => document.documentElement.dataset.headSame !== undefined ? waveBg() : cssVar('--panel');
+  const sameZebra = document.documentElement.dataset.headSame !== undefined && document.documentElement.dataset.zebra !== '0';
+  el('rect', { x: 0, y: 0, width: W, height: H, fill: waveBg() }, svg);
   const fixVars = clone => clone.querySelectorAll('[style]').forEach(e2 => {
     e2.setAttribute('style', e2.getAttribute('style').replaceAll('var(--font-mono)', mono).replaceAll('var(--font-ui)', uiFont));
   });
@@ -5013,7 +5070,7 @@ function buildEditorSvg() {
     const y = rowY.get(r), h = r.offsetHeight;
     if (r.classList.contains('strip')) {
       const st = r.querySelector('.strip-text');
-      el('rect', { x: nameW, y, width: colsW, height: h, fill: cssVar('--bg') }, svg);
+      el('rect', { x: nameW, y, width: colsW, height: h, fill: waveBg() }, svg);
       if (st) txt(svg, nameW + colsW / 2, y + h / 2 + fsStripT * 0.35, st.textContent, { 'text-anchor': 'middle', 'font-size': fsStripT, 'font-weight': 600, fill: cssVar('--muted'), 'font-family': uiFont });
       else r.querySelectorAll('.strip-num').forEach((n, i) => {
         if (n.textContent) txt(svg, nameW + i * gw + gw / 2, y + h / 2 + fsStripN * 0.35, n.textContent, { 'text-anchor': 'middle', 'font-size': fsStripN, 'font-weight': 500, fill: cssVar('--acc-text'), 'font-family': mono });
@@ -5054,12 +5111,15 @@ function buildEditorSvg() {
   }
 
   /* 名称列最后绘制，盖住穿过的边线（对齐屏幕上的 sticky 表现） */
-  el('rect', { x: 0, y: 0, width: nameW, height: H, fill: cssVar('--panel') }, svg);
+  el('rect', { x: 0, y: 0, width: nameW, height: H, fill: headBg() }, svg);
   el('line', { x1: nameW, y1: 0, x2: nameW, y2: H, stroke: cssVar('--line') }, svg);
   rows.forEach(r => {
     if (!r.classList.contains('lane-row')) return;
     const y = rowY.get(r), h = r.offsetHeight, cy = y + h / 2;
     const head = r.querySelector(':scope > .lane-head');
+    /* 同色 + 斑马纹：奇数行名称列与波形行同条纹（与屏幕 nth-child(odd) 同序） */
+    if (sameZebra && [...r.parentElement.children].indexOf(r) % 2 === 0 && !r.classList.contains('group-row'))
+      el('rect', { x: 0, y, width: nameW, height: h, fill: cssVar('--row-alt') }, svg);
     if (r.dataset.lane) {
       const dot = head.querySelector('.dot');
       if (dot) el('circle', { cx: dot.offsetLeft + dot.offsetWidth / 2, cy, r: 4.5, fill: getComputedStyle(dot).backgroundColor }, svg);
