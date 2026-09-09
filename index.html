@@ -1169,6 +1169,9 @@ html[data-mobile] {
       <button class="btn" data-act="open-cfg-pop" title="标题、刻度、缩放、皮肤、裁剪等图表参数">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>图表
       </button>
+      <button class="btn" data-act="clear-doc" title="清空所有信号，恢复为空白文档（Ctrl+Z 可撤销）">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.2A1.5 1.5 0 0 0 6.1 14h3.8a1.5 1.5 0 0 0 1.5-1.3l.6-8.2"/></svg>清空
+      </button>
     </div>
   </aside>
 
@@ -3557,10 +3560,11 @@ function clearEditingRow() {
 /* 锁定一个单元格连续给状态、逐格右移。中键点单元格可一步启动+选中；
    模式内键盘字符 / 左键单击（openPop） / 点波形笔刷都作用于选中格并右移。 */
 let autoChain = false, chainSel = null; // chainSel = { laneId, t }
+let chainDir = 'col'; // 自动模式给色后的前进方向：col=逐格右移（默认），row=逐格下移
 let chainSelCount = 0; // 本次模式内选中格的累计次数，用于前 4 次的分步引导提示
 /* 前 4 次选中格依次给出引导提示，第 5 次起不再提示 */
 const CHAIN_TIPS = [
-  '鼠标点击笔刷或按笔刷快捷键即可快速渲染并自动跳到下一个单元格',
+  '鼠标点击笔刷或按笔刷快捷键即可快速渲染并按当前方向自动跳到下一格',
   '使用方向键可快速调整选中的单元格',
   '任何情况下用 + / − 快捷键都可以增减拍',
   '选中单元格后，可使用回车键开关单元格状态面板',
@@ -3578,13 +3582,20 @@ function visibleChainLaneIds() {
 function updateChainBtn() {
   const btn = $('#chainBtn');
   if (!btn) return;
+  const key = !autoChain ? 'off' : chainDir;
+  const LABELS = { off: ['自动模式', '自动'], col: ['自动右移', '右移'], row: ['自动下移', '下移'] };
+  const full = btn.querySelector('.ct-full'), short = btn.querySelector('.ct-short');
+  if (full) full.textContent = LABELS[key][0];
+  if (short) short.textContent = LABELS[key][1];
   const state = btn.querySelector('.chain-state');
   if (state) state.dataset.s = autoChain ? 'on' : 'off';
   btn.classList.toggle('active', autoChain);
   btn.setAttribute('aria-pressed', autoChain ? 'true' : 'false');
-  btn.title = autoChain
-    ? '自动连续模式进行中：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；ESC 或点此退出'
-    : '自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中）';
+  btn.title = !autoChain
+    ? '自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）'
+    : chainDir === 'col'
+      ? '自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出'
+      : '自动连续模式进行中（逐格下移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并下移；点此退出，ESC 也可退出';
 }
 function clearChainHighlight() {
   document.querySelectorAll('#gridInner .cell.chain-sel').forEach(c => c.classList.remove('chain-sel'));
@@ -3619,29 +3630,37 @@ function setChainSel(lane, t) {
 }
 function enterAutoChain(withCell) {
   autoChain = true;
+  chainDir = 'col'; // 每次进入模式默认逐格右移（按钮再点可切下移）
   chainSelCount = 0; // 每次进入模式重新计数分步引导
   updateChainBtn();
   if (!withCell) {
     chainSel = null;
     clearChainHighlight();
-    toast('自动连续模式已启动：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）');
+    toast('自动连续模式已启动（逐格右移）：请用鼠标中键点选一个单元格开始（下次可直接用中键点单元格一步完成启动+选中）');
   }
 }
 function exitAutoChain() {
   autoChain = false;
   chainSel = null;
+  chainDir = 'col'; // 方向随模式退出重置，下次开启默认右移
   clearChainHighlight();
   clearEditingRow();
   updateChainBtn();
   if (state.tool.type !== 'select') setBrush('select');
 }
-/* 渲染当前选中格后跳到右侧一格；本行到头则跳下一可见信号行首格；已是末尾则停留 */
+/* 给色后的自动前进：col=右移（本行到头跳下一可见信号行首格），row=下移（换下一可见信号行、拍不变）；到尽头则停留 */
 function advanceChain() {
   if (!chainSel) return;
   const win = gridWindow();
   const ids = visibleChainLaneIds();
   const li = ids.indexOf(chainSel.laneId);
   if (li < 0) { exitAutoChain(); return; }
+  if (chainDir === 'row') {
+    if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, Math.min(win.b - 1, Math.max(win.a, chainSel.t))); return; } }
+    toast('已到最后一行，自动连续模式停留在当前格');
+    restoreChainSelHighlight();
+    return;
+  }
   if (chainSel.t + 1 < win.b) { const lane = getLaneById(chainSel.laneId); if (lane) setChainSel(lane, chainSel.t + 1); return; }
   if (li + 1 < ids.length) { const lane = getLaneById(ids[li + 1]); if (lane) { setChainSel(lane, win.a); return; } }
   toast('已到最后一行末尾，自动连续模式停留在当前格');
@@ -5183,7 +5202,13 @@ function handleAct(act, btn) {
       toast('分组已添加，用通道按钮里的「移入分组」收纳通道');
       break;
     }
-    case 'toggle-autochain': { autoChain ? exitAutoChain() : enterAutoChain(false); break; }
+    case 'toggle-autochain': {
+      /* 三态循环：关闭 → 自动右移 → 自动下移 → 关闭 */
+      if (!autoChain) enterAutoChain(false);
+      else if (chainDir === 'col') { chainDir = 'row'; updateChainBtn(); toast('自动连续模式：已切换为逐格下移'); }
+      else exitAutoChain();
+      break;
+    }
     case 'add-col': {
       const n = +(btn && btn.dataset ? btn.dataset.n : 4) || 4;
       const cur = computeCols();
@@ -5270,6 +5295,12 @@ function handleAct(act, btn) {
     case 'edge-close': $('#edgeMask').classList.remove('open'); break;
     case 'open-cfg-pop': $('#cfgMask').classList.add('open'); break;
     case 'cfg-close': $('#cfgMask').classList.remove('open'); break;
+    case 'clear-doc':
+      adoptState(parseDoc({ signal: [] }));
+      syncSettings();
+      update(true);
+      toast('已清空为空白文档（Ctrl+Z 可撤销）');
+      break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
       download(exportBaseName() + '.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
