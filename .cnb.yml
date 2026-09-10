@@ -60,7 +60,7 @@
             description: |
               WaveDrom-Gui $CNB_BRANCH
 
-              Web 可视化编辑器与 wavedrom-render Skill 的版本发布。
+              Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。
             latest: true
 
         - name: 准备 Release 附件
@@ -72,8 +72,20 @@
             test -f wavedrom-gui.html
             test ! -e index.html
 
+        - name: 打包 VS Code 扩展
+          image: node:20
+          script: |
+            set -eu
+            cd vscode
+            # 干净检出（无 node_modules）即可打包：vsce 会执行 package.json 的
+            # vscode:prepublish（即 scripts/build.js），而它零依赖
+            npx --yes @vscode/vsce@3 package --out wavedrom-gui-vscode.vsix
+            test -s wavedrom-gui-vscode.vsix
+            ls -l wavedrom-gui-vscode.vsix
+
         - name: 上传 Release 附件
           image: cnbcool/attachments:latest
           settings:
             attachments:
               - "./wavedrom-gui.html"
+              - "./vscode/wavedrom-gui-vscode.vsix"
