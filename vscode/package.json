@@ -2,7 +2,7 @@
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
   "description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "wavedrom-gui",
   "license": "MIT",
   "repository": {

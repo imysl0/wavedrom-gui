@@ -3391,6 +3391,11 @@ function fmtJSON(v, ind = 0, compact = false, depth = 0) {
   if (!compact && allFlat(v)) { const s = flatObj(v); if (s.length <= budget) return s; }
   return '{\n' + keys.map(k => pad2 + JSON.stringify(k) + ': ' + fmtJSON(v[k], ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + '}';
 }
+/* VS Code 插件写回代码块时取用这里的文本，让写回风格与代码页显示模式（紧凑/舒缓）一致；
+   格式化规则只此一份，扩展侧不再另做一套缩进。无 VS Code 环境时无副作用 */
+window.wdFormatDoc = function (jsonStr) {
+  try { return fmtJSON(JSON.parse(jsonStr), 0, codeCompact); } catch (e) { return null; }
+};
 function renderCode() {
   const ta = $('#codeArea');
   if (document.activeElement !== ta) {

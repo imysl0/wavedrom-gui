@@ -160,7 +160,7 @@ function openEditor(target) {
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   panel.webview.onDidReceiveMessage(msg => {
-    if (msg.type === 'save' && msg.json) saveBack(saveTarget, msg.json);
+    if (msg.type === 'save' && msg.json) saveBack(saveTarget, msg.json, msg.text);
   });
 }
 
@@ -199,6 +199,14 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
   var vs = acquireVsCodeApi();
   var KEY = ${JSON.stringify(docKey)};
   var last = null, armed = false;
+  /* 写回风格跟随代码页当前的显示模式（紧凑/舒缓）：界面里的格式化器认得该模式，
+     这里只取它的结果；取不到时扩展侧退回默认缩进，不影响写回内容 */
+  function displayText(v) {
+    try {
+      if (typeof window.wdFormatDoc === 'function') return window.wdFormatDoc(v);
+    } catch (e) {}
+    return null;
+  }
   setTimeout(function () {
     try { last = localStorage.getItem(KEY); } catch (e) {}
     armed = true;
@@ -213,7 +221,8 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
     try { v = localStorage.getItem(KEY); } catch (e) { return; }
     if (v && v !== last) {
       last = v;
-      try { JSON.parse(v); vs.postMessage({ type: 'save', json: v }); } catch (e) {}
+      try { JSON.parse(v); } catch (e) { return; }
+      vs.postMessage({ type: 'save', json: v, text: displayText(v) });
     }
   }, 500);
 })();
@@ -251,9 +260,21 @@ function findFence(text, wanted, lineHint) {
   return all.find(hitContent) || all.find(hitLoose) || null;
 }
 
-async function saveBack(target, json) {
-  let pretty;
-  try { pretty = JSON.stringify(JSON.parse(json), null, 2); }
+/* 写回文本：优先用编辑器界面给出的显示文本（跟随紧凑/舒缓模式），但它必须与状态 JSON
+   等价——写回直接改用户文件，格式可以丢，内容不能错，对不上就退回默认的 2 空格缩进 */
+function writeText(json, displayText) {
+  const parsed = JSON.parse(json);
+  if (typeof displayText === 'string' && displayText.trim()) {
+    let shown = null;
+    try { shown = JSON.parse(displayText); } catch (e) { shown = null; }
+    if (shown && JSON.stringify(shown) === JSON.stringify(parsed)) return displayText;
+  }
+  return JSON.stringify(parsed, null, 2);
+}
+
+async function saveBack(target, json, displayText) {
+  let text;
+  try { text = writeText(json, displayText); }
   catch (e) { vscode.window.showErrorMessage('WaveDrom: JSON 无效，已跳过保存'); return; }
 
   if (target.kind === 'fence') {
@@ -263,11 +284,11 @@ async function saveBack(target, json) {
       if (!hit) {
         /* 兜底：精确与规范化都匹配不到（文件被大改）时，列出全部 wavedrom
            代码块让用户指定写回目标，避免直接报错卡死 */
-        const text = doc.getText();
+        const docText = doc.getText();
         FENCE_RE.lastIndex = 0;
         const cands = [];
         let m;
-        while ((m = FENCE_RE.exec(text))) {
+        while ((m = FENCE_RE.exec(docText))) {
           cands.push({
             label: '``` 代码块 ' + (cands.length + 1),
             description: (m[1].trim().split('\n')[0] || '').slice(0, 60),
@@ -286,7 +307,7 @@ async function saveBack(target, json) {
          JSON 最后一行，代码块不再闭合，后续正文和代码块都会被吞进去 */
       const tailNl = /(\r?\n)$/.exec(body);
       const nl = tailNl ? tailNl[1] : (/\r?\n/.exec(hit[0]) || ['\n'])[0];
-      const insert = nl === '\r\n' ? pretty.replace(/\n/g, '\r\n') : pretty;
+      const insert = nl === '\r\n' ? text.replace(/\n/g, '\r\n') : text;
       const endOff = startOff + body.length;
       const we = new vscode.WorkspaceEdit();
       we.replace(doc.uri, new vscode.Range(doc.positionAt(startOff), doc.positionAt(endOff)), insert + nl);
@@ -354,4 +375,4 @@ async function activate(ctx) {
 
 function deactivate() { if (bridge) { try { bridge.server.close(); } catch (e) { /* noop */ } } }
 
-module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, makePlugin, bridgeRegistry, findFence, saveBack, lineOfIndex, buildEditorHtml, panelDocKey } };
+module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, makePlugin, bridgeRegistry, findFence, saveBack, writeText, lineOfIndex, buildEditorHtml, panelDocKey } };

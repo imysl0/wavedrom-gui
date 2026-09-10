@@ -214,6 +214,37 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(fenceCount(glued) === mdFenceCount(glued), '粘连文档下 FENCE_RE 分块数与 markdown-it 一致');
   ok(fenceCount('# t\n\n```wavedrom\n' + A + '\n```\n\n```wavedrom\n' + B + '\n```\n') === mdFenceCount('# t\n\n```wavedrom\n' + A + '\n```\n\n```wavedrom\n' + B + '\n```\n'), '正常文档下 FENCE_RE 分块数与 markdown-it 一致');
 
+  /* ---- 5h. 写回文本跟随编辑器显示模式（紧凑模式不再被强制展开成 2 空格缩进） ---- */
+  const { writeText } = ext.__test;
+  const compactText = '{\n  "signal": [\n    { "name": "clk", "wave": "p......." }\n  ]\n}';
+  const prettyText = JSON.stringify(JSON.parse(A2), null, 2);
+  ok(compactText !== prettyText, '用例前提：紧凑文本与默认缩进不同');
+
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2, compactText);
+  ok(firstFenceBody(getDoc()) === compactText, '紧凑模式：写回内容按显示文本原样保留，不被展开');
+  ok(fenceCount(getDoc()) === 1 && getDoc().includes('clk'), '紧凑模式：写回后围栏仍闭合且内容正确');
+
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2);
+  ok(firstFenceBody(getDoc()) === prettyText, '未提供显示文本时退回默认 2 空格缩进');
+
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2, '{"signal":[{"name":"与状态不符"}]}');
+  ok(firstFenceBody(getDoc()) === prettyText, '显示文本与状态 JSON 不一致时退回默认缩进（不写坏内容）');
+  ok(firstFenceBody(getDoc()).includes('p.......'), '退回默认缩进时写的仍是新状态');
+
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2, '这不是 JSON');
+  ok(firstFenceBody(getDoc()) === prettyText, '显示文本不可解析时退回默认缩进');
+
+  ok(writeText(A2, compactText) === compactText, 'writeText：显示文本与状态等价时采用显示文本');
+
+  setDoc('# t\r\n\r\n```wavedrom\r\n' + A.replace(/\n/g, '\r\n') + '\r\n```\r\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2, compactText);
+  ok(firstFenceBody(getDoc()) === compactText.replace(/\n/g, '\r\n'), 'CRLF 文件：紧凑文本按文件换行风格写回');
+  ok(!/(^|[^\r])\n/.test(getDoc()), 'CRLF 文件：紧凑写回后不混入裸 LF');
+
   /* ---- 6. 编辑器面板：每个编辑目标独立的自动保存键（避免两个面板互相串写） ---- */
   const { buildEditorHtml, panelDocKey } = ext.__test;
   const tgtA = { kind: 'fence', docPath: '/tmp/x.md', fenceRaw: A, line: 2 };
@@ -225,6 +256,62 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(!/localStorage\.(get|set)Item\('wdgui-doc-v1'\)/.test(h1), '注入的 index.html 不再读写共享键');
   ok(h1.includes(keyA) && /var KEY = /.test(h1), '轮询脚本使用该面板自己的键');
   ok(/location\.hash = "%7B%22signal/.test(h1), '初始文档仍经 location.hash 注入');
+  ok(/window\.wdFormatDoc/.test(h1) && /postMessage\(\{ type: 'save', json: v, text: displayText\(v\) \}\)/.test(h1), '轮询脚本随文档带上显示模式的写回文本');
+  ok(/try \{ JSON\.parse\(v\); \} catch \(e\) \{ return; \}/.test(h1), '写回文本丢失时不会连带丢掉 JSON 校验');
+
+  /* ---- 6b. 界面钩子 × 轮询脚本对接：文档一变，消息文本即为当前显示模式的风格 ---- */
+  const vm = require('vm');
+  const editorSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
+  const hookSrc = editorSrc.slice(editorSrc.indexOf('let codeCompact'), editorSrc.indexOf('function renderCode()'));
+  const pollerSrc = /\(function \(\) \{\s*var vs = acquireVsCodeApi\(\);[\s\S]*?\}\)\(\);/.exec(h1);
+  ok(pollerSrc, '能从面板 HTML 中取出轮询脚本');
+
+  const openDoc = JSON.parse(A2);
+  /* 带 data 数组的通道：紧凑模式下整条单行，舒缓模式下会展开——刚好区分两种模式 */
+  const nextDoc = {
+    signal: [{ name: 'clk', wave: 'p....' }, { name: 'bus', wave: 'x.=..', data: ['hdr', '1', '2', '3'] }],
+  };
+  /* 按指定显示模式跑一遍真实轮询脚本：armed() 模拟面板打开，tick() 模拟一次改动 */
+  const runPoller = mode => {
+    const store = { 'wdgui-code-compact': mode };
+    let armed = null, tick = null;
+    const posted = [];
+    const sandbox = {
+      window: {}, JSON, encodeURIComponent, decodeURIComponent, console,
+      location: { hash: '' },
+      localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+      acquireVsCodeApi: () => ({ postMessage: m => posted.push(m) }),
+      setTimeout: fn => { armed = fn; return 1; },
+      setInterval: fn => { tick = fn; return 2; },
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(hookSrc, sandbox);
+    vm.runInContext(pollerSrc[0], sandbox);
+    if (typeof armed !== 'function' || typeof tick !== 'function') return { posted, ok: false };
+    store[keyA] = JSON.stringify(openDoc);
+    armed();                                   // 面板打开：记下初始文档，之后不回写
+    store[keyA] = JSON.stringify(nextDoc);      // 用户改动
+    tick();
+    return { posted, ok: true };
+  };
+
+  const compactRun = runPoller('1');
+  ok(compactRun.ok && compactRun.posted.length === 1 && compactRun.posted[0].type === 'save', '紧凑模式：改动后发出一封保存消息');
+  ok(compactRun.posted[0].json === JSON.stringify(nextDoc), '消息仍带原始状态 JSON（供图片元数据与校验使用）');
+  ok(compactRun.posted[0].text.split('\n').some(l => /^ +\{ "name": "bus", "wave": "x\.=\.\.", "data": \["hdr", "1", "2", "3"\] \},?$/.test(l)), '紧凑模式：通道对象连 data 保持单行');
+  ok(JSON.stringify(JSON.parse(compactRun.posted[0].text)) === JSON.stringify(nextDoc), '紧凑模式：消息文本与状态 JSON 等价');
+
+  const relaxRun = runPoller('0');
+  ok(relaxRun.ok && relaxRun.posted.length === 1, '舒缓模式：改动后发出一封保存消息');
+  ok(relaxRun.posted[0].text.split('\n').some(l => /^ +"name": "bus",$/.test(l)), '舒缓模式：对象展开为多行（写回风格确实跟随模式）');
+
+  /* ---- 7. 界面格式化钩子与打包副本同步（VSIX 里的 editor.html 由 index.html 拷贝而来） ---- */
+  ok(/window\.wdFormatDoc = function \(jsonStr\)/.test(editorSrc), 'index.html 暴露写回格式化钩子（复用 fmtJSON）');
+  ok(/fmtJSON\(JSON\.parse\(jsonStr\), 0, codeCompact\)/.test(editorSrc), '钩子跟随代码页紧凑/舒缓模式');
+  const builtEditor = path.join(__dirname, '..', 'media', 'editor.html');
+  if (fs.existsSync(builtEditor)) {
+    ok(fs.readFileSync(builtEditor, 'utf8').includes('window.wdFormatDoc'), 'media/editor.html 已随 npm run build 同步');
+  }
 
   console.log('\n全部 ' + passed + ' 项断言通过');
   process.exit(0);
