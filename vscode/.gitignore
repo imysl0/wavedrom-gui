@@ -1,2 +1,6 @@
 node_modules/
 *.vsix
+
+# 构建产物：由 npm run build 从仓库根 index.html 拷贝而来。
+# 打包前会自动重建（package.json 的 vscode:prepublish），故不进版本库。
+media/editor.html

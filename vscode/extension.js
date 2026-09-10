@@ -146,12 +146,17 @@ function openEditor(target) {
   } catch (e) { vscode.window.showErrorMessage('WaveDrom: 读取图表失败 — ' + e.message); return; }
   if (!jsonText) { vscode.window.showErrorMessage('WaveDrom: 该目标中没有可编辑的 WaveJSON'); return; }
 
+  /* 先备好 HTML 再建面板：界面读不到时直接报错返回，不留下一个空白面板 */
+  let html;
+  try { html = buildEditorHtml(jsonText, panelDocKey(target)); }
+  catch (e) { vscode.window.showErrorMessage('WaveDrom: 编辑器界面加载失败 — ' + e.message); return; }
+
   const name = path.basename(target.kind === 'fence' ? target.docPath : target.imgPath);
   const panel = vscode.window.createWebviewPanel(
     'wavedromGuiEditor', 'WaveDrom 编辑 — ' + name,
     vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true },
   );
-  panel.webview.html = buildEditorHtml(jsonText, panelDocKey(target));
+  panel.webview.html = html;
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   panel.webview.onDidReceiveMessage(msg => {
@@ -169,13 +174,23 @@ function panelDocKey(target) {
   return 'wdgui-doc-v1:' + crypto.createHash('sha1').update(id).digest('hex').slice(0, 12);
 }
 
+/* 编辑器界面来源：仓库内调试时 extensionUri 就是 vscode/，同级 ../index.html 是正在改的
+   实时界面（F5 下改动立即生效，无需先构建）；装了 VSIX 之后同级没有 index.html，回退到
+   随包安装的 media/editor.html（scripts/build.js 从仓库根 index.html 拷入）。 */
+function editorShellPath() {
+  const live = path.join(_ctx.extensionUri.fsPath, '..', 'index.html');
+  if (fs.existsSync(live)) return live;
+  return path.join(_ctx.extensionUri.fsPath, 'media', 'editor.html');
+}
+
 function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
-  const root = path.join(_ctx.extensionUri.fsPath, '..', 'index.html');
-  let html = fs.readFileSync(root, 'utf8');
+  let html = fs.readFileSync(editorShellPath(), 'utf8');
   html = html.replace(/'wdgui-doc-v1'/g, `'${docKey}'`);
+  /* img-src 必须含 blob:——编辑器导出 PNG 时把 SVG 包成 blob URL 再交给 new Image()，
+     少了它导出会卡在 onload 永不触发（预览/画布的 data: 路径不受影响） */
   const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; `
     + `style-src 'unsafe-inline' https://registry.npmmirror.com https://fonts.googleapis.com; `
-    + `font-src https://registry.npmmirror.com https://fonts.gstatic.com data:; img-src data: https:;">`;
+    + `font-src https://registry.npmmirror.com https://fonts.gstatic.com data:; img-src data: blob: https:;">`;
   html = html.replace(/(<meta charset="utf-8">)/i, `$1\n${csp}`);
   const init = `<script>location.hash = ${JSON.stringify(encodeURIComponent(initialJson))};</script>\n`;
   html = html.replace(/(<body[^>]*>)/i, `$1\n${init}`);

@@ -29,10 +29,30 @@
     return e;
   }
 
+  function toast(msg) {
+    const t = el('div', 'wd-toast', msg);
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 3200);
+  }
+
+  /* 信标是发往扩展宿主 127.0.0.1 端口的一张图片，成功时毫秒级返回。三种失败要区分开：
+     CSP 拦截会立刻 onerror；终端安全软件丢弃回环连接则表现为长时间不出结果（SYN 超时），
+     因此另设一个短超时兜底提示——否则按钮点下去会安静二十来秒，像没反应。 */
+  const FALLBACK = '可改用命令面板「WaveDrom: 编辑当前 Markdown 中的图表」';
   function beacon(div) {
     const port = div.dataset.port, token = div.dataset.token, k = div.dataset.k;
     if (!port || !k) return false;
+    let settled = false;
     const img = new Image();
+    const timer = setTimeout(function () {
+      if (settled) return;
+      toast('编辑请求未送达：本机到扩展宿主的回环连接疑似被安全软件拦截。' + FALLBACK);
+    }, 2500);
+    img.onload = function () { settled = true; clearTimeout(timer); };
+    img.onerror = function () {
+      settled = true; clearTimeout(timer);
+      toast('编辑请求被预览安全策略拦截：请点预览右上角「…」→「允许不安全的本地内容」后重试；' + FALLBACK);
+    };
     img.src = 'http://127.0.0.1:' + port + '/edit?t=' + encodeURIComponent(token)
       + '&k=' + encodeURIComponent(k) + '&r=' + Math.random();
     return true;
@@ -60,17 +80,12 @@
     }
     const edit = el('button', 'wd-btn wd-edit', '✏ 编辑');
     edit.type = 'button';
-    edit.addEventListener('click', function () { if (!beacon(div)) errNoBridge(); });
+    edit.addEventListener('click', function () {
+      if (!beacon(div)) {
+        toast('WaveDrom 桥未就绪，可用命令面板「WaveDrom: 编辑当前 Markdown 中的图表」');
+      }
+    });
     bar.appendChild(edit);
-
-    function errNoBridge() {
-      vscodeToast('WaveDrom 桥未就绪，可用命令面板「WaveDrom: 编辑当前 Markdown 中的图表」');
-    }
-    function vscodeToast(msg) {
-      const t = el('div', 'wd-toast', msg);
-      document.body.appendChild(t);
-      setTimeout(function () { t.remove(); }, 2600);
-    }
 
     function apply() {
       Object.keys(btns).forEach(function (k) { btns[k].classList.remove('on'); });
