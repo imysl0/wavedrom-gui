@@ -34,8 +34,8 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（�
 - `markdown.markdownItPlugins`：拦截 ```wavedrom / ```wavejson 围栏，替换为占位块；渲染期通过 markdown-it 的 `env.currentDocument` 拿到文档路径，同步读取本地 png/svg 并用 `lib/meta-embed.js` 提取内嵌 WaveJSON（命中才包工具栏）
 - `markdown.previewScripts`：`media/preview.js` 在预览内完成现代主题渲染（`render-modern.js` 的浏览器包装层），并挂接工具栏
 - 预览 CSP 不允许脚本外联、也不存在公开的预览→扩展消息通道，因此「编辑」按钮通过 **127.0.0.1 随机端口 + 随机 token 的图片信标** 通知扩展（`extension.js` 内置回环桥）
-- 编辑器面板：读取仓库根目录 `index.html` 注入 CSP、初始 JSON（`location.hash`）与保存轮询脚本后加载；轮询检测应用自动保存的文档变化，经 webview 消息回写
-- 代码块写回采用三级定位：原文精确匹配 → 忽略空白差异匹配 → 让用户从文件现有代码块中指定目标
+- 编辑器面板：读取仓库根目录 `index.html` 注入 CSP、初始 JSON（`location.hash`）与保存轮询脚本后加载；轮询检测应用自动保存的文档变化，经 webview 消息回写。每个编辑目标用一份独立的 localStorage 键，多个编辑面板同时打开也不会互相串写
+- 代码块写回定位：行号 + 内容双重要求（内容相同的重复代码块靠行号区分）→ 原文精确匹配 → 忽略空白差异匹配 → 让用户从文件现有代码块中指定目标；定位失败时不自动改写，写回保留原文件的换行风格
 
 ## 限制
 

@@ -5,9 +5,28 @@ const os = require('os');
 const path = require('path');
 const Module = require('module');
 
+/* ---- 内存文档 + WorkspaceEdit：让 saveBack 能在纯 Node 下跑完整写回 ---- */
+const fakeDocs = new Map(); // fsPath -> { text }
+function posAt(text, off) {
+  let line = 0, lineStart = 0;
+  for (let i = 0; i < off && i < text.length; i++) if (text.charCodeAt(i) === 10) { line++; lineStart = i + 1; }
+  return { line, character: off - lineStart };
+}
+function offAt(text, pos) {
+  let line = 0, off = 0;
+  while (line < pos.line) {
+    const nl = text.indexOf('\n', off);
+    if (nl < 0) return text.length;
+    off = nl + 1; line++;
+  }
+  return Math.min(off + pos.character, text.length);
+}
+
 /* ---- 伪 vscode 模块，让 extension.js 可在纯 Node 环境加载 ---- */
 const fakeVscode = {
   Uri: { parse: s => ({ fsPath: s, scheme: 'file' }) },
+  Range: class { constructor(start, end) { this.start = start; this.end = end; } },
+  WorkspaceEdit: class { replace(uri, range, text) { this._uri = uri; this._range = range; this._text = text; } },
   window: {
     showErrorMessage() {}, showInformationMessage() {}, setStatusBarMessage() {},
     showQuickPick: async p => p[0],
@@ -15,8 +34,21 @@ const fakeVscode = {
   },
   workspace: {
     getConfiguration: () => ({ get: () => 'modern' }),
-    openTextDocument: async () => { throw new Error('单测不打开真实文档'); },
-    applyEdit: async () => true,
+    openTextDocument: async p => {
+      const rec = fakeDocs.get(p);
+      if (!rec) throw new Error('单测未注册的文档: ' + p);
+      return {
+        uri: { fsPath: p, scheme: 'file' },
+        getText: () => rec.text,
+        positionAt: off => posAt(rec.text, off),
+      };
+    },
+    applyEdit: async we => {
+      const rec = fakeDocs.get(we._uri.fsPath);
+      const s = offAt(rec.text, we._range.start), e = offAt(rec.text, we._range.end);
+      rec.text = rec.text.slice(0, s) + we._text + rec.text.slice(e);
+      return true;
+    },
   },
   ViewColumn: { Beside: 2 },
   commands: { registerCommand: () => ({ dispose() {} }) },
@@ -29,7 +61,7 @@ Module._load = function (request) {
 
 const meta = require('../lib/meta-embed.js');
 const ext = require('../extension.js');
-const { probeImagePath, makePlugin, findFence, FENCE_RE } = ext.__test;
+const { probeImagePath, makePlugin, findFence, FENCE_RE, saveBack } = ext.__test;
 
 let passed = 0;
 function ok(cond, label) {
@@ -123,6 +155,76 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
 
   const htmlJson = md.render('```json\n{"a":1}\n```\n', env);
   ok(!htmlJson.includes('wavedrom-block'), '普通 json 围栏不拦截');
+
+  /* ---- 5. saveBack 写回（回归：闭合围栏粘连 / 重复块定位 / 大小写 / CRLF） ---- */
+  const A = '{\n  "signal": [\n    { "name": "clk", "wave": "p..." }\n  ]\n}';
+  const B = '{\n  "signal": [\n    { "name": "dat", "wave": "x.1." }\n  ]\n}';
+  const A2 = '{"signal":[{"name":"clk","wave":"p......."}]}';
+  const mdPath = path.join(tmp, 'writeback.md');
+  const setDoc = t => { fakeDocs.set(mdPath, { text: t }); return t; };
+  const getDoc = () => fakeDocs.get(mdPath).text;
+  const fenceCount = t => { FENCE_RE.lastIndex = 0; return (t.match(FENCE_RE) || []).length; };
+  const firstFenceBody = t => { FENCE_RE.lastIndex = 0; const m = FENCE_RE.exec(t); return m ? m[1].trim() : null; };
+
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n\n正文\n\n```wavedrom\n' + B + '\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2);
+  ok(fenceCount(getDoc()) === 2, '写回后仍是 2 个可闭合的 wavedrom 围栏块');
+  ok(getDoc().includes('正文') && getDoc().includes(B), '写回未吞掉正文与后续代码块');
+  let parsed = null;
+  try { parsed = JSON.parse(firstFenceBody(getDoc())); } catch (e) { /* 留作断言失败 */ }
+  ok(parsed && parsed.signal[0].wave === 'p.......', '写回后块内容是可解析的新 JSON');
+  ok(/^ {0,3}```[ \t]*$/m.test(getDoc()), '闭合围栏独占一行（不再粘在 JSON 末行）');
+
+  /* 5b. 内容相同的两个块：靠行号写到第二个，第一个不动 */
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n\n中间\n\n```wavedrom\n' + A + '\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 12 }, A2);
+  ok(getDoc().indexOf('p.......') > getDoc().indexOf('中间'), '重复内容块：改动落在第二个块');
+  ok(getDoc().indexOf('p.......') === getDoc().lastIndexOf('p.......'), '重复内容块：第一个块保持不变');
+
+  /* 5c. 大写围栏（预览认、旧版写回不认） */
+  setDoc('# t\n\n```WaveDrom\n' + A + '\n```\n');
+  ok(findFence(getDoc(), [A]) !== null, '大写 ```WaveDrom 也能定位');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2);
+  ok(fenceCount(getDoc()) === 1 && getDoc().includes('p.......'), '大写围栏写回后仍闭合');
+
+  /* 5d. CRLF 文件：换行风格保持，且围栏仍闭合 */
+  setDoc('# t\r\n\r\n```wavedrom\r\n' + A.replace(/\n/g, '\r\n') + '\r\n```\r\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2);
+  ok(!/(^|[^\r])\n/.test(getDoc()), 'CRLF 文件写回后不混入裸 LF');
+  ok(fenceCount(getDoc()) === 1, 'CRLF 写回后围栏仍闭合');
+
+  /* 5e. 空代码块：内容插到围栏内，闭合围栏保持独立行 */
+  setDoc('# t\n\n```wavedrom\n```\n');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: '', line: 2 }, A2);
+  ok(fenceCount(getDoc()) === 1 && getDoc().includes('p.......'), '空代码块写回后内容在围栏内且仍闭合');
+
+  /* 5f. 定位失败时先问用户，不再自动改写唯一候选 */
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n');
+  let asked = 0;
+  const origPick = fakeVscode.window.showQuickPick;
+  fakeVscode.window.showQuickPick = async () => { asked++; return undefined; }; // 用户取消
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: '完全对不上的内容', line: undefined }, A2);
+  fakeVscode.window.showQuickPick = origPick;
+  ok(asked === 1 && getDoc().includes(A), '定位失败时先询问用户，取消则不写回');
+
+  /* 5g. FENCE_RE 的分块与 markdown-it 一致（粘连残骸下也不能停在下一块的开头围栏） */
+  const glued = '```wavedrom\n' + A + '```\n\n正文\n\n```wavedrom\n' + B + '\n```\n';
+  const mdFenceCount = t => new MarkdownIt({ html: false }).parse(t, {})
+    .filter(tk => tk.type === 'fence' && /^wave(?:drom|json)\b/i.test((tk.info || '').trim())).length;
+  ok(fenceCount(glued) === mdFenceCount(glued), '粘连文档下 FENCE_RE 分块数与 markdown-it 一致');
+  ok(fenceCount('# t\n\n```wavedrom\n' + A + '\n```\n\n```wavedrom\n' + B + '\n```\n') === mdFenceCount('# t\n\n```wavedrom\n' + A + '\n```\n\n```wavedrom\n' + B + '\n```\n'), '正常文档下 FENCE_RE 分块数与 markdown-it 一致');
+
+  /* ---- 6. 编辑器面板：每个编辑目标独立的自动保存键（避免两个面板互相串写） ---- */
+  const { buildEditorHtml, panelDocKey } = ext.__test;
+  const tgtA = { kind: 'fence', docPath: '/tmp/x.md', fenceRaw: A, line: 2 };
+  const tgtB = { kind: 'fence', docPath: '/tmp/x.md', fenceRaw: B, line: 12 };
+  const keyA = panelDocKey(tgtA), keyB = panelDocKey(tgtB);
+  const h1 = buildEditorHtml('{"signal":[]}', keyA);
+  ok(/^wdgui-doc-v1:/.test(keyA) && keyA !== keyB, '同一文件不同代码块派生出不同的保存键');
+  ok(panelDocKey(Object.assign({}, tgtA)) === keyA, '同一目标重复打开复用同一个键（不无限累积）');
+  ok(!/localStorage\.(get|set)Item\('wdgui-doc-v1'\)/.test(h1), '注入的 index.html 不再读写共享键');
+  ok(h1.includes(keyA) && /var KEY = /.test(h1), '轮询脚本使用该面板自己的键');
+  ok(/location\.hash = "%7B%22signal/.test(h1), '初始文档仍经 location.hash 注入');
 
   console.log('\n全部 ' + passed + ' 项断言通过');
   process.exit(0);

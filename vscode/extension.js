@@ -9,10 +9,12 @@ const {
   pngReplaceITXt, pngExtractWaveJSON,
 } = require('./lib/meta-embed.js');
 
-/* 围栏必须锚定行首（0-3 空格缩进，与 markdown-it 一致）——否则正文里出现
-   的 ```wavedrom 字样（如小标题）会被误认成围栏开头，导致定位/写回错位 */
-const FENCE_RE = /^(?: {0,3})```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}```/gm;
-const bridgeRegistry = new Map(); // k -> { kind:'fence'|'image', docPath, fenceRaw, imgPath }
+/* 围栏两端都要锚定：开头必须行首（0-3 空格缩进，与 markdown-it 一致），否则正文里
+   的 ```wavedrom 字样（如小标题）会被误认成围栏开头，导致定位/写回错位；结尾必须
+   整行只有反引号（可带尾随空白），否则下一个块的开头围栏会被当成闭合围栏，一次匹配
+   横跨两块。大小写与预览侧 isWaveFence 一致（i），避免预览认、写回不认。 */
+const FENCE_RE = /^(?: {0,3})```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}```[ \t]*(?:\r?\n|$)/gmi;
+const bridgeRegistry = new Map(); // k -> { kind:'fence'|'image', docPath, fenceRaw, line, imgPath }
 
 /* ---------------- 回环桥：预览 webview 的「编辑」按钮经图片信标到达扩展主进程 ----------------
  * 预览 CSP 允许 img-src http:，但 script/connect 均被禁，且没有公开的预览→扩展消息通道，
@@ -50,7 +52,11 @@ function ensureBridge() {
 }
 
 function registerKey(info) {
-  if (bridgeRegistry.size > 800) bridgeRegistry.clear();
+  /* 淘汰最旧的一半；整表清空会让已渲染预览里的「编辑」按钮集体失效 */
+  if (bridgeRegistry.size > 800) {
+    let drop = bridgeRegistry.size - 400;
+    for (const key of bridgeRegistry.keys()) { if (drop-- <= 0) break; bridgeRegistry.delete(key); }
+  }
   const k = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex').slice(0, 12);
   bridgeRegistry.set(k, info);
   return k;
@@ -72,7 +78,9 @@ function makePlugin() {
       const docFs = docFsPath(env);
       let editAttr = '';
       if (docFs && bridge) {
-        const k = registerKey({ kind: 'fence', docPath: docFs, fenceRaw: raw });
+        /* 记下围栏所在行：内容相同的多个代码块只能靠行号区分，否则编辑第二个会写回第一个 */
+        const line = token.map ? token.map[0] : null;
+        const k = registerKey({ kind: 'fence', docPath: docFs, fenceRaw: raw, line });
         editAttr = ` data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}"`;
       }
       return `<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}"${editAttr}></div>\n`;
@@ -143,7 +151,7 @@ function openEditor(target) {
     'wavedromGuiEditor', 'WaveDrom 编辑 — ' + name,
     vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true },
   );
-  panel.webview.html = buildEditorHtml(jsonText);
+  panel.webview.html = buildEditorHtml(jsonText, panelDocKey(target));
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   panel.webview.onDidReceiveMessage(msg => {
@@ -151,9 +159,20 @@ function openEditor(target) {
   });
 }
 
-function buildEditorHtml(initialJson) {
+/* 每个编辑目标一份独立的自动保存键：webview 之间共享 localStorage，若都用 wdgui-doc-v1，
+   另一个面板的改动会被本面板的轮询当成自己的文档写回，导致 A 块被 B 的内容覆盖。
+   按目标（文件 + 行号 / 图片路径）派生，同一块复用同一个键，条目数不会无限增长 */
+function panelDocKey(target) {
+  const id = target.kind === 'fence'
+    ? target.docPath + '#' + (target.line == null ? (target.fenceRaw || '') : target.line)
+    : target.imgPath;
+  return 'wdgui-doc-v1:' + crypto.createHash('sha1').update(id).digest('hex').slice(0, 12);
+}
+
+function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
   const root = path.join(_ctx.extensionUri.fsPath, '..', 'index.html');
   let html = fs.readFileSync(root, 'utf8');
+  html = html.replace(/'wdgui-doc-v1'/g, `'${docKey}'`);
   const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; `
     + `style-src 'unsafe-inline' https://registry.npmmirror.com https://fonts.googleapis.com; `
     + `font-src https://registry.npmmirror.com https://fonts.gstatic.com data:; img-src data: https:;">`;
@@ -163,9 +182,10 @@ function buildEditorHtml(initialJson) {
   const poller = `<script>
 (function () {
   var vs = acquireVsCodeApi();
+  var KEY = ${JSON.stringify(docKey)};
   var last = null, armed = false;
   setTimeout(function () {
-    try { last = localStorage.getItem('wdgui-doc-v1'); } catch (e) {}
+    try { last = localStorage.getItem(KEY); } catch (e) {}
     armed = true;
     try {
       var h = decodeURIComponent(location.hash.slice(1));
@@ -175,7 +195,7 @@ function buildEditorHtml(initialJson) {
   setInterval(function () {
     if (!armed) return;
     var v = null;
-    try { v = localStorage.getItem('wdgui-doc-v1'); } catch (e) { return; }
+    try { v = localStorage.getItem(KEY); } catch (e) { return; }
     if (v && v !== last) {
       last = v;
       try { JSON.parse(v); vs.postMessage({ type: 'save', json: v }); } catch (e) {}
@@ -188,21 +208,32 @@ function buildEditorHtml(initialJson) {
   return html;
 }
 
-function findFence(text, wanted) {
-  FENCE_RE.lastIndex = 0;
-  let m;
+function lineOfIndex(text, index) {
+  let line = 0;
+  for (let i = 0; i < index; i++) if (text.charCodeAt(i) === 10) line++;
+  return line;
+}
+
+function findFence(text, wanted, lineHint) {
   const list = wanted.filter(s => s && s.trim());
-  while ((m = FENCE_RE.exec(text))) {
-    if (list.some(w => m[1].trim() === w.trim())) return m;
-  }
-  /* 兜底：忽略全部空白差异再比（CRLF / 缩进 / 空格风格漂移都会命中） */
   const norm = s => String(s).replace(/\s+/g, '');
   const wantNorm = list.map(norm);
+  const hitContent = m => list.some(w => m[1].trim() === w.trim());
+  /* 兜底：忽略全部空白差异再比（CRLF / 缩进 / 空格风格漂移都会命中） */
+  const hitLoose = m => wantNorm.includes(norm(m[1]));
+
+  const all = [];
   FENCE_RE.lastIndex = 0;
-  while ((m = FENCE_RE.exec(text))) {
-    if (wantNorm.includes(norm(m[1]))) return m;
+  let m;
+  while ((m = FENCE_RE.exec(text))) all.push(m);
+
+  /* 行号 + 内容双重要求：内容相同的重复块只有行号能区分；行号漂了（文件被改过）
+     则内容对不上，自动退回按内容匹配 */
+  if (typeof lineHint === 'number' && lineHint >= 0) {
+    const at = all.find(c => lineOfIndex(text, c.index) === lineHint && (hitContent(c) || hitLoose(c)));
+    if (at) return at;
   }
-  return null;
+  return all.find(hitContent) || all.find(hitLoose) || null;
 }
 
 async function saveBack(target, json) {
@@ -213,7 +244,7 @@ async function saveBack(target, json) {
   if (target.kind === 'fence') {
     try {
       const doc = await vscode.workspace.openTextDocument(target.docPath);
-      let hit = findFence(doc.getText(), [target.fenceRaw, target.lastSaved]);
+      let hit = findFence(doc.getText(), [target.fenceRaw, target.lastSaved], target.line);
       if (!hit) {
         /* 兜底：精确与规范化都匹配不到（文件被大改）时，列出全部 wavedrom
            代码块让用户指定写回目标，避免直接报错卡死 */
@@ -229,18 +260,23 @@ async function saveBack(target, json) {
           });
         }
         if (!cands.length) { vscode.window.showErrorMessage('WaveDrom: 文件中已没有 wavedrom 代码块'); return; }
-        const pick = cands.length === 1
-          ? cands[0]
-          : await vscode.window.showQuickPick(cands, { placeHolder: '找不到原代码块——请选择要写回的代码块' });
+        /* 一律让用户确认：唯一候选也自动写回的话，定位失败时会静默改错块甚至吞掉正文 */
+        const pick = await vscode.window.showQuickPick(cands, { placeHolder: '找不到原代码块——请选择要写回的代码块' });
         if (!pick) return;
         hit = pick.match;
       }
       const startOff = hit.index + hit[0].indexOf('\n') + 1;
-      const endOff = hit.index + hit[0].lastIndexOf('```');
+      const body = hit[1];
+      /* 闭合围栏前那个换行也在捕获内容里，必须原样补回——否则闭合围栏会被粘到
+         JSON 最后一行，代码块不再闭合，后续正文和代码块都会被吞进去 */
+      const tailNl = /(\r?\n)$/.exec(body);
+      const nl = tailNl ? tailNl[1] : (/\r?\n/.exec(hit[0]) || ['\n'])[0];
+      const insert = nl === '\r\n' ? pretty.replace(/\n/g, '\r\n') : pretty;
+      const endOff = startOff + body.length;
       const we = new vscode.WorkspaceEdit();
-      we.replace(doc.uri, new vscode.Range(doc.positionAt(startOff), doc.positionAt(endOff)), pretty);
+      we.replace(doc.uri, new vscode.Range(doc.positionAt(startOff), doc.positionAt(endOff)), insert + nl);
       await vscode.workspace.applyEdit(we);
-      target.lastSaved = pretty;
+      target.lastSaved = insert;
       vscode.window.setStatusBarMessage('WaveDrom: 已写回代码块（Ctrl+S 保存文件）', 3000);
     } catch (e) { vscode.window.showErrorMessage('WaveDrom: 写回失败 — ' + e.message); }
     return;
@@ -273,7 +309,7 @@ async function editActiveCommand() {
     picks.push({
       label: '``` 代码块',
       description: (m[1].trim().split('\n')[0] || '').slice(0, 60),
-      target: { kind: 'fence', docPath: docFs, fenceRaw: m[1] },
+      target: { kind: 'fence', docPath: docFs, fenceRaw: m[1], line: lineOfIndex(text, m.index) },
     });
   }
   const imgRe = /!\[[^\]]*\]\(([^)]+\.png|[^)]+\.svg)\)/gi;
@@ -303,4 +339,4 @@ async function activate(ctx) {
 
 function deactivate() { if (bridge) { try { bridge.server.close(); } catch (e) { /* noop */ } } }
 
-module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, makePlugin, bridgeRegistry, findFence } };
+module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, makePlugin, bridgeRegistry, findFence, saveBack, lineOfIndex, buildEditorHtml, panelDocKey } };
