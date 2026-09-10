@@ -45,8 +45,8 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # tradi
 
 Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks and images with embedded WaveJSON (modern theme) right inside the built-in Markdown preview, jump into the visual editor with one click, and write the result back to the source file.
 
-- **Preview rendering**: turns wavedrom code blocks and SVG/PNG images with embedded WaveJSON into waveform diagrams in the Markdown preview, with a source toggle and toolbar
-- **Visual editing, written back**: the "✏ Edit" button reuses the `index.html` editor; on save the fence content is written back for code blocks, while images keep their pixels and only have the embedded WaveJSON metadata updated
+- **Preview rendering**: turns wavedrom code blocks and SVG/PNG images with embedded WaveJSON into waveform diagrams in the Markdown preview, with a pencil button at the top-right corner to edit (the `wavedrom-gui.previewEditAffordance` setting switches it to "click the diagram to edit")
+- **Visual editing, written back**: the pencil button reuses the `index.html` editor; on save the fence content is written back for code blocks, while images keep their pixels and only have the embedded WaveJSON metadata updated
 - **Interoperable with the other two**: same WaveJSON metadata spec, so images exported by the Skill/editor are recognized and editable here
 
 👉 See [vscode/README.md](./vscode/README.md) (Chinese).

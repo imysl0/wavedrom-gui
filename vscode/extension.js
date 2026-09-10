@@ -63,6 +63,17 @@ function registerKey(info) {
 }
 
 /* ---------------- markdown-it 插件 ---------------- */
+
+/* 预览里的编辑入口形式（wavedrom-gui.previewEditAffordance）：
+   button = 波形右上角铅笔按钮（默认），block = 不显示按钮、点波形任意处即编辑。
+   取不到或取值非法时一律按 button——渲染结果会烙进 HTML，容错比抛错重要 */
+function editAffordance() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('previewEditAffordance');
+    return v === 'block' ? 'block' : 'button';
+  } catch (e) { return 'button'; }
+}
+
 function makePlugin() {
   const b64 = s => Buffer.from(s, 'utf8').toString('base64');
   const isWaveFence = info => /^wave(?:drom|json)\b/i.test((info || '').trim());
@@ -83,7 +94,7 @@ function makePlugin() {
         const k = registerKey({ kind: 'fence', docPath: docFs, fenceRaw: raw, line });
         editAttr = ` data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}"`;
       }
-      return `<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}"${editAttr}></div>\n`;
+      return `<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}" data-edit-mode="${editAffordance()}"${editAttr}></div>\n`;
     };
 
     const prevImage = md.renderer.rules.image;
@@ -97,7 +108,7 @@ function makePlugin() {
       const probe = probeImagePath(docFs, token.attrGet('src'));
       if (!probe) return imgHtml;
       const k = registerKey({ kind: 'image', docPath: docFs, imgPath: probe.absPath });
-      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-img="${escapeAttr(probe.relSrc)}" data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}">${imgHtml}</span>\n`;
+      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-edit-mode="${editAffordance()}" data-img="${escapeAttr(probe.relSrc)}" data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}">${imgHtml}</span>\n`;
     };
   };
 }
@@ -365,6 +376,13 @@ async function activate(ctx) {
   _ctx = ctx;
   await ensureBridge();
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editActive', editActiveCommand));
+  /* 入口形式烙在渲染出的 HTML 里，改设置后必须重渲染预览才生效；markdown 预览不会因为
+     别的扩展的设置变化自动刷新，这里主动刷一次。命令不存在也不该影响设置本身 */
+  ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(ev => {
+    if (!ev.affectsConfiguration('wavedrom-gui.previewEditAffordance')) return;
+    try { Promise.resolve(vscode.commands.executeCommand('markdown.preview.refresh')).catch(() => {}); }
+    catch (e) { /* 命令不可用：用户重开预览即可 */ }
+  }));
   return {
     extendMarkdownIt(md) {
       md.use(makePlugin());
@@ -375,4 +393,4 @@ async function activate(ctx) {
 
 function deactivate() { if (bridge) { try { bridge.server.close(); } catch (e) { /* noop */ } } }
 
-module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, makePlugin, bridgeRegistry, findFence, saveBack, writeText, lineOfIndex, buildEditorHtml, panelDocKey } };
+module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, editAffordance, makePlugin, bridgeRegistry, findFence, saveBack, writeText, lineOfIndex, buildEditorHtml, panelDocKey } };

@@ -2,7 +2,7 @@
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
   "description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "wavedrom-gui",
   "license": "MIT",
   "repository": {
@@ -35,7 +35,25 @@
         "title": "WaveDrom: 编辑当前 Markdown 中的图表",
         "category": "WaveDrom"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "WaveDrom-Gui",
+      "properties": {
+        "wavedrom-gui.previewEditAffordance": {
+          "type": "string",
+          "enum": [
+            "button",
+            "block"
+          ],
+          "enumDescriptions": [
+            "波形右上角显示一个铅笔图标按钮（默认）",
+            "不显示按钮，点击波形任意位置即进入编辑"
+          ],
+          "default": "button",
+          "markdownDescription": "Markdown 预览中进入可视化编辑器的入口形式。改完若预览没变，重开一次预览（Ctrl+Shift+V）即可。"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node scripts/build.js",

@@ -4,19 +4,29 @@
 
 ## 功能
 
-### 1. ```wavedrom 代码块 → 预览内渲染 + 工具栏
+### 1. ```wavedrom 代码块 → 预览内渲染 + 编辑入口
 
-Markdown 里用 ```` ```wavedrom ```` 围栏写的 WaveJSON，在内置预览（Ctrl+Shift+V）的**代码块位置**直接显示渲染出的现代主题波形，并带一个小工具栏：
+Markdown 里用 ```` ```wavedrom ```` 围栏写的 WaveJSON，在内置预览（Ctrl+Shift+V）的**代码块位置**直接显示渲染出的现代主题波形，波形右上角有一个铅笔图标按钮：
 
-- **源码**：查看该块 WaveJSON 原文
-- **✏ 编辑**：打开可视化编辑器（复用仓库根目录的 `index.html`，以 webview 面板加载）；**编辑结果实时写回 Markdown 中的这个代码块**，写回格式跟随编辑器的代码显示模式（舒缓 / 紧凑）
+- **编辑**（铅笔图标）：打开可视化编辑器（复用仓库根目录的 `index.html`，以 webview 面板加载）；**编辑结果实时写回 Markdown 中的这个代码块**，写回格式跟随编辑器的代码显示模式（舒缓 / 紧凑）
 
-### 2. 内嵌 WaveJSON 的图片 → 同样的工具栏
+铅笔按钮与 VS Code 工具栏图标同风格：单色描边、无边框无底色，常显 60% 不透明度，悬停浮现底色。WaveJSON 原文在 Markdown 源码里即可查看，预览内不再单独提供「源码」切换。
 
-Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（由 wavedrom-gui 或 wavedrom-render skill 导出），预览会自动识别并在图片上方出现工具栏：
+不想要按钮的话，可在设置里把入口改成「点波形即编辑」，见下方[设置](#设置)。
 
-- **原图**：切回图片原内容
-- **✏ 编辑**：进入可视化编辑器；保存时**只更新图片文件里的元数据，像素不变**（PNG `iTXt` / SVG `<metadata>`）
+### 2. 内嵌 WaveJSON 的图片 → 同样的编辑入口
+
+Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（由 wavedrom-gui 或 wavedrom-render skill 导出），预览会自动识别，图片右上角出现同样的铅笔按钮：
+
+- **编辑**（铅笔图标）：进入可视化编辑器；保存时**只更新图片文件里的元数据，像素不变**（PNG `iTXt` / SVG `<metadata>`）
+
+## 设置
+
+- **`wavedrom-gui.previewEditAffordance`** — 预览中进入可视化编辑器的入口形式：
+  - `button`（默认）：波形右上角显示铅笔图标按钮（即上文所述）
+  - `block`：不显示按钮，**点击波形任意位置即进入编辑**。鼠标移到波形上会变成手型并有悬停提示；键盘 `Tab` 聚焦后 `Enter` / `Space` 同样可用。图与图之间没有多余留白
+
+改动设置后扩展会尝试自动刷新预览（调用 `markdown.preview.refresh`）；若没变化，用 Ctrl+Shift+V 重开一次预览即可。
 
 ## 安装与调试
 

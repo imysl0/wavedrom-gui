@@ -58,63 +58,76 @@
     return true;
   }
 
+  /* 铅笔图标与编辑器界面同风格（16 视框 / 1.4 描边 / 圆头），不依赖 emoji 字体：
+     「✏」在 Windows、macOS 上会被渲染成彩色字形，与 VS Code 的单色图标不同调 */
+  const EDIT_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + '<g transform="rotate(45 8 8)">'
+    + '<rect x="6.6" y="2.2" width="2.8" height="8.6" rx=".6"/>'
+    + '<path d="M6.6 11 8 13.6 9.4 11z"/>'
+    + '<path d="M6.6 4.4h2.8"/>'
+    + '</g></svg>';
+
   function initBlock(div) {
     if (div.dataset.wdInit) return;
     div.dataset.wdInit = '1';
 
     let jsonText = '';
     try { jsonText = B64.dec(div.dataset.json || ''); } catch (e) { /* 保持为空 */ }
-    const kind = div.dataset.wd; // fence | image
 
-    const bar = el('div', 'wd-bar');
-    const body = el('div', 'wd-body');
-    const btns = {};
-    let mode = 'svg'; // svg | source
-
-    if (kind === 'fence') {
-      const src = el('button', 'wd-btn', '源码');
-      src.type = 'button';
-      src.addEventListener('click', function () { mode = mode === 'source' ? 'svg' : 'source'; apply(); });
-      bar.appendChild(src);
-      btns.source = src;
-    }
-    const edit = el('button', 'wd-btn wd-edit', '✏ 编辑');
-    edit.type = 'button';
-    edit.addEventListener('click', function () {
+    function requestEdit() {
       if (!beacon(div)) {
         toast('WaveDrom 桥未就绪，可用命令面板「WaveDrom: 编辑当前 Markdown 中的图表」');
       }
-    });
-    bar.appendChild(edit);
-
-    function apply() {
-      Object.keys(btns).forEach(function (k) { btns[k].classList.remove('on'); });
-      body.innerHTML = '';
-
-      if (mode === 'source' && btns.source) {
-        btns.source.classList.add('on');
-        const pre = el('pre', 'wd-code');
-        pre.textContent = jsonText;
-        body.appendChild(pre);
-        return;
-      }
-      const holder = el('div', 'wd-svg');
-      try {
-        const r = renderModern(jsonText);
-        holder.innerHTML = r.svg;
-      } catch (e) {
-        holder.innerHTML = errSvg(e.message);
-        const pre = el('pre', 'wd-code');
-        pre.textContent = jsonText;
-        body.appendChild(pre);
-      }
-      if (holder.firstChild) body.appendChild(holder);
     }
 
+    /* 入口形式由扩展写在 data-edit-mode（设置项 wavedrom-gui.previewEditAffordance）：
+       button = 右上角铅笔按钮（默认）；block = 不加按钮，点波形任意处即编辑 */
+    const blockMode = div.dataset.editMode === 'block';
+
+    /* .wd-figure 收缩到图形自身宽度（宽图仍是整栏宽），操作行因此贴着图形右上角，
+       图窄时按钮不会孤零零漂到面板最右侧 */
+    const figure = el('div', 'wd-figure');
+    if (!blockMode) {
+      const actions = el('div', 'wd-actions');
+      const edit = el('button', 'wd-edit');
+      edit.type = 'button';
+      edit.title = '编辑（在可视化编辑器中打开）';
+      edit.setAttribute('aria-label', '编辑');
+      edit.innerHTML = EDIT_ICON;
+      edit.addEventListener('click', requestEdit);
+      actions.appendChild(edit);
+      figure.appendChild(actions);
+    }
+
+    const holder = el('div', 'wd-svg');
+    try {
+      const r = renderModern(jsonText);
+      holder.innerHTML = r.svg;
+    } catch (e) {
+      holder.innerHTML = errSvg(e.message);
+      const pre = el('pre', 'wd-code');
+      pre.textContent = jsonText;
+      figure.appendChild(pre);
+    }
+    if (holder.firstChild) figure.appendChild(holder);
+
     div.innerHTML = '';
-    div.appendChild(bar);
-    div.appendChild(body);
-    apply();
+    div.appendChild(figure);
+
+    if (blockMode) {
+      /* 没有按钮，唯一入口就是波形本身：给指针与提示，键盘（Enter/Space）同样可用 */
+      div.classList.add('wd-clickable');
+      div.title = '编辑（在可视化编辑器中打开）';
+      div.setAttribute('role', 'button');
+      div.setAttribute('tabindex', '0');
+      div.addEventListener('click', requestEdit);
+      div.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
+        ev.preventDefault();
+        requestEdit();
+      });
+    }
   }
 
   function scan() {

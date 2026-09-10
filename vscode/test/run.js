@@ -23,6 +23,7 @@ function offAt(text, pos) {
 }
 
 /* ---- 伪 vscode 模块，让 extension.js 可在纯 Node 环境加载 ---- */
+const fakeConfig = {}; // 单测里临时改设置用；键不存在时走扩展自己的默认值
 const fakeVscode = {
   Uri: { parse: s => ({ fsPath: s, scheme: 'file' }) },
   Range: class { constructor(start, end) { this.start = start; this.end = end; } },
@@ -33,7 +34,10 @@ const fakeVscode = {
     createWebviewPanel() { throw new Error('createWebviewPanel 在单测中不可用'); },
   },
   workspace: {
-    getConfiguration: () => ({ get: () => 'modern' }),
+    getConfiguration: () => ({
+      get: (key, dflt) => (Object.prototype.hasOwnProperty.call(fakeConfig, key) ? fakeConfig[key] : dflt),
+    }),
+    onDidChangeConfiguration: () => ({ dispose() {} }),
     openTextDocument: async p => {
       const rec = fakeDocs.get(p);
       if (!rec) throw new Error('单测未注册的文档: ' + p);
@@ -51,7 +55,7 @@ const fakeVscode = {
     },
   },
   ViewColumn: { Beside: 2 },
-  commands: { registerCommand: () => ({ dispose() {} }) },
+  commands: { registerCommand: () => ({ dispose() {} }), executeCommand: async () => undefined },
 };
 const origLoad = Module._load;
 Module._load = function (request) {
@@ -145,8 +149,23 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(mF && Buffer.from(mF[1], 'base64').toString('utf8') === jsonSrc, 'fence JSON 完整携带');
   ok(/data-port="\d+"/.test(htmlFence), 'fence 携带回环桥端口');
 
+  /* ---- 4b. 编辑入口形式设置（wavedrom-gui.previewEditAffordance，默认 button） ---- */
+  const { editAffordance } = ext.__test;
+  ok(/data-edit-mode="button"/.test(htmlFence), '默认入口形式为 button（右上角铅笔按钮）');
+  fakeConfig.previewEditAffordance = 'block';
+  ok(editAffordance() === 'block', '设置为 block 时读到 block');
+  const htmlBlockMode = md.render('```wavedrom\n' + jsonSrc + '\n```\n', env);
+  ok(/data-edit-mode="block"/.test(htmlBlockMode), 'block 设置写进渲染结果（点波形即编辑）');
+  fakeConfig.previewEditAffordance = '不认识的取值';
+  ok(editAffordance() === 'button' && /data-edit-mode="button"/.test(md.render('```wavedrom\n' + jsonSrc + '\n```\n', env)), '取值非法时回退 button');
+  delete fakeConfig.previewEditAffordance;
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const prop = pkg.contributes.configuration.properties['wavedrom-gui.previewEditAffordance'];
+  ok(prop && prop.default === 'button' && prop.enum.join(',') === 'button,block', 'package.json 声明了该设置，默认 button、可选 block');
+
   const htmlImg = md.render('![波形](./embedded.png)\n', env);
   ok(htmlImg.includes('data-wd="image"'), '带元数据图片被识别包装');
+  ok(/data-edit-mode="button"/.test(htmlImg), '图片块同样携带入口形式设置');
   const mI = /data-json="([^"]+)"/.exec(htmlImg);
   ok(mI && Buffer.from(mI[1], 'base64').toString('utf8') === json2, '图片元数据 JSON 完整携带');
 
@@ -313,6 +332,83 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     ok(fs.readFileSync(builtEditor, 'utf8').includes('window.wdFormatDoc'), 'media/editor.html 已随 npm run build 同步');
   }
 
+  /* ---- 8. 预览工具栏：无「源码」按钮，只有一个铅笔编辑按钮 ---- */
+  const previewSrc = fs.readFileSync(path.join(__dirname, '..', 'media', 'preview.js'), 'utf8');
+  const previewCss = fs.readFileSync(path.join(__dirname, '..', 'media', 'preview.css'), 'utf8');
+  ok(!/源码/.test(previewSrc) && !/源码/.test(previewCss), '源码按钮已从预览工具栏移除');
+  ok(!/wd-bar|wd-btn/.test(previewCss), 'preview.css 不再残留源码按钮时代的样式');
+  ok(/\.wd-figure/.test(previewCss) && /\.wd-actions/.test(previewCss) && /button\.wd-edit/.test(previewCss), 'preview.css 含图形容器、操作行与图标按钮样式');
+  ok(/\.wd-figure\s*\{[^}]*display:\s*inline-block/.test(previewCss), '图形容器收缩到图形自身宽度（窄图时按钮贴图形右上角）');
+
+  /* 极简伪 DOM：只提供 preview.js 用到的那几个接口，把工具栏结构跑出来 */
+  const fakeEl = tag => {
+    const classes = new Set();
+    const node = {
+      tagName: tag.toUpperCase(), children: [], dataset: {}, attrs: {}, style: {}, listeners: {},
+      className: '', textContent: '', title: '', _html: '',
+      get firstChild() { return this.children[0] || null; },
+      get innerHTML() { return this._html; },
+      set innerHTML(v) { this._html = String(v); this.children = v ? [fakeEl('svg')] : []; },
+      appendChild(c) { this.children.push(c); return c; },
+      setAttribute(k, v) { this.attrs[k] = v; },
+      getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; },
+      addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
+      classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c), toggle() {} },
+      remove() {},
+    };
+    return node;
+  };
+  /* 收集整棵树上的文本（断言不再出现「源码」字样） */
+  const texts = node => [node.textContent].concat(...node.children.map(texts));
+  const find = (node, cls) => {
+    if (node.className === cls) return node;
+    for (const c of node.children) { const hit = find(c, cls); if (hit) return hit; }
+    return null;
+  };
+  const runPreview = (renderModern, editMode) => {
+    const block = fakeEl('div');
+    block.dataset.wd = 'fence';
+    if (editMode) block.dataset.editMode = editMode;
+    block.dataset.json = Buffer.from(JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), 'utf8').toString('base64');
+    const doc = {
+      createElement: fakeEl,
+      body: fakeEl('body'),
+      querySelectorAll: sel => (String(sel).indexOf('.wavedrom-block') === 0 ? [block] : []),
+    };
+    const ctx = {
+      document: doc, window: { WaveDromModern: { renderModern } }, MutationObserver: class { observe() {} },
+      setTimeout, clearTimeout, Image: class {}, btoa, atob, unescape, escape, console,
+    };
+    vm.createContext(ctx);
+    vm.runInContext(previewSrc, ctx);
+    return block;
+  };
+
+  const block = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button');
+  ok(block.children.length === 1 && block.children[0].className === 'wd-figure', '块内只有一层 .wd-figure');
+  const figure = block.children[0];
+  const actions = figure.children[0], holder = figure.children[1];
+  ok(actions.className === 'wd-actions' && holder.className === 'wd-svg', 'button 模式：结构为 .wd-actions + .wd-svg');
+  ok(actions.children.length === 1 && actions.children[0].className === 'wd-edit', '操作行内只有编辑按钮');
+  const edit = actions.children[0];
+  ok(edit.getAttribute('aria-label') === '编辑' && /编辑/.test(edit.title || ''), '编辑按钮有无障碍名与悬停提示');
+  ok(!/<text|✏/.test(edit.innerHTML) && /<svg/.test(edit.innerHTML), '按钮用内联描边图标，不用 emoji 字形');
+  ok(texts(block).join(' ').indexOf('源码') < 0, '预览块内不再出现「源码」按钮文字');
+  ok(typeof edit.listeners.click === 'object', '编辑按钮绑定了点击（回环信标）');
+  ok(!block.classList.contains('wd-clickable'), 'button 模式：块本身不是点击目标');
+
+  /* block 模式：无按钮，整块可点（含键盘） */
+  const clickable = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'block');
+  ok(clickable.classList.contains('wd-clickable'), 'block 模式：块带可点标记（指针形状）');
+  ok(!find(clickable, 'wd-edit') && !find(clickable, 'wd-actions'), 'block 模式：不渲染任何按钮，也不留空操作行');
+  ok(clickable.getAttribute('role') === 'button' && clickable.getAttribute('tabindex') === '0', 'block 模式：块可聚焦、声明为按钮');
+  ok(/编辑/.test(clickable.title || ''), 'block 模式：有悬停提示说明可点');
+  ok(typeof clickable.listeners.click === 'object' && typeof clickable.listeners.keydown === 'object', 'block 模式：绑定点击与键盘（Enter/Space）');
+
+  const broken = runPreview(() => { throw new Error('坏 JSON'); }, 'button');
+  ok(broken.children[0].children.some(c => c.className === 'wd-code'), '渲染失败时仍回退显示 WaveJSON 原文');
+
   console.log('\n全部 ' + passed + ' 项断言通过');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });
+
