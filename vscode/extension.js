@@ -144,6 +144,30 @@ function probeImagePath(docFs, src) {
 }
 
 /* ---------------- 可视化编辑面板（复用 index.html） ---------------- */
+
+/* 编辑面板落在哪儿（wavedrom-gui.editorPanelPosition）：
+   current = 当前聚焦的编辑栏里作标签页（默认）——从预览点「编辑」时即与预览同栏，
+     用标签切换，不再多出一栏；
+   beside = 当前栏右侧新开一栏；below = 当前栏下方新开一栏，与该栏成上下关系；
+   newWindow = 搬到独立的编辑器窗口。
+   取值非法或读不到配置时一律按 current */
+function editorPanelPosition() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('editorPanelPosition');
+    return (v === 'beside' || v === 'below' || v === 'newWindow') ? v : 'current';
+  } catch (e) { return 'current'; }
+}
+
+/* below / newWindow 靠 VS Code 自己的两个命令实现：它们作用于**活动编辑器**（不是整栏），
+   且目标组不存在时会新建（workbench 里是 findGroup(...direction) || addGroup(...)）。面板
+   刚创建时焦点未必已经切过来，若此刻执行就会把预览或别的编辑器搬走，所以先等面板真的成为
+   活动编辑器再执行；始终没拿到焦点就什么都不做——宁可停在原地，也不能搬错窗口。 */
+async function placePanel(panel, cmd) {
+  for (let i = 0; i < 12 && !panel.active; i++) await new Promise(r => setTimeout(r, 40));
+  if (!panel.active) return;
+  try { await vscode.commands.executeCommand(cmd); } catch (e) { /* 命令不存在：留在原地 */ }
+}
+
 function openEditor(target) {
   let jsonText;
   try {
@@ -162,12 +186,18 @@ function openEditor(target) {
   try { html = buildEditorHtml(jsonText, panelDocKey(target)); }
   catch (e) { vscode.window.showErrorMessage('WaveDrom: 编辑器界面加载失败 — ' + e.message); return; }
 
+  const pos = editorPanelPosition();
   const name = path.basename(target.kind === 'fence' ? target.docPath : target.imgPath);
   const panel = vscode.window.createWebviewPanel(
     'wavedromGuiEditor', 'WaveDrom 编辑 — ' + name,
-    vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true },
+    /* below / newWindow 都先落在当前栏再交给命令搬走：先 Beside 会多出一栏、搬走后又收起，
+       中间白闪一下 */
+    pos === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+    { enableScripts: true, retainContextWhenHidden: true },
   );
   panel.webview.html = html;
+  if (pos === 'below') placePanel(panel, 'workbench.action.moveEditorToBelowGroup');
+  else if (pos === 'newWindow') placePanel(panel, 'workbench.action.moveEditorToNewWindow');
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   panel.webview.onDidReceiveMessage(msg => {
@@ -393,4 +423,4 @@ async function activate(ctx) {
 
 function deactivate() { if (bridge) { try { bridge.server.close(); } catch (e) { /* noop */ } } }
 
-module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, editAffordance, makePlugin, bridgeRegistry, findFence, saveBack, writeText, lineOfIndex, buildEditorHtml, panelDocKey } };
+module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, makePlugin, bridgeRegistry, findFence, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey } };

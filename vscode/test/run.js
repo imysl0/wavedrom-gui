@@ -24,6 +24,9 @@ function offAt(text, pos) {
 
 /* ---- 伪 vscode 模块，让 extension.js 可在纯 Node 环境加载 ---- */
 const fakeConfig = {}; // 单测里临时改设置用；键不存在时走扩展自己的默认值
+const fakeCommands = []; // 记录 executeCommand 的调用
+const fakePanels = []; // 记录 createWebviewPanel 的入参
+let fakeNewPanelActive = true; // 新建面板是否立即成为活动编辑器（用于测「始终没拿到焦点」）
 const fakeVscode = {
   Uri: { parse: s => ({ fsPath: s, scheme: 'file' }) },
   Range: class { constructor(start, end) { this.start = start; this.end = end; } },
@@ -31,7 +34,15 @@ const fakeVscode = {
   window: {
     showErrorMessage() {}, showInformationMessage() {}, setStatusBarMessage() {},
     showQuickPick: async p => p[0],
-    createWebviewPanel() { throw new Error('createWebviewPanel 在单测中不可用'); },
+    createWebviewPanel(viewType, title, column, options) {
+      const panel = {
+        viewType, title, column, options, active: fakeNewPanelActive, disposed: false,
+        webview: { html: '', onDidReceiveMessage() { return { dispose() {} }; } },
+        dispose() { this.disposed = true; },
+      };
+      fakePanels.push(panel);
+      return panel;
+    },
   },
   workspace: {
     getConfiguration: () => ({
@@ -54,8 +65,11 @@ const fakeVscode = {
       return true;
     },
   },
-  ViewColumn: { Beside: 2 },
-  commands: { registerCommand: () => ({ dispose() {} }), executeCommand: async () => undefined },
+  ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2 },
+  commands: {
+    registerCommand: () => ({ dispose() {} }),
+    executeCommand: async cmd => { fakeCommands.push(cmd); return undefined; },
+  },
 };
 const origLoad = Module._load;
 Module._load = function (request) {
@@ -407,6 +421,54 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
 
   const broken = runPreview(() => { throw new Error('坏 JSON'); }, 'button');
   ok(broken.children[0].children.some(c => c.className === 'wd-code'), '渲染失败时仍回退显示 WaveJSON 原文');
+
+  /* ---- 9. 编辑面板位置设置（wavedrom-gui.editorPanelPosition，默认 beside） ---- */
+  const { editorPanelPosition, openEditor } = ext.__test;
+  const openWith = async pos => {
+    fakePanels.length = 0; fakeCommands.length = 0;
+    if (pos === undefined) delete fakeConfig.editorPanelPosition;
+    else fakeConfig.editorPanelPosition = pos;
+    openEditor({ kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 });
+    await new Promise(r => setTimeout(r, 30)); // 等 placePanel 的异步判断
+    const p = fakePanels[0];
+    return { column: p && p.column, width: p && p.webview.html.length, commands: fakeCommands.slice() };
+  };
+  const MOVE_BELOW = 'workbench.action.moveEditorToBelowGroup';
+  const MOVE_NEW_WINDOW = 'workbench.action.moveEditorToNewWindow';
+
+  ok(editorPanelPosition() === 'current', '未配置时入口位置为 current');
+  const def = await openWith(undefined);
+  ok(def.column === fakeVscode.ViewColumn.Active && def.commands.length === 0, 'current（默认）：开在当前栏里作标签页，不新增分栏、不调用移动命令');
+  ok(def.width > 1000, '默认位置：面板载入了编辑器界面');
+
+  const beside = await openWith('beside');
+  ok(beside.column === fakeVscode.ViewColumn.Beside && beside.commands.length === 0, 'beside：在右侧新开一栏，不调用任何移动命令');
+
+  const below = await openWith('below');
+  ok(below.column === fakeVscode.ViewColumn.Active, 'below：先落在当前栏');
+  ok(below.commands.join(',') === MOVE_BELOW, 'below：随后交给「移动到下方组」命令（VS Code 会按需新建该组）');
+
+  const win = await openWith('newWindow');
+  ok(win.column === fakeVscode.ViewColumn.Active, 'newWindow：先落在当前栏');
+  ok(win.commands.join(',') === MOVE_NEW_WINDOW, 'newWindow：随后交给「移动到新窗口」命令');
+
+  fakeConfig.editorPanelPosition = '乱填的';
+  const bad = await openWith('乱填的');
+  ok(editorPanelPosition() === 'current' && bad.column === fakeVscode.ViewColumn.Active && bad.commands.length === 0, '取值非法时回退 current');
+  delete fakeConfig.editorPanelPosition;
+
+  /* 面板始终没拿到焦点时不许执行移动命令：那两个命令作用于活动编辑器，否则会把预览搬走 */
+  fakePanels.length = 0; fakeCommands.length = 0;
+  fakeConfig.editorPanelPosition = 'below';
+  fakeNewPanelActive = false;
+  openEditor({ kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 });
+  await new Promise(r => setTimeout(r, 700));
+  fakeNewPanelActive = true;
+  ok(fakeCommands.length === 0, '面板未取得焦点时不执行移动命令（不搬走别的编辑器）');
+  delete fakeConfig.editorPanelPosition;
+
+  const posProp = pkg.contributes.configuration.properties['wavedrom-gui.editorPanelPosition'];
+  ok(posProp && posProp.default === 'current' && posProp.enum.join(',') === 'current,beside,below,newWindow', 'package.json 声明了面板位置设置，默认 current、四个可选值');
 
   console.log('\n全部 ' + passed + ' 项断言通过');
   process.exit(0);

@@ -4,7 +4,7 @@
 
 ## 1. 代码块渲染（wavedrom 围栏）
 
-预览会在此位置直接显示渲染出的波形，上方工具栏可查看**源码**、点击 **✏ 编辑** 进入可视化编辑器（编辑结果实时写回本代码块）。
+预览会在此位置直接显示渲染出的波形，键盘图标按钮在波形右上角——点它进入可视化编辑器（编辑结果实时写回本代码块）。不想要按钮的话，把设置 `wavedrom-gui.previewEditAffordance` 改成 `block`，即可点波形任意处进入编辑。
 
 ```wavedrom
 { "signal": [
@@ -17,7 +17,9 @@
 ## 2. 内嵌 WaveJSON 的图片
 
 下面这张 PNG 的元数据里带着 WaveJSON（由 wavedrom-render skill 生成）——
-预览会识别它并出现同样的工具栏；**编辑保存只更新图片里的元数据，像素不变**。
+预览会识别它，图片右上角出现同样的铅笔按钮；**编辑保存只更新图片里的元数据，像素不变**。
+
+图片的编辑面板位置用设置 `wavedrom-gui.editorPanelPosition` 控制：`current`（默认，与预览同栏、标签切换）/ `beside`（右侧新开一栏）/ `below`（预览在上、编辑在下）/ `newWindow`（独立窗口）。
 
 ![内嵌 WaveJSON 的示例图](./assets/embedded.png)
 

@@ -22,11 +22,27 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（�
 
 ## 设置
 
+在哪儿改（三选一）：
+
+1. **设置 UI**：`Ctrl+,` → 搜索框输入 `wavedrom`（或 `@ext:wavedrom-gui.wavedrom-gui-vscode`）→ 直接下拉选。左侧目录树的「扩展」分类下也会列出本扩展。
+2. **扩展视图的齿轮**：`Ctrl+Shift+X` → 找到 WaveDrom-Gui → 齿轮 ⚙ →「设置」。这个入口**只有贡献了配置项的扩展才会出现**（VS Code 内部条件是 `extensionHasConfiguration`），所以装上旧版看不到。
+3. **直接改 JSON**：命令面板 →「首选项: 打开用户设置(JSON)」，或写进项目的 `.vscode/settings.json`。两项设置都未声明 `scope`（默认 `window`），用户级与工作区/文件夹级都能设。
+
 - **`wavedrom-gui.previewEditAffordance`** — 预览中进入可视化编辑器的入口形式：
   - `button`（默认）：波形右上角显示铅笔图标按钮（即上文所述）
   - `block`：不显示按钮，**点击波形任意位置即进入编辑**。鼠标移到波形上会变成手型并有悬停提示；键盘 `Tab` 聚焦后 `Enter` / `Space` 同样可用。图与图之间没有多余留白
 
-改动设置后扩展会尝试自动刷新预览（调用 `markdown.preview.refresh`）；若没变化，用 Ctrl+Shift+V 重开一次预览即可。
+  改动后扩展会尝试自动刷新预览（调用 `markdown.preview.refresh`）；若没变化，用 Ctrl+Shift+V 重开一次预览即可。
+
+- **`wavedrom-gui.editorPanelPosition`** — 可视化编辑面板打开的位置：
+  - `current`（默认）：在当前聚焦的编辑栏里作标签页——从预览点「编辑」时就是**与预览同栏**，用标签切换，不新增分栏
+  - `beside`：在编辑区右侧新开一栏（VS Code 的默认行为）
+  - `below`：在当前栏**下方**新开一栏，与该栏成上下关系——从预览点「编辑」即预览在上、编辑器在下
+  - `newWindow`：编辑器搬到**独立的窗口**（走 VS Code 的「移动编辑器到新窗口」）
+
+  `below` / `newWindow` 是复用 VS Code 自己的 `workbench.action.moveEditorToBelowGroup` / `workbench.action.moveEditorToNewWindow`：这两个命令作用于**当前活动编辑器**，扩展会先等面板取得焦点再执行，拿不到焦点就留在原地（避免把预览或别的编辑器搬走）。「下方」是相对**当前聚焦的编辑栏**——从预览点按钮时该栏就是预览所在的栏，所以是「预览在上、编辑在下」。
+
+  ⚠️ **做不到「浮在预览窗口之上」**：VS Code 没有向扩展开放浮动/模态编辑器（公开的 `ViewColumn` 只有 `Active` / `Beside` / `1-9`）。想要别的摆法可以手动来：把编辑面板的标签拖到预览区的**下缘投放区**即上下排列；右键编辑器标签也有「移动编辑器到下方组 / 新窗口」。
 
 ## 安装与调试
 
