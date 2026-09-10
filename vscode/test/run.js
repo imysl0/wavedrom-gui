@@ -26,14 +26,25 @@ function offAt(text, pos) {
 const fakeConfig = {}; // 单测里临时改设置用；键不存在时走扩展自己的默认值
 const fakeCommands = []; // 记录 executeCommand 的调用
 const fakePanels = []; // 记录 createWebviewPanel 的入参
+const fakeMessages = []; // 记录 showWarningMessage / showErrorMessage
 let fakeNewPanelActive = true; // 新建面板是否立即成为活动编辑器（用于测「始终没拿到焦点」）
+let fakeUriHandler = null; // registerUriHandler 注册进来的处理器
+let fakeCodeLensProvider = null;
+let fakeCodeLensSelector = null;
+const fakeRegisteredCommands = {}; // id -> handler
 const fakeVscode = {
   Uri: { parse: s => ({ fsPath: s, scheme: 'file' }) },
-  Range: class { constructor(start, end) { this.start = start; this.end = end; } },
+  Range: class { constructor(start, end) { this.start = start; this.end = end; this.line = start; } },
+  CodeLens: class { constructor(range, command) { this.range = range; this.command = command; } },
   WorkspaceEdit: class { replace(uri, range, text) { this._uri = uri; this._range = range; this._text = text; } },
+  env: { uriScheme: 'vscodium', language: 'en' },
   window: {
-    showErrorMessage() {}, showInformationMessage() {}, setStatusBarMessage() {},
+    showErrorMessage(m) { fakeMessages.push(['error', m]); },
+    showWarningMessage(m) { fakeMessages.push(['warn', m]); },
+    showInformationMessage(m) { fakeMessages.push(['info', m]); },
+    setStatusBarMessage() {},
     showQuickPick: async p => p[0],
+    registerUriHandler(handler) { fakeUriHandler = handler; return { dispose() {} }; },
     createWebviewPanel(viewType, title, column, options) {
       const panel = {
         viewType, title, column, options, active: fakeNewPanelActive, disposed: false,
@@ -42,6 +53,13 @@ const fakeVscode = {
       };
       fakePanels.push(panel);
       return panel;
+    },
+  },
+  languages: {
+    registerCodeLensProvider(selector, provider) {
+      fakeCodeLensSelector = selector;
+      fakeCodeLensProvider = provider;
+      return { dispose() {} };
     },
   },
   workspace: {
@@ -67,7 +85,7 @@ const fakeVscode = {
   },
   ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2 },
   commands: {
-    registerCommand: () => ({ dispose() {} }),
+    registerCommand: (id, fn) => { fakeRegisteredCommands[id] = fn; return { dispose() {} }; },
     executeCommand: async cmd => { fakeCommands.push(cmd); return undefined; },
   },
 };
@@ -147,7 +165,11 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
 /* ---- 4. markdown-it 集成（插件 + 真实 env） ---- */
 (async function main() {
   const MarkdownIt = require('markdown-it');
-  const ctx = { subscriptions: [], extensionUri: { fsPath: path.join(__dirname, '..') } };
+  const ctx = {
+    subscriptions: [],
+    extensionUri: { fsPath: path.join(__dirname, '..') },
+    extension: { id: 'wavedrom-gui.wavedrom-gui-vscode' },
+  };
   const api = await require('../extension.js').activate(ctx);
   const md = api.extendMarkdownIt(new MarkdownIt({ html: false }));
   ok(typeof md.render === 'function', 'extendMarkdownIt 返回正常');
@@ -161,27 +183,77 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(htmlFence.includes('class="wavedrom-block"'), 'fence 渲染为 wavedrom 块');
   const mF = /data-json="([^"]+)"/.exec(htmlFence);
   ok(mF && Buffer.from(mF[1], 'base64').toString('utf8') === jsonSrc, 'fence JSON 完整携带');
-  ok(/data-port="\d+"/.test(htmlFence), 'fence 携带回环桥端口');
 
-  /* ---- 4b. 编辑入口形式设置（wavedrom-gui.previewEditAffordance，默认 button） ---- */
+  /* ---- 4a. 预览 → 扩展改走产品 scheme 深链接（不再用回环 http 信标） ---- */
+  const uriF = /data-edit-uri="([^"]+)"/.exec(htmlFence);
+  ok(uriF, 'fence 携带 data-edit-uri');
+  const parsedUri = new URL(uriF[1]);
+  ok(parsedUri.protocol === 'vscodium:' && parsedUri.host === 'wavedrom-gui.wavedrom-gui-vscode', '深链接用产品 scheme（vscode.env.uriScheme）与扩展 id 作 authority');
+  ok(parsedUri.pathname === '/edit' && /^[0-9a-f]{12}$/.test(parsedUri.searchParams.get('k') || ''), '深链接指向 /edit 且带不透明键 k');
+  ok(!/data-port|data-token|data-doc=/.test(htmlFence), '渲染结果里不再有回环桥的端口/token/文档路径');
+
+  /* ---- 4b. 编辑入口形式设置（wavedrom-gui.previewEditAffordance，默认 menu） ---- */
   const { editAffordance } = ext.__test;
-  ok(/data-edit-mode="button"/.test(htmlFence), '默认入口形式为 button（右上角铅笔按钮）');
+  ok(/data-edit-mode="menu"/.test(htmlFence), '默认入口形式为 menu（右键菜单，不加可见入口）');
   fakeConfig.previewEditAffordance = 'block';
   ok(editAffordance() === 'block', '设置为 block 时读到 block');
   const htmlBlockMode = md.render('```wavedrom\n' + jsonSrc + '\n```\n', env);
   ok(/data-edit-mode="block"/.test(htmlBlockMode), 'block 设置写进渲染结果（点波形即编辑）');
+  fakeConfig.previewEditAffordance = 'button';
+  ok(/data-edit-mode="button"/.test(md.render('```wavedrom\n' + jsonSrc + '\n```\n', env)), 'button 设置写进渲染结果（右上角铅笔按钮）');
   fakeConfig.previewEditAffordance = '不认识的取值';
-  ok(editAffordance() === 'button' && /data-edit-mode="button"/.test(md.render('```wavedrom\n' + jsonSrc + '\n```\n', env)), '取值非法时回退 button');
+  ok(editAffordance() === 'menu' && /data-edit-mode="menu"/.test(md.render('```wavedrom\n' + jsonSrc + '\n```\n', env)), '取值非法时回退 menu');
   delete fakeConfig.previewEditAffordance;
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   const prop = pkg.contributes.configuration.properties['wavedrom-gui.previewEditAffordance'];
-  ok(prop && prop.default === 'button' && prop.enum.join(',') === 'button,block', 'package.json 声明了该设置，默认 button、可选 block');
+  ok(prop && prop.default === 'menu' && prop.enum.join(',') === 'menu,button,block', 'package.json 声明了该设置，默认 menu、可选 menu/button/block');
 
   const htmlImg = md.render('![波形](./embedded.png)\n', env);
   ok(htmlImg.includes('data-wd="image"'), '带元数据图片被识别包装');
-  ok(/data-edit-mode="button"/.test(htmlImg), '图片块同样携带入口形式设置');
+  ok(/data-edit-mode="menu"/.test(htmlImg), '图片块同样携带入口形式设置');
+  ok(/data-edit-uri="vscodium:\/\/wavedrom-gui\.wavedrom-gui-vscode\/edit\?k=[0-9a-f]{12}"/.test(htmlImg), '图片块同样携带深链接');
   const mI = /data-json="([^"]+)"/.exec(htmlImg);
   ok(mI && Buffer.from(mI[1], 'base64').toString('utf8') === json2, '图片元数据 JSON 完整携带');
+
+  /* ---- 4c. URI 处理器：深链接回来落到正确的编辑目标 ---- */
+  const { editTargets, handleUri } = ext.__test;
+  ok(typeof fakeUriHandler === 'object' && typeof fakeUriHandler.handleUri === 'function', 'activate 注册了 URI 处理器');
+  /* 真机上扩展收到的是 vscode.Uri，关键字段是 path 与不带 ? 的 query */
+  const uriOf = s => { const u = new URL(s); return { scheme: u.protocol.replace(':', ''), authority: u.host, path: u.pathname, query: u.search.replace(/^\?/, '') }; };
+  const kFence = parsedUri.searchParams.get('k');
+  ok(editTargets.get(kFence) && editTargets.get(kFence).docPath === docMd, '渲染时登记的 k 指向该文档');
+
+  fakePanels.length = 0; fakeMessages.length = 0;
+  fakeUriHandler.handleUri(uriOf(uriF[1]));
+  ok(fakePanels.length === 1 && fakePanels[0].title.includes('doc.md'), '深链接命中：打开对应文件的可视化编辑器');
+
+  fakePanels.length = 0; fakeMessages.length = 0;
+  fakeUriHandler.handleUri(uriOf('vscodium://wavedrom-gui.wavedrom-gui-vscode/edit?k=deadbeef0123'));
+  ok(fakePanels.length === 0 && /stale/.test(fakeMessages[0][1] || ''), 'k 不在注册表（预览过期 / 构造的链接）时只提示、不打开');
+
+  fakePanels.length = 0; fakeMessages.length = 0;
+  fakeUriHandler.handleUri(uriOf('vscodium://wavedrom-gui.wavedrom-gui-vscode/other?k=' + kFence));
+  ok(fakePanels.length === 0 && fakeMessages.length === 0, '其它 path 一律忽略');
+  fakeUriHandler.handleUri(uriOf('vscodium://wavedrom-gui.wavedrom-gui-vscode/edit'));
+  ok(fakePanels.length === 0 && /stale/.test(fakeMessages[fakeMessages.length - 1][1] || ''), '缺少 k 时只提示、不打开');
+
+  /* ---- 4d. 预览右键菜单「编辑波形」（webview/context，CSP-clean） ---- */
+  const editFromPreview = fakeRegisteredCommands['wavedrom-gui.editFromPreview'];
+  ok(typeof editFromPreview === 'function', 'activate 注册了右键菜单用的命令');
+  const menuItem = pkg.contributes.menus['webview/context'][0];
+  ok(menuItem.command === 'wavedrom-gui.editFromPreview' && /webviewSection == 'wavedrom'/.test(menuItem.when), '贡献了 webview/context 菜单项，条件是我们的块');
+  ok(/webviewId == 'markdown\.preview'/.test(menuItem.when), '菜单项限定在内置 Markdown 预览里');
+  ok(pkg.contributes.menus.commandPalette.some(m => m.command === 'wavedrom-gui.editFromPreview' && m.when === 'false'), '该命令不进命令面板');
+
+  fakePanels.length = 0; fakeMessages.length = 0;
+  editFromPreview({ webviewSection: 'wavedrom', k: kFence });   // 扩展收到的正是 data-vscode-context 的 JSON
+  ok(fakePanels.length === 1 && fakePanels[0].title.includes('doc.md'), '右键菜单：命中 k 时打开对应文件的编辑器');
+  fakePanels.length = 0; fakeMessages.length = 0;
+  editFromPreview({ webviewSection: 'wavedrom', k: 'nope' });
+  ok(fakePanels.length === 0 && /stale/.test(fakeMessages[0][1] || ''), '右键菜单：k 过期时只提示、不打开');
+  fakePanels.length = 0; fakeMessages.length = 0;
+  editFromPreview(undefined);
+  ok(fakePanels.length === 0 && fakeMessages.length === 1, '右键菜单：上下文缺失时也只提示');
 
   const htmlPlain = md.render('![普通](./plain.png)\n', env);
   ok(!htmlPlain.includes('wavedrom-block'), '普通图片不被包装');
@@ -351,8 +423,11 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const previewCss = fs.readFileSync(path.join(__dirname, '..', 'media', 'preview.css'), 'utf8');
   ok(!/源码/.test(previewSrc) && !/源码/.test(previewCss), '源码按钮已从预览工具栏移除');
   ok(!/wd-bar|wd-btn/.test(previewCss), 'preview.css 不再残留源码按钮时代的样式');
-  ok(/\.wd-figure/.test(previewCss) && /\.wd-actions/.test(previewCss) && /button\.wd-edit/.test(previewCss), 'preview.css 含图形容器、操作行与图标按钮样式');
+  ok(/\.wd-figure/.test(previewCss) && /\.wd-actions/.test(previewCss) && /a\.wd-edit/.test(previewCss), 'preview.css 含图形容器、操作行与图标按钮样式');
   ok(/\.wd-figure\s*\{[^}]*display:\s*inline-block/.test(previewCss), '图形容器收缩到图形自身宽度（窄图时按钮贴图形右上角）');
+  ok(/a\.wd-blocklink/.test(previewCss) && /text-decoration:\s*none/.test(previewCss), 'block 模式的整块链接有对应样式且去掉了下划线');
+  ok(!/wd-toast/.test(previewCss) && !/beacon|data-port|127\.0\.0\.1/.test(previewSrc), '回环信标与其提示已彻底移除');
+  const testUri = 'vscodium://wavedrom-gui.wavedrom-gui-vscode/edit?k=0123456789ab';
 
   /* 极简伪 DOM：只提供 preview.js 用到的那几个接口，把工具栏结构跑出来 */
   const fakeEl = tag => {
@@ -379,48 +454,98 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     for (const c of node.children) { const hit = find(c, cls); if (hit) return hit; }
     return null;
   };
-  const runPreview = (renderModern, editMode) => {
+  let fakeI18nNode = null; // 模拟扩展渲染进去的 #wd-i18n（null = 缺失，测英文回退）
+  const runPreview = (renderModern, editMode, editUri) => {
     const block = fakeEl('div');
     block.dataset.wd = 'fence';
     if (editMode) block.dataset.editMode = editMode;
+    if (editUri !== null) {
+      block.dataset.editUri = editUri === undefined ? testUri : editUri;
+      block.dataset.k = testUri.replace(/^.*k=/, ''); // 真渲染里 data-k 与 data-edit-uri 同时存在
+    }
     block.dataset.json = Buffer.from(JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), 'utf8').toString('base64');
     const doc = {
       createElement: fakeEl,
       body: fakeEl('body'),
+      getElementById: id => (id === 'wd-i18n' ? fakeI18nNode : null),
       querySelectorAll: sel => (String(sel).indexOf('.wavedrom-block') === 0 ? [block] : []),
     };
     const ctx = {
       document: doc, window: { WaveDromModern: { renderModern } }, MutationObserver: class { observe() {} },
-      setTimeout, clearTimeout, Image: class {}, btoa, atob, unescape, escape, console,
+      setTimeout, clearTimeout, btoa, atob, unescape, escape, console,
     };
     vm.createContext(ctx);
     vm.runInContext(previewSrc, ctx);
     return block;
   };
 
+  /* menu 模式（默认）：不渲染可见入口，但右键上下文照旧，波形照常渲染 */
+  const menuBlock = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'menu');
+  ok(!find(menuBlock, 'wd-edit') && !find(menuBlock, 'wd-actions') && !find(menuBlock, 'wd-blocklink'), 'menu 模式：不渲染任何可见入口');
+  ok(find(menuBlock, 'wd-svg'), 'menu 模式：波形照常渲染');
+  const menuCtx = menuBlock.getAttribute('data-vscode-context');
+  ok(menuCtx && JSON.parse(menuCtx).webviewSection === 'wavedrom' && JSON.parse(menuCtx).k, 'menu 模式：右键菜单上下文仍在（这模式下唯一的预览入口）');
+  ok(!menuBlock.listeners.click, 'menu 模式：块本身不带点击处理');
+
   const block = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button');
   ok(block.children.length === 1 && block.children[0].className === 'wd-figure', '块内只有一层 .wd-figure');
   const figure = block.children[0];
   const actions = figure.children[0], holder = figure.children[1];
   ok(actions.className === 'wd-actions' && holder.className === 'wd-svg', 'button 模式：结构为 .wd-actions + .wd-svg');
-  ok(actions.children.length === 1 && actions.children[0].className === 'wd-edit', '操作行内只有编辑按钮');
+  ok(actions.children.length === 1 && actions.children[0].className === 'wd-edit', '操作行内只有编辑入口');
   const edit = actions.children[0];
-  ok(edit.getAttribute('aria-label') === '编辑' && /编辑/.test(edit.title || ''), '编辑按钮有无障碍名与悬停提示');
-  ok(!/<text|✏/.test(edit.innerHTML) && /<svg/.test(edit.innerHTML), '按钮用内联描边图标，不用 emoji 字形');
+  ok(edit.tagName === 'A' && edit.getAttribute('href') === testUri, 'button 模式：入口是真锚点，href 即扩展给的深链接');  ok(edit.getAttribute('aria-label') === 'Edit' && /Edit/.test(edit.title || ''), '编辑入口有无障碍名与悬停提示（缺 i18n 元素时回退英文）');
+  ok(!/<text|✏/.test(edit.innerHTML) && /<svg/.test(edit.innerHTML), '入口用内联描边图标，不用 emoji 字形');
   ok(texts(block).join(' ').indexOf('源码') < 0, '预览块内不再出现「源码」按钮文字');
-  ok(typeof edit.listeners.click === 'object', '编辑按钮绑定了点击（回环信标）');
-  ok(!block.classList.contains('wd-clickable'), 'button 模式：块本身不是点击目标');
+  ok(!edit.listeners.click, '不再靠脚本点击事件（深链接要真实用户点击）');
+  const ctxAttr = block.getAttribute('data-vscode-context');
+  ok(ctxAttr && JSON.parse(ctxAttr).webviewSection === 'wavedrom' && JSON.parse(ctxAttr).k, '块上写了右键菜单上下文（webviewSection + k）');
 
-  /* block 模式：无按钮，整块可点（含键盘） */
+  /* block 模式：无按钮，整块就是一个锚点 */
   const clickable = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'block');
-  ok(clickable.classList.contains('wd-clickable'), 'block 模式：块带可点标记（指针形状）');
-  ok(!find(clickable, 'wd-edit') && !find(clickable, 'wd-actions'), 'block 模式：不渲染任何按钮，也不留空操作行');
-  ok(clickable.getAttribute('role') === 'button' && clickable.getAttribute('tabindex') === '0', 'block 模式：块可聚焦、声明为按钮');
-  ok(/编辑/.test(clickable.title || ''), 'block 模式：有悬停提示说明可点');
-  ok(typeof clickable.listeners.click === 'object' && typeof clickable.listeners.keydown === 'object', 'block 模式：绑定点击与键盘（Enter/Space）');
+  const blockLink = find(clickable, 'wd-blocklink');
+  ok(blockLink && blockLink.tagName === 'A' && blockLink.getAttribute('href') === testUri, 'block 模式：整块包在一个指向深链接的锚点里');
+  ok(!find(clickable, 'wd-edit') && !find(clickable, 'wd-actions'), 'block 模式：不渲染按钮，也不留空操作行');
+  ok(find(blockLink, 'wd-figure') && find(blockLink, 'wd-svg'), 'block 模式：锚点里是完整的图形结构');
+  ok(/Edit/.test(blockLink.title || ''), 'block 模式：有悬停提示说明可点');
+  ok(!clickable.listeners.click && !clickable.listeners.keydown, 'block 模式：不需要手写点击/键盘处理（锚点原生支持）');
+
+  /* 没有深链接（例如未保存的 untitled 文档）：不渲染任何入口 */
+  const noUri = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button', null);
+  ok(!find(noUri, 'wd-edit') && !find(noUri, 'wd-actions') && find(noUri, 'wd-svg'), '无 data-edit-uri 时只渲染波形，不渲染入口');
+  const noUriBlock = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'block', null);
+  ok(!find(noUriBlock, 'wd-blocklink') && find(noUriBlock, 'wd-svg'), 'block 模式在无 data-edit-uri 时也不包锚点');
 
   const broken = runPreview(() => { throw new Error('坏 JSON'); }, 'button');
   ok(broken.children[0].children.some(c => c.className === 'wd-code'), '渲染失败时仍回退显示 WaveJSON 原文');
+
+  /* ---- 8b. 编辑器 CodeLens：不经过预览的稳定入口 ---- */
+  const { makeCodeLensProvider, editFenceCommand } = ext.__test;
+  ok(fakeCodeLensSelector && fakeCodeLensSelector.language === 'markdown', 'CodeLens 注册在 markdown 文档上');
+  const lensDoc = {
+    languageId: 'markdown',
+    uri: { fsPath: mdPath },
+    getText: () => '# t\n\n```wavedrom\n' + A2 + '\n```\n\n正文\n\n```wavedrom\n' + B + '\n```\n',
+  };
+  const lenses = makeCodeLensProvider().provideCodeLenses(lensDoc);
+  ok(lenses.length === 2, '每个 wavedrom 围栏给一个 CodeLens');
+  ok(lenses[0].range.line === 2 && lenses[1].range.line === 8, 'CodeLens 落在各围栏的首行');
+  ok(lenses[0].command.title === 'Edit waveform' && lenses[0].command.command === 'wavedrom-gui.editFence', 'CodeLens 指向 editFence 命令（文案取自 l10n 源串）');
+  ok(lenses[0].command.arguments[0].docPath === mdPath && lenses[0].command.arguments[0].line === 2, 'CodeLens 参数带文档路径与行号');
+  ok(makeCodeLensProvider().provideCodeLenses({ languageId: 'markdown', uri: { fsPath: mdPath }, getText: () => '# 无围栏\n' }).length === 0, '没有 wavedrom 围栏时不给 CodeLens');
+  fakeConfig.showCodeLens = false;
+  ok(makeCodeLensProvider().provideCodeLenses(lensDoc).length === 0, 'showCodeLens=false 时不给 CodeLens');
+  delete fakeConfig.showCodeLens;
+
+  /* CodeLens 点击：行号漂了要能按内容兜底定位 */
+  setDoc('# t\n\n前置段落\n\n```wavedrom\n' + A2 + '\n```\n');
+  fakePanels.length = 0;
+  await editFenceCommand({ kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 });
+  ok(fakePanels.length === 1, 'editFence：行号漂了仍按内容找到代码块并打开');
+  setDoc('# t\n\n```wavedrom\n' + B + '\n```\n');
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await editFenceCommand({ kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 });
+  ok(fakePanels.length === 0 && /Cannot find this code block/.test(fakeMessages[0][1] || ''), 'editFence：内容也对不上时提示而不是打开错块');
 
   /* ---- 9. 编辑面板位置设置（wavedrom-gui.editorPanelPosition，默认 beside） ---- */
   const { editorPanelPosition, openEditor } = ext.__test;
@@ -469,6 +594,109 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
 
   const posProp = pkg.contributes.configuration.properties['wavedrom-gui.editorPanelPosition'];
   ok(posProp && posProp.default === 'current' && posProp.enum.join(',') === 'current,beside,below,newWindow', 'package.json 声明了面板位置设置，默认 current、四个可选值');
+
+  /* ---- 10. 中英双语：扩展宿主 l10n 包 + package.nls 包 ---- */
+  const readJson = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
+  const l10nEn = readJson('l10n/bundle.l10n.json');
+  const l10nZh = readJson('l10n/bundle.l10n.zh-cn.json');
+  const extSrc = fs.readFileSync(path.join(__dirname, '..', 'extension.js'), 'utf8');
+
+  /* 源语言是英文：从 extension.js 里把 t('…') 与 EXPIRED 用到的串全数抽出 */
+  const tKeys = new Set([...extSrc.matchAll(/\bt\(\s*'((?:[^'\\]|\\.)*)'/g)].map(m => m[1]));
+  const expiredKey = /const EXPIRED = '((?:[^'\\]|\\.)*)'/.exec(extSrc);
+  if (expiredKey) tKeys.add(expiredKey[1]);
+  ok(tKeys.size >= 18, '扩展里的运行时文案都走 t()（共 ' + tKeys.size + ' 条）');
+  const missingZh = [...tKeys].filter(k => !(k in l10nZh));
+  ok(missingZh.length === 0, 'zh 语言包覆盖全部运行时文案' + (missingZh.length ? '（缺：' + missingZh.join(' / ') + '）' : ''));
+  const unusedZh = Object.keys(l10nZh).filter(k => !tKeys.has(k));
+  ok(unusedZh.length === 0, 'zh 语言包没有多余键' + (unusedZh.length ? '（多：' + unusedZh.join(' / ') + '）' : ''));
+  ok(Object.values(l10nZh).every(v => /[\u4e00-\u9fa5]/.test(v)), 'zh 语言包的值都是中文');
+  ok(!Object.keys(l10nEn).length, '默认语言包为空（源语言即英文，无需翻译）');
+  ok(l10nZh[expiredKey[1]] === 'WaveDrom: 预览里的图表已过期，重新打开预览后再试', '关键提示（预览过期）有中文译文');
+
+  /* package.json 的贡献点用 %key% 占位符，两个 nls 包都要有 */
+  const pkgRaw = fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8');
+  const nlsKeys = [...new Set([...pkgRaw.matchAll(/%([a-zA-Z0-9._-]+)%/g)].map(m => m[1]))];
+  const nlsEn = readJson('package.nls.json');
+  const nlsZh = readJson('package.nls.zh-cn.json');
+  ok(nlsKeys.length >= 12, '命令/设置文案改用 %key% 占位符（共 ' + nlsKeys.length + ' 个）');
+  ok(nlsKeys.every(k => k in nlsEn && k in nlsZh), 'package.nls.json 与 zh-cn 覆盖全部占位符');
+  ok(Object.keys(nlsEn).sort().join(',') === Object.keys(nlsZh).sort().join(','), 'en / zh 两份 nls 的键集合一致');
+  ok(Object.values(nlsZh).every(v => /[\u4e00-\u9fa5]/.test(v)), 'nls zh 包的值都是中文');
+  ok(Object.values(nlsEn).every(v => !/[\u4e00-\u9fa5]/.test(v)), 'nls en 包不含中文');
+  ok(pkg.l10n === './l10n', 'package.json 声明了 l10n 目录');
+  ok(!/[\u4e00-\u9fa5]/.test(pkg.contributes.commands.map(c => c.title).join('')), '命令标题里不再硬编码中文');
+
+  /* zh 显示语言下，扩展宿主消息与预览里的文案都走中文包（webview 文案由扩展渲染进去） */
+  fakeVscode.l10n = {
+    t: (msg, ...args) => args.reduce((s, a, i) => s.replace('{' + i + '}', String(a)), l10nZh[msg] || msg),
+  };
+  const zhPreview = md.render('```wavedrom\n' + jsonSrc + '\n```\n', env);
+  ok(/data-edit-label="编辑"/.test(zhPreview) && /data-edit-title="编辑（在可视化编辑器中打开）"/.test(zhPreview), 'zh：预览入口文案按语言渲染进 HTML');
+  ok((zhPreview.match(/id="wd-i18n"/g) || []).length === 1, 'zh：文案元素每次渲染只插一份');
+  ok(/data-edit-label="编辑"/.test(md.render('```wavedrom\n' + jsonSrc + '\n```\n', env)), 'zh：env 被复用时仍会插入文案元素（core 规则重置标记）');
+  fakeMessages.length = 0;
+  fakeUriHandler.handleUri(uriOf('vscodium://wavedrom-gui.wavedrom-gui-vscode/edit?k=deadbeef0123'));
+  ok(/已过期/.test(fakeMessages[0][1] || ''), 'zh：宿主提示走中文语言包（带占位符替换）');
+  fakeMessages.length = 0;
+  await editFenceCommand({ kind: 'fence', docPath: mdPath, fenceRaw: '对不上的内容', line: 0 });
+  ok(/找不到这个代码块/.test(fakeMessages[0][1] || ''), 'zh：错误消息同样翻译');
+  delete fakeVscode.l10n;
+
+  const enPreview = md.render('```wavedrom\n' + jsonSrc + '\n```\n', env);
+  ok(/data-edit-label="Edit"/.test(enPreview), 'en：无语言包时预览入口文案为英文源串');
+
+  /* preview.js：读到 zh 文案元素时用中文，缺失时回退英文 */
+  fakeI18nNode = fakeEl('div');
+  fakeI18nNode.dataset.editLabel = '编辑';
+  fakeI18nNode.dataset.editTitle = '编辑（在可视化编辑器中打开）';
+  const zhBtn = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button');
+  const zhEdit = find(zhBtn, 'wd-edit');
+  ok(zhEdit.getAttribute('aria-label') === '编辑' && /编辑（在可视化编辑器中打开）/.test(zhEdit.title || ''), 'zh：预览按钮读扩展给的文案');
+  fakeI18nNode = null;
+  const enBtn = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button');
+  ok(find(enBtn, 'wd-edit').getAttribute('aria-label') === 'Edit', 'en：缺文案元素时回退英文');
+
+  /* 编辑器面板（index.html）按 VS Code 语言初始化，且不覆盖用户选过的语言 */
+  const zhPanel = buildEditorHtml('{"signal":[]}', 'k1');
+  ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && /localStorage\.setItem\('wdgui-lang'/.test(zhPanel), '编辑器界面打开时按 VS Code 语言写入初始语言');
+  ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && zhPanel.indexOf("getItem('wdgui-lang')") < zhPanel.indexOf("setItem('wdgui-lang'"), '先判断是否已有语言偏好，有则不覆盖');
+
+  /* ---- 11. 编辑器面板的视图模式（wavedrom-gui.editorViewMode，默认 simple） ---- */
+  const { editorViewMode } = ext.__test;
+  /* 只取扩展注入的那段初始化脚本——index.html 自己也有 wdgui-viewmode 字样，不能全串匹配 */
+  const initScript = html => {
+    const m = /<script>(try \{ if \(!localStorage\.getItem\('wdgui-lang'\)[\s\S]*?<\/script>)/.exec(html);
+    return m ? m[1] : '';
+  };
+  ok(editorViewMode() === 'simple', '未配置时视图模式为 simple');
+  const initDefault = initScript(buildEditorHtml('{"signal":[]}', 'k1'));
+  ok(/setItem\('wdgui-viewmode', 'simple'\)/.test(initDefault), '默认：打开面板时在注入脚本里把视图模式写成简约模式');
+  ok(initDefault.indexOf('hash = ') > initDefault.indexOf("setItem('wdgui-viewmode'"), '写入视图模式发生在界面按 hash 启动之前');
+  fakeConfig.editorViewMode = 'auto';
+  ok(editorViewMode() === 'auto' && !/wdgui-viewmode/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), 'auto：注入脚本里不碰视图模式，沿用界面自己的偏好');
+  fakeConfig.editorViewMode = '乱填的';
+  ok(editorViewMode() === 'simple' && /setItem\('wdgui-viewmode', 'simple'\)/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), '取值非法时回退 simple');
+  delete fakeConfig.editorViewMode;
+  const vmProp = pkg.contributes.configuration.properties['wavedrom-gui.editorViewMode'];
+  ok(vmProp && vmProp.default === 'simple' && vmProp.enum.join(',') === 'simple,auto', 'package.json 声明了视图模式设置，默认 simple、可选 simple/auto');
+
+  /* ---- 11b. 「通道与分组」左栏（wavedrom-gui.editorSidePanel，默认展开） ---- */
+  const { editorSidePanel } = ext.__test;
+  ok(editorSidePanel() === 'shown', '未配置时左栏为 shown');
+  ok(/setItem\('wdgui-side-dock', '1'\)/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), '默认：打开面板时把「通道与分组」左栏写成展开（界面自身默认是隐藏）');
+  fakeConfig.editorSidePanel = 'auto';
+  ok(editorSidePanel() === 'auto' && !/wdgui-side-dock/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), 'auto：注入脚本里不碰左栏显隐，沿用界面偏好');
+  fakeConfig.editorSidePanel = '乱填的';
+  ok(editorSidePanel() === 'shown' && /setItem\('wdgui-side-dock', '1'\)/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), '取值非法时回退 shown');
+  delete fakeConfig.editorSidePanel;
+  const spProp = pkg.contributes.configuration.properties['wavedrom-gui.editorSidePanel'];
+  ok(spProp && spProp.default === 'shown' && spProp.enum.join(',') === 'shown,auto', 'package.json 声明了左栏设置，默认 shown、可选 shown/auto');
+  /* 两项面板布局偏好互不影响 */
+  fakeConfig.editorSidePanel = 'auto';
+  const onlyView = initScript(buildEditorHtml('{"signal":[]}', 'k1'));
+  ok(/setItem\('wdgui-viewmode', 'simple'\)/.test(onlyView) && !/wdgui-side-dock/.test(onlyView), '视图模式与左栏两项设置各自独立生效');
+  delete fakeConfig.editorSidePanel;
 
   console.log('\n全部 ' + passed + ' 项断言通过');
   process.exit(0);

@@ -2,7 +2,7 @@
 
 **简体中文** | [English](./README.en.md)
 
-WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，一个无浏览器的 **命令行渲染 Skill**，以及一个 **VSCode 插件**（开发中）。它们通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
+WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，一个无浏览器的 **命令行渲染 Skill**，以及一个 **VSCode 插件**（beta）。它们通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
 
 ![整体截图](./images/wavedrom-gui.png)
 
@@ -39,15 +39,16 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 
 👉 完整用法与「WaveJSON 生成指南」见 [SKILL/wavedrom-render/SKILL.md](./SKILL/wavedrom-render/SKILL.md)。
 
-## 产品三：VSCode 插件（开发中）
+## 产品三：VSCode 插件（beta）
 
-> ⚠️ 尚在开发的早期阶段，无法正常使用，欢迎PR。
+> 🧪 **已发布测试版本（beta），欢迎测试与反馈**。从 [Releases](https://cnb.cool/linshi-2026/wavedrom-gui/-/releases) 下载最新版的 `wavedrom-gui-vscode.vsix`，在 VS Code / VSCodium 里执行命令面板的「Extensions: Install from VSIX...」选中它即可；也可以本地打包：`cd vscode && npx @vscode/vsce package`。仍在快速迭代，接口与行为可能调整，遇到问题欢迎提 issue。
 
 把 wavedrom-gui 的能力带进 VS Code：在内置 Markdown 预览里直接渲染 ```` ```wavedrom ```` 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。
 
-- **预览内渲染**：Markdown 预览中把 wavedrom 代码块和内嵌 WaveJSON 的 SVG/PNG 图片渲染为波形图，右上角附铅笔按钮进入编辑（设置 `wavedrom-gui.previewEditAffordance` 可改为「点波形即编辑」）
-- **可视化编辑写回**：点「✏ 编辑」复用 `index.html` 编辑器进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则像素不动只更新内嵌的 WaveJSON 元数据
+- **预览内渲染**：Markdown 预览中把 wavedrom 代码块和内嵌 WaveJSON 的 SVG/PNG 图片渲染为波形图，**在波形上右键「编辑波形」**即进入编辑（严格预览安全级别下即可用，无需放宽安全设置；设置 `wavedrom-gui.previewEditAffordance` 可改成右上角铅笔按钮或点波形即编辑）
+- **可视化编辑写回**：打开可视化编辑器（复用 `index.html`）进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则像素不动只更新内嵌的 WaveJSON 元数据。除预览里的入口外，源码中每个 wavedrom 代码块上方还有「编辑波形」CodeLens
 - **与前两者互通**：同一套 WaveJSON 元数据规格，Skill/编辑器导出的图片在插件里可直接识别与编辑
+- **中英双语**：界面文案跟随 VS Code 的显示语言（English / 简体中文），命令、设置项、提示与预览入口都随语言切换
 
 👉 详见 [vscode/README.md](./vscode/README.md)。
 

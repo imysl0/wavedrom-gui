@@ -1,8 +1,8 @@
 {
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
-  "description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。",
-  "version": "0.1.8",
+  "description": "%extension.description%",
+  "version": "0.1.9",
   "publisher": "wavedrom-gui",
   "license": "MIT",
   "repository": {
@@ -17,9 +17,11 @@
     "Visualization"
   ],
   "activationEvents": [
-    "onLanguage:markdown"
+    "onLanguage:markdown",
+    "onUri"
   ],
   "main": "./extension.js",
+  "l10n": "./l10n",
   "contributes": {
     "markdown.markdownItPlugins": true,
     "markdown.previewScripts": [
@@ -32,25 +34,47 @@
     "commands": [
       {
         "command": "wavedrom-gui.editActive",
-        "title": "WaveDrom: 编辑当前 Markdown 中的图表",
+        "title": "%command.editActive.title%",
+        "category": "WaveDrom"
+      },
+      {
+        "command": "wavedrom-gui.editFromPreview",
+        "title": "%command.editFromPreview.title%",
         "category": "WaveDrom"
       }
     ],
+    "menus": {
+      "webview/context": [
+        {
+          "command": "wavedrom-gui.editFromPreview",
+          "when": "webviewSection == 'wavedrom' && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor')",
+          "group": "navigation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "wavedrom-gui.editFromPreview",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "title": "WaveDrom-Gui",
       "properties": {
         "wavedrom-gui.previewEditAffordance": {
           "type": "string",
           "enum": [
+            "menu",
             "button",
             "block"
           ],
           "enumDescriptions": [
-            "波形右上角显示一个铅笔图标按钮（默认）",
-            "不显示按钮，点击波形任意位置即进入编辑"
+            "%config.previewEditAffordance.menu%",
+            "%config.previewEditAffordance.button%",
+            "%config.previewEditAffordance.block%"
           ],
-          "default": "button",
-          "markdownDescription": "Markdown 预览中进入可视化编辑器的入口形式。改完若预览没变，重开一次预览（Ctrl+Shift+V）即可。"
+          "default": "menu",
+          "markdownDescription": "%config.previewEditAffordance.desc%"
         },
         "wavedrom-gui.editorPanelPosition": {
           "type": "string",
@@ -61,13 +85,44 @@
             "newWindow"
           ],
           "enumDescriptions": [
-            "在当前聚焦的编辑栏里作标签页（默认）——从预览点「编辑」时即与预览同栏，不新增分栏",
-            "在编辑区右侧新开一栏（VS Code 的默认行为）",
-            "在当前栏下方新开一栏，与该栏成上下关系——从预览点「编辑」即预览在上、编辑器在下",
-            "编辑器搬到独立的窗口（VS Code 的「移动编辑器到新窗口」）"
+            "%config.editorPanelPosition.current%",
+            "%config.editorPanelPosition.beside%",
+            "%config.editorPanelPosition.below%",
+            "%config.editorPanelPosition.newWindow%"
           ],
           "default": "current",
-          "markdownDescription": "可视化编辑面板打开的位置。无法做到「浮在预览窗口之上」：VS Code 未向扩展开放浮动/模态编辑器（`ViewColumn` 只有 Active / Beside / 1-9）。"
+          "markdownDescription": "%config.editorPanelPosition.desc%"
+        },
+        "wavedrom-gui.showCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.showCodeLens.desc%"
+        },
+        "wavedrom-gui.editorViewMode": {
+          "type": "string",
+          "enum": [
+            "simple",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "%config.editorViewMode.simple%",
+            "%config.editorViewMode.auto%"
+          ],
+          "default": "simple",
+          "markdownDescription": "%config.editorViewMode.desc%"
+        },
+        "wavedrom-gui.editorSidePanel": {
+          "type": "string",
+          "enum": [
+            "shown",
+            "auto"
+          ],
+          "enumDescriptions": [
+            "%config.editorSidePanel.shown%",
+            "%config.editorSidePanel.auto%"
+          ],
+          "default": "shown",
+          "markdownDescription": "%config.editorSidePanel.desc%"
         }
       }
     }

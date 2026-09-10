@@ -2,7 +2,7 @@
 
 [简体中文](./README.md) | **English**
 
-A WaveDrom timing-diagram toolkit with three products: a click-to-edit **web visual editor**, a browser-free **command-line rendering Skill**, and a **VS Code extension** (in development). They are wired together through image metadata — **SVGs/PNGs exported by the Skill embed the WaveJSON, and the web editor's "Open file" restores them into an editable diagram**. Zero build, works offline. The code was written in collaboration with GLM-5.3-flash, Qwen3.8-max, deepseek-v4-flash-exp, mimo-v25-pro and claude-opus-4.8 — a spare-time project. Feel free to use it, file issues, send PRs, or star it!
+A WaveDrom timing-diagram toolkit with three products: a click-to-edit **web visual editor**, a browser-free **command-line rendering Skill**, and a **VS Code extension** (beta). They are wired together through image metadata — **SVGs/PNGs exported by the Skill embed the WaveJSON, and the web editor's "Open file" restores them into an editable diagram**. Zero build, works offline. The code was written in collaboration with GLM-5.3-flash, Qwen3.8-max, deepseek-v4-flash-exp, mimo-v25-pro and claude-opus-4.8 — a spare-time project. Feel free to use it, file issues, send PRs, or star it!
 
 ![Screenshot](./images/wavedrom-gui.png)
 
@@ -39,15 +39,16 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # tradi
 
 👉 Full usage and the "WaveJSON generation guide": [SKILL/wavedrom-render/SKILL.md](./SKILL/wavedrom-render/SKILL.md) (Chinese).
 
-## Product 3: VS Code extension (in development)
+## Product 3: VS Code extension (beta)
 
-> ⚠️ Early stage, not usable yet — PRs welcome.
+> 🧪 **A beta build is published — testing and feedback welcome.** Download the latest `wavedrom-gui-vscode.vsix` from [Releases](https://cnb.cool/linshi-2026/wavedrom-gui/-/releases) and install it via the command palette's "Extensions: Install from VSIX..." in VS Code / VSCodium; or build it locally with `cd vscode && npx @vscode/vsce package`. It is still iterating quickly, so behaviour may change — issues are welcome.
 
-Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks and images with embedded WaveJSON (modern theme) right inside the built-in Markdown preview, jump into the visual editor with one click, and write the result back to the source file.
+Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks and images with embedded WaveJSON (modern theme) right inside the built-in Markdown preview, jump into the visual editor, and write the result back to the source file.
 
-- **Preview rendering**: turns wavedrom code blocks and SVG/PNG images with embedded WaveJSON into waveform diagrams in the Markdown preview, with a pencil button at the top-right corner to edit (the `wavedrom-gui.previewEditAffordance` setting switches it to "click the diagram to edit")
-- **Visual editing, written back**: the pencil button reuses the `index.html` editor; on save the fence content is written back for code blocks, while images keep their pixels and only have the embedded WaveJSON metadata updated
+- **Preview rendering**: turns wavedrom code blocks and SVG/PNG images with embedded WaveJSON into waveform diagrams in the Markdown preview; **right-click the diagram → "编辑波形"** opens the editor — it works under the default *Strict* preview security level with **no security setting to relax** (the `wavedrom-gui.previewEditAffordance` setting switches to a top-right pencil button or click-the-diagram instead)
+- **Visual editing, written back**: the editor reuses `index.html`; on save the fence content is written back for code blocks, while images keep their pixels and only have the embedded WaveJSON metadata updated. Besides the preview entries, every wavedrom code block also gets an "编辑波形" CodeLens in the source
 - **Interoperable with the other two**: same WaveJSON metadata spec, so images exported by the Skill/editor are recognized and editable here
+- **English / Chinese UI**: all texts follow VS Code's display language — commands, settings, messages and the preview entry points switch with it
 
 👉 See [vscode/README.md](./vscode/README.md) (Chinese).
 

@@ -1,6 +1,5 @@
 'use strict';
 const vscode = require('vscode');
-const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -9,69 +8,97 @@ const {
   pngReplaceITXt, pngExtractWaveJSON,
 } = require('./lib/meta-embed.js');
 
+/* 界面文案走 VS Code 的本地化：源语言是英文，中文在 l10n/bundle.l10n.zh-cn.json
+   （package.json 的贡献点在 package.nls*.json）。语言由 VS Code 的显示语言决定，
+   扩展不自己做语言切换。vscode.l10n 需要 1.73+，缺失时退回英文源串，功能不受影响。 */
+function t(message, ...args) {
+  const l10n = vscode.l10n;
+  if (l10n && typeof l10n.t === 'function') return l10n.t(message, ...args);
+  return args.reduce((s, a, i) => s.replace('{' + i + '}', String(a)), message);
+}
+
+/* 扩展宿主当前语言（zh / en）——只用于给编辑器界面写初始语言；预览文案走 t() */
+function uiLang() {
+  try {
+    return (vscode.env.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  } catch (e) { return 'en'; }
+}
+
 /* 围栏两端都要锚定：开头必须行首（0-3 空格缩进，与 markdown-it 一致），否则正文里
    的 ```wavedrom 字样（如小标题）会被误认成围栏开头，导致定位/写回错位；结尾必须
    整行只有反引号（可带尾随空白），否则下一个块的开头围栏会被当成闭合围栏，一次匹配
    横跨两块。大小写与预览侧 isWaveFence 一致（i），避免预览认、写回不认。 */
 const FENCE_RE = /^(?: {0,3})```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}```[ \t]*(?:\r?\n|$)/gmi;
-const bridgeRegistry = new Map(); // k -> { kind:'fence'|'image', docPath, fenceRaw, line, imgPath }
-
-/* ---------------- 回环桥：预览 webview 的「编辑」按钮经图片信标到达扩展主进程 ----------------
- * 预览 CSP 允许 img-src http:，但 script/connect 均被禁，且没有公开的预览→扩展消息通道，
- * 因此用 127.0.0.1 上的一次性端口 + 随机 token 的 GET 图片信标最为稳妥。 */
-let bridge = null;
-let bridgeStarting = null;
-
-function ensureBridge() {
-  if (bridge) return Promise.resolve(bridge);
-  if (bridgeStarting) return bridgeStarting;
-  const token = crypto.randomBytes(12).toString('hex');
-  const server = http.createServer((req, res) => {
-    res.writeHead(200, {
-      'Content-Type': 'image/gif',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-store',
-    });
-    res.end(Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64'));
-    try {
-      const u = new URL(req.url, 'http://127.0.0.1');
-      if (bridge && u.searchParams.get('t') === bridge.token && u.pathname === '/edit') {
-        const target = bridgeRegistry.get(u.searchParams.get('k'));
-        if (target) openEditor(target);
-      }
-    } catch (e) { /* 忽略桥上的一切错误 */ }
-  });
-  bridgeStarting = new Promise(resolve => {
-    server.listen(0, '127.0.0.1', () => {
-      bridge = { port: server.address().port, token, server };
-      if (_ctx) _ctx.subscriptions.push({ dispose: () => { try { server.close(); } catch (e) { /* noop */ } } });
-      resolve(bridge);
-    });
-  });
-  return bridgeStarting;
-}
+const editTargets = new Map(); // k -> { kind:'fence'|'image', docPath, fenceRaw, line, imgPath }
 
 function registerKey(info) {
-  /* 淘汰最旧的一半；整表清空会让已渲染预览里的「编辑」按钮集体失效 */
-  if (bridgeRegistry.size > 800) {
-    let drop = bridgeRegistry.size - 400;
-    for (const key of bridgeRegistry.keys()) { if (drop-- <= 0) break; bridgeRegistry.delete(key); }
+  /* 淘汰最旧的一半；整表清空会让已渲染预览里的「编辑」入口集体失效 */
+  if (editTargets.size > 800) {
+    let drop = editTargets.size - 400;
+    for (const key of editTargets.keys()) { if (drop-- <= 0) break; editTargets.delete(key); }
   }
   const k = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex').slice(0, 12);
-  bridgeRegistry.set(k, info);
+  editTargets.set(k, info);
   return k;
+}
+
+/* ---------------- 预览 → 扩展：产品 scheme 深链接 ----------------
+ * 预览 webview 里读不到我们自己的消息通道（acquireVsCodeApi 已被内置预览脚本占用，
+ * postMessage 只会送到 markdown 扩展），command: 链接在预览里也被禁用；而回环图片信标
+ * （http://127.0.0.1）在默认的「严格」预览安全级别下会被 CSP 拦下，还会弹出「放宽安全
+ * 设置」的提示，普通用户不该被迫改这个设置。
+ *
+ * 改成由预览里的 <a href="<uriScheme>://<扩展 id>/edit?k=…"> 深链接回来：webview 的链接
+ * 白名单接受产品自己的 urlProtocol（VSCodium 是 vscodium、Insiders 是 vscode-insiders，
+ * 所以用 vscode.env.uriScheme，不能写死 vscode），点击经 openerService 交给下面的
+ * registerUriHandler。全程不发 http 请求，因此不产生 CSP 违规、也不再有那个安全提示。
+ *
+ * k 是不透明键，同时也是一次点击的授权凭据：注册表里没有的 k 一律拒绝，避免任意
+ * markdown 构造一条链接就让扩展去打开任意文件。 */
+function editLink(k) {
+  return `${vscode.env.uriScheme}://${_ctx.extension.id}/edit?k=${encodeURIComponent(k)}`;
+}
+
+const EXPIRED = 'WaveDrom: This diagram in the preview is stale — reopen the preview and try again';
+
+/* 按 k 打开编辑面板；k 不在注册表里（预览过期、扩展重载过、或别人构造的链接）就只提示 */
+function openTargetByKey(k) {
+  const target = (typeof k === 'string' && k) ? editTargets.get(k) : null;
+  if (!target) { vscode.window.showWarningMessage(t(EXPIRED)); return; }
+  openEditor(target);
+}
+
+function handleUri(uri) {
+  if (uri.path !== '/edit') return;
+  openTargetByKey(new URLSearchParams(uri.query || '').get('k'));
+}
+
+/* 预览里右键菜单「编辑波形」的命令：webview/context 会把 data-vscode-context 的 JSON
+   作为第一个参数传进来（与 mermaid 扩展同一机制）。浏览器里的右键菜单不经过 CSP，
+   所以这条既是点击入口的补充，也是深链接万一被拦时的备用通道。 */
+function editFromPreviewCommand(context) {
+  openTargetByKey(context && context.k);
 }
 
 /* ---------------- markdown-it 插件 ---------------- */
 
+/* 预览工具栏里的文案：webview 里拿不到 vscode.l10n，所以由扩展按当前语言渲染进 HTML
+   （每个文档渲染一次，preview.js 读它的 data-*）。文案同样走 t()，翻译只此一处 */
+function previewI18nHtml() {
+  return `<div id="wd-i18n" hidden data-edit-label="${escapeAttr(t('Edit'))}"`
+    + ` data-edit-title="${escapeAttr(t('Edit (opens in the visual editor)'))}"></div>\n`;
+}
+
 /* 预览里的编辑入口形式（wavedrom-gui.previewEditAffordance）：
-   button = 波形右上角铅笔按钮（默认），block = 不显示按钮、点波形任意处即编辑。
-   取不到或取值非法时一律按 button——渲染结果会烙进 HTML，容错比抛错重要 */
+   menu = 不加任何可见入口，在波形上右键 →「编辑波形」（默认）；
+   button = 波形右上角铅笔按钮；block = 不显示按钮、点波形任意处即编辑。
+   三种形式都会写 data-vscode-context，所以右键菜单在任何模式下都可用。
+   取不到或取值非法时一律按 menu——渲染结果会烙进 HTML，容错比抛错重要 */
 function editAffordance() {
   try {
     const v = vscode.workspace.getConfiguration('wavedrom-gui').get('previewEditAffordance');
-    return v === 'block' ? 'block' : 'button';
-  } catch (e) { return 'button'; }
+    return (v === 'button' || v === 'block') ? v : 'menu';
+  } catch (e) { return 'menu'; }
 }
 
 function makePlugin() {
@@ -79,6 +106,10 @@ function makePlugin() {
   const isWaveFence = info => /^wave(?:drom|json)\b/i.test((info || '').trim());
 
   return function (md) {
+    /* env 对象可能在多次渲染间复用（VS Code 的预览也会），每次渲染前重置「文案已插入」标记 */
+    md.core.ruler.push('wavedrom_gui_i18n_reset', state => {
+      if (state.env) state.env.__wdI18nDone = false;
+    });
     const prevFence = md.renderer.rules.fence;
     md.renderer.rules.fence = (tokens, idx, options, env, self) => {
       const token = tokens[idx];
@@ -88,13 +119,15 @@ function makePlugin() {
       const raw = (token.content || '').trim();
       const docFs = docFsPath(env);
       let editAttr = '';
-      if (docFs && bridge) {
+      if (docFs) {
         /* 记下围栏所在行：内容相同的多个代码块只能靠行号区分，否则编辑第二个会写回第一个 */
         const line = token.map ? token.map[0] : null;
         const k = registerKey({ kind: 'fence', docPath: docFs, fenceRaw: raw, line });
-        editAttr = ` data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}"`;
+        editAttr = ` data-k="${k}" data-edit-uri="${escapeAttr(editLink(k))}"`;
       }
-      return `<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}" data-edit-mode="${editAffordance()}"${editAttr}></div>\n`;
+      /* 文案元素每次渲染只插一份，挂在第一个 wave 块前面 */
+      const i18n = env && env.__wdI18nDone ? '' : (env.__wdI18nDone = true, previewI18nHtml());
+      return `${i18n}<div class="wavedrom-block" data-wd="fence" data-json="${b64(raw)}" data-edit-mode="${editAffordance()}"${editAttr}></div>\n`;
     };
 
     const prevImage = md.renderer.rules.image;
@@ -104,11 +137,11 @@ function makePlugin() {
         ? prevImage(tokens, idx, options, env, self)
         : self.renderToken(tokens, idx, options);
       const docFs = docFsPath(env);
-      if (!docFs || !bridge) return imgHtml;
+      if (!docFs) return imgHtml;
       const probe = probeImagePath(docFs, token.attrGet('src'));
       if (!probe) return imgHtml;
       const k = registerKey({ kind: 'image', docPath: docFs, imgPath: probe.absPath });
-      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-edit-mode="${editAffordance()}" data-img="${escapeAttr(probe.relSrc)}" data-k="${k}" data-doc="${escapeAttr(docFs)}" data-port="${bridge.port}" data-token="${bridge.token}">${imgHtml}</span>\n`;
+      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-edit-mode="${editAffordance()}" data-k="${k}" data-edit-uri="${escapeAttr(editLink(k))}">${imgHtml}</span>\n`;
     };
   };
 }
@@ -178,18 +211,18 @@ function openEditor(target) {
         ? svgExtractWaveJSON(bytes.toString('utf8'))
         : pngExtractWaveJSON(bytes);
     }
-  } catch (e) { vscode.window.showErrorMessage('WaveDrom: 读取图表失败 — ' + e.message); return; }
-  if (!jsonText) { vscode.window.showErrorMessage('WaveDrom: 该目标中没有可编辑的 WaveJSON'); return; }
+  } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to read the diagram — {0}', e.message)); return; }
+  if (!jsonText) { vscode.window.showErrorMessage(t('WaveDrom: No editable WaveJSON in this target')); return; }
 
   /* 先备好 HTML 再建面板：界面读不到时直接报错返回，不留下一个空白面板 */
   let html;
   try { html = buildEditorHtml(jsonText, panelDocKey(target)); }
-  catch (e) { vscode.window.showErrorMessage('WaveDrom: 编辑器界面加载失败 — ' + e.message); return; }
+  catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to load the editor UI — {0}', e.message)); return; }
 
   const pos = editorPanelPosition();
   const name = path.basename(target.kind === 'fence' ? target.docPath : target.imgPath);
   const panel = vscode.window.createWebviewPanel(
-    'wavedromGuiEditor', 'WaveDrom 编辑 — ' + name,
+    'wavedromGuiEditor', t('WaveDrom Editor — {0}', name),
     /* below / newWindow 都先落在当前栏再交给命令搬走：先 Beside 会多出一栏、搬走后又收起，
        中间白闪一下 */
     pos === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
@@ -215,6 +248,27 @@ function panelDocKey(target) {
   return 'wdgui-doc-v1:' + crypto.createHash('sha1').update(id).digest('hex').slice(0, 12);
 }
 
+/* 编辑器面板的视图模式（wavedrom-gui.editorViewMode）：
+   simple = 每次打开面板都把界面的视图模式设为「简约模式」（默认）；
+   auto = 不干预，沿用编辑器界面里记住的偏好。取值非法或读不到时按 simple */
+function editorViewMode() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('editorViewMode');
+    return v === 'auto' ? 'auto' : 'simple';
+  } catch (e) { return 'simple'; }
+}
+
+/* 「通道与分组」左栏（wavedrom-gui.editorSidePanel）：
+   shown = 每次打开面板都展开它（默认，界面里的默认是隐藏）；
+   auto = 不干预，沿用界面里记住的偏好。取值非法或读不到时按 shown。
+   注意它只在手机布局（含简约模式）下生效，界面自己会判断，写进去在宽布局下无副作用 */
+function editorSidePanel() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('editorSidePanel');
+    return v === 'auto' ? 'auto' : 'shown';
+  } catch (e) { return 'shown'; }
+}
+
 /* 编辑器界面来源：仓库内调试时 extensionUri 就是 vscode/，同级 ../index.html 是正在改的
    实时界面（F5 下改动立即生效，无需先构建）；装了 VSIX 之后同级没有 index.html，回退到
    随包安装的 media/editor.html（scripts/build.js 从仓库根 index.html 拷入）。 */
@@ -233,7 +287,18 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
     + `style-src 'unsafe-inline' https://registry.npmmirror.com https://fonts.googleapis.com; `
     + `font-src https://registry.npmmirror.com https://fonts.gstatic.com data:; img-src data: blob: https:;">`;
   html = html.replace(/(<meta charset="utf-8">)/i, `$1\n${csp}`);
-  const init = `<script>location.hash = ${JSON.stringify(encodeURIComponent(initialJson))};</script>\n`;
+  /* 编辑器界面自己的偏好（都在 localStorage，界面启动时读）：
+     - 语言（wdgui-lang，菜单里 auto/zh/en）：只在没设置过时按 VS Code 的显示语言写一份，
+       之后用户在界面里选过的语言优先；界面的 auto 本来就会跟随系统/宿主语言，不覆盖也对。
+     - 视图模式（wdgui-viewmode，菜单里 auto/simple）与「通道与分组」左栏
+       （wdgui-side-dock，1=显示 / 0=隐藏，界面默认隐藏）：这两项扩展要的是稳定可用的
+       面板布局（面板通常很窄，简约布局 + 展开左栏更好用），所以每次打开都按设置写；
+       设成 auto 则不碰、沿用界面里记住的偏好。面板内仍可临时切换（下次打开回到设置值）。 */
+  const init = `<script>try { if (!localStorage.getItem('wdgui-lang')) localStorage.setItem('wdgui-lang', ${JSON.stringify(uiLang())});`
+    + (editorViewMode() === 'simple' ? ` localStorage.setItem('wdgui-viewmode', 'simple');` : '')
+    + (editorSidePanel() === 'shown' ? ` localStorage.setItem('wdgui-side-dock', '1');` : '')
+    + ` } catch (e) {}`
+    + `location.hash = ${JSON.stringify(encodeURIComponent(initialJson))};</script>\n`;
   html = html.replace(/(<body[^>]*>)/i, `$1\n${init}`);
   const poller = `<script>
 (function () {
@@ -316,7 +381,7 @@ function writeText(json, displayText) {
 async function saveBack(target, json, displayText) {
   let text;
   try { text = writeText(json, displayText); }
-  catch (e) { vscode.window.showErrorMessage('WaveDrom: JSON 无效，已跳过保存'); return; }
+  catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Invalid JSON, save skipped')); return; }
 
   if (target.kind === 'fence') {
     try {
@@ -331,14 +396,14 @@ async function saveBack(target, json, displayText) {
         let m;
         while ((m = FENCE_RE.exec(docText))) {
           cands.push({
-            label: '``` 代码块 ' + (cands.length + 1),
+            label: t('``` code block {0}', cands.length + 1),
             description: (m[1].trim().split('\n')[0] || '').slice(0, 60),
             match: m,
           });
         }
-        if (!cands.length) { vscode.window.showErrorMessage('WaveDrom: 文件中已没有 wavedrom 代码块'); return; }
+        if (!cands.length) { vscode.window.showErrorMessage(t('WaveDrom: No wavedrom code blocks left in this file')); return; }
         /* 一律让用户确认：唯一候选也自动写回的话，定位失败时会静默改错块甚至吞掉正文 */
-        const pick = await vscode.window.showQuickPick(cands, { placeHolder: '找不到原代码块——请选择要写回的代码块' });
+        const pick = await vscode.window.showQuickPick(cands, { placeHolder: t('Cannot find the original code block — pick the one to write back to') });
         if (!pick) return;
         hit = pick.match;
       }
@@ -354,8 +419,8 @@ async function saveBack(target, json, displayText) {
       we.replace(doc.uri, new vscode.Range(doc.positionAt(startOff), doc.positionAt(endOff)), insert + nl);
       await vscode.workspace.applyEdit(we);
       target.lastSaved = insert;
-      vscode.window.setStatusBarMessage('WaveDrom: 已写回代码块（Ctrl+S 保存文件）', 3000);
-    } catch (e) { vscode.window.showErrorMessage('WaveDrom: 写回失败 — ' + e.message); }
+      vscode.window.setStatusBarMessage(t('WaveDrom: Code block updated (press Ctrl+S to save the file)'), 3000);
+    } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Write-back failed — {0}', e.message)); }
     return;
   }
 
@@ -367,15 +432,17 @@ async function saveBack(target, json, displayText) {
       : pngReplaceITXt(bytes, 'WaveJSON', json);
     fs.writeFileSync(target.imgPath, out);
     target.lastSaved = json;
-    vscode.window.setStatusBarMessage('WaveDrom: 已更新图片内嵌 WaveJSON', 3000);
-  } catch (e) { vscode.window.showErrorMessage('WaveDrom: 图片写回失败 — ' + e.message); }
+    vscode.window.setStatusBarMessage(t('WaveDrom: Embedded WaveJSON in the image updated'), 3000);
+  } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Image write-back failed — {0}', e.message)); }
 }
 
-/* ---------------- 手动兜底命令（预览桥不可用时） ---------------- */
+/* ---------------- 兜底入口：命令面板 + 编辑器里的 CodeLens ----------------
+ * 这条完全不经预览，所以与预览安全级别、CSP 都无关；给不习惯/不方便用预览按钮的人
+ * 一个稳定入口（设置 wavedrom-gui.showCodeLens 可关掉 CodeLens）。 */
 async function editActiveCommand() {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== 'markdown') {
-    vscode.window.showInformationMessage('请先打开一个 Markdown 文件'); return;
+    vscode.window.showInformationMessage(t('Open a Markdown file first')); return;
   }
   const docFs = editor.document.uri.fsPath;
   const text = editor.document.getText();
@@ -384,7 +451,7 @@ async function editActiveCommand() {
   let m;
   while ((m = FENCE_RE.exec(text))) {
     picks.push({
-      label: '``` 代码块',
+      label: t('``` code block'),
       description: (m[1].trim().split('\n')[0] || '').slice(0, 60),
       target: { kind: 'fence', docPath: docFs, fenceRaw: m[1], line: lineOfIndex(text, m.index) },
     });
@@ -392,11 +459,54 @@ async function editActiveCommand() {
   const imgRe = /!\[[^\]]*\]\(([^)]+\.png|[^)]+\.svg)\)/gi;
   while ((m = imgRe.exec(text))) {
     const probe = probeImagePath(docFs, m[1]);
-    if (probe) picks.push({ label: '🖼 图片', description: path.basename(probe.absPath), target: { kind: 'image', docPath: docFs, imgPath: probe.absPath } });
+    if (probe) picks.push({ label: t('🖼 Image'), description: path.basename(probe.absPath), target: { kind: 'image', docPath: docFs, imgPath: probe.absPath } });
   }
-  if (!picks.length) { vscode.window.showInformationMessage('当前文件中没有 WaveDrom 代码块或内嵌 WaveJSON 的图片'); return; }
-  const pick = picks.length === 1 ? picks[0] : await vscode.window.showQuickPick(picks, { placeHolder: '选择要编辑的 WaveDrom 图表' });
+  if (!picks.length) { vscode.window.showInformationMessage(t('No WaveDrom code blocks or images with embedded WaveJSON in this file')); return; }
+  const pick = picks.length === 1 ? picks[0] : await vscode.window.showQuickPick(picks, { placeHolder: t('Pick the WaveDrom diagram to edit') });
   if (pick) openEditor(pick.target);
+}
+
+function showCodeLens() {
+  try { return vscode.workspace.getConfiguration('wavedrom-gui').get('showCodeLens') !== false; }
+  catch (e) { return true; }
+}
+
+/* CodeLens 参数直接带上文档路径 + 行号 + 原始内容，不依赖内存里的 editTargets：
+   CodeLens 会在编辑器里长期显示，扩展重启后仍应可用。行号漂了就按内容兜底定位。 */
+async function editFenceCommand(target) {
+  if (!target || target.kind !== 'fence') return;
+  try {
+    const doc = await vscode.workspace.openTextDocument(target.docPath);
+    const hit = findFence(doc.getText(), [target.fenceRaw], target.line);
+    if (!hit) { vscode.window.showErrorMessage(t('WaveDrom: Cannot find this code block (has the document changed?)')); return; }
+    openEditor({
+      kind: 'fence',
+      docPath: target.docPath,
+      fenceRaw: hit[1],
+      line: lineOfIndex(doc.getText(), hit.index),
+    });
+  } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to open the editor — {0}', e.message)); }
+}
+
+function makeCodeLensProvider() {
+  return {
+    provideCodeLenses(doc) {
+      if (!showCodeLens() || doc.languageId !== 'markdown') return [];
+      const text = doc.getText();
+      const lenses = [];
+      FENCE_RE.lastIndex = 0;
+      let m;
+      while ((m = FENCE_RE.exec(text))) {
+        const line = lineOfIndex(text, m.index);
+        lenses.push(new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
+          title: t('Edit waveform'),
+          command: 'wavedrom-gui.editFence',
+          arguments: [{ kind: 'fence', docPath: doc.uri.fsPath, fenceRaw: m[1], line }],
+        }));
+      }
+      return lenses;
+    },
+  };
 }
 
 /* ---------------- activate ---------------- */
@@ -404,8 +514,11 @@ let _ctx = null;
 
 async function activate(ctx) {
   _ctx = ctx;
-  await ensureBridge();
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editActive', editActiveCommand));
+  ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFence', editFenceCommand));
+  ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFromPreview', editFromPreviewCommand));
+  ctx.subscriptions.push(vscode.window.registerUriHandler({ handleUri }));
+  ctx.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'markdown' }, makeCodeLensProvider()));
   /* 入口形式烙在渲染出的 HTML 里，改设置后必须重渲染预览才生效；markdown 预览不会因为
      别的扩展的设置变化自动刷新，这里主动刷一次。命令不存在也不该影响设置本身 */
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(ev => {
@@ -421,6 +534,15 @@ async function activate(ctx) {
   };
 }
 
-function deactivate() { if (bridge) { try { bridge.server.close(); } catch (e) { /* noop */ } } }
+function deactivate() { /* 无后台资源需要释放 */ }
 
-module.exports = { activate, deactivate, __test: { FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, makePlugin, bridgeRegistry, findFence, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey } };
+module.exports = {
+  activate,
+  deactivate,
+  __test: {
+    FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel, editLink, handleUri,
+    editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editTargets, registerKey,
+    findFence, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
+  },
+};
+

@@ -1,6 +1,9 @@
 (function () {
   'use strict';
-  /* 本脚本不使用 acquireVsCodeApi：预览→扩展的「编辑」走回环信标（extension.js 内置桥） */
+  /* 预览 → 扩展：用产品 scheme 的深链接（<a href="vscodium://…/edit?k=…">）。
+     这里读不到我们自己的消息通道（acquireVsCodeApi 已被内置预览脚本占用），而回环
+     图片信标在默认「严格」预览安全级别下会被 CSP 拦下并弹出放宽安全的提示，所以改由
+     真实点击的锚点交给扩展的 URI 处理器。不发任何 http 请求，不产生 CSP 违规。 */
 
   const B64 = {
     enc: function (s) { return btoa(unescape(encodeURIComponent(s))); },
@@ -29,34 +32,16 @@
     return e;
   }
 
-  function toast(msg) {
-    const t = el('div', 'wd-toast', msg);
-    document.body.appendChild(t);
-    setTimeout(function () { t.remove(); }, 3200);
-  }
-
-  /* 信标是发往扩展宿主 127.0.0.1 端口的一张图片，成功时毫秒级返回。三种失败要区分开：
-     CSP 拦截会立刻 onerror；终端安全软件丢弃回环连接则表现为长时间不出结果（SYN 超时），
-     因此另设一个短超时兜底提示——否则按钮点下去会安静二十来秒，像没反应。 */
-  const FALLBACK = '可改用命令面板「WaveDrom: 编辑当前 Markdown 中的图表」';
-  function beacon(div) {
-    const port = div.dataset.port, token = div.dataset.token, k = div.dataset.k;
-    if (!port || !k) return false;
-    let settled = false;
-    const img = new Image();
-    const timer = setTimeout(function () {
-      if (settled) return;
-      toast('编辑请求未送达：本机到扩展宿主的回环连接疑似被安全软件拦截。' + FALLBACK);
-    }, 2500);
-    img.onload = function () { settled = true; clearTimeout(timer); };
-    img.onerror = function () {
-      settled = true; clearTimeout(timer);
-      toast('编辑请求被预览安全策略拦截：请点预览右上角「…」→「允许不安全的本地内容」后重试；' + FALLBACK);
+  /* 界面文案由扩展按 VS Code 的显示语言渲染进 #wd-i18n（这个 webview 里拿不到
+     vscode.l10n），缺了就用英文兜底 */
+  const i18n = (() => {
+    const node = document.getElementById('wd-i18n');
+    const d = (node && node.dataset) || {};
+    return {
+      edit: d.editLabel || 'Edit',
+      editTitle: d.editTitle || 'Edit (opens in the visual editor)',
     };
-    img.src = 'http://127.0.0.1:' + port + '/edit?t=' + encodeURIComponent(token)
-      + '&k=' + encodeURIComponent(k) + '&r=' + Math.random();
-    return true;
-  }
+  })();
 
   /* 铅笔图标与编辑器界面同风格（16 视框 / 1.4 描边 / 圆头），不依赖 emoji 字体：
      「✏」在 Windows、macOS 上会被渲染成彩色字形，与 VS Code 的单色图标不同调 */
@@ -75,27 +60,37 @@
     let jsonText = '';
     try { jsonText = B64.dec(div.dataset.json || ''); } catch (e) { /* 保持为空 */ }
 
-    function requestEdit() {
-      if (!beacon(div)) {
-        toast('WaveDrom 桥未就绪，可用命令面板「WaveDrom: 编辑当前 Markdown 中的图表」');
-      }
+    /* 深链接由扩展渲染时给出（含产品 scheme 与 k）。没有它说明这个块没有可写回的文件
+       （例如未保存的 untitled 文档），此时不渲染任何入口，只渲染波形 */
+    const editUri = div.dataset.editUri || '';
+
+    /* 右键菜单的上下文：VS Code 会把这段 JSON 作为命令的第一个参数传给我们，
+       扩展由此得知「右键的是哪一个块」。preventDefaultContextMenuItems 不设，
+       预览原本的右键项（复制等）继续保留。 */
+    if (editUri) {
+      div.setAttribute('data-vscode-context', JSON.stringify({
+        webviewSection: 'wavedrom',
+        k: div.dataset.k || '',
+      }));
     }
 
     /* 入口形式由扩展写在 data-edit-mode（设置项 wavedrom-gui.previewEditAffordance）：
-       button = 右上角铅笔按钮（默认）；block = 不加按钮，点波形任意处即编辑 */
+       menu = 不加可见入口、右键菜单进（默认）；button = 右上角铅笔按钮；
+       block = 不加按钮，点波形任意处即编辑 */
     const blockMode = div.dataset.editMode === 'block';
+    const buttonMode = div.dataset.editMode === 'button';
 
     /* .wd-figure 收缩到图形自身宽度（宽图仍是整栏宽），操作行因此贴着图形右上角，
        图窄时按钮不会孤零零漂到面板最右侧 */
     const figure = el('div', 'wd-figure');
-    if (!blockMode) {
+    if (buttonMode && editUri) {
       const actions = el('div', 'wd-actions');
-      const edit = el('button', 'wd-edit');
-      edit.type = 'button';
-      edit.title = '编辑（在可视化编辑器中打开）';
-      edit.setAttribute('aria-label', '编辑');
+      /* 必须是真锚点：深链接要被浏览器当成用户手势下的链接点击，才能交给扩展的 URI 处理器 */
+      const edit = el('a', 'wd-edit');
+      edit.setAttribute('href', editUri);
+      edit.title = i18n.editTitle;
+      edit.setAttribute('aria-label', i18n.edit);
       edit.innerHTML = EDIT_ICON;
-      edit.addEventListener('click', requestEdit);
       actions.appendChild(edit);
       figure.appendChild(actions);
     }
@@ -113,21 +108,17 @@
     if (holder.firstChild) figure.appendChild(holder);
 
     div.innerHTML = '';
-    div.appendChild(figure);
-
-    if (blockMode) {
-      /* 没有按钮，唯一入口就是波形本身：给指针与提示，键盘（Enter/Space）同样可用 */
-      div.classList.add('wd-clickable');
-      div.title = '编辑（在可视化编辑器中打开）';
-      div.setAttribute('role', 'button');
-      div.setAttribute('tabindex', '0');
-      div.addEventListener('click', requestEdit);
-      div.addEventListener('keydown', function (ev) {
-        if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
-        ev.preventDefault();
-        requestEdit();
-      });
+    if (blockMode && editUri) {
+      /* 没有按钮，整块就是入口：锚点原生可聚焦、Enter 可激活，不必再手写键盘处理 */
+      const link = el('a', 'wd-blocklink');
+      link.setAttribute('href', editUri);
+      link.title = i18n.editTitle;
+      link.setAttribute('aria-label', i18n.edit);
+      link.appendChild(figure);
+      div.appendChild(link);
+      return;
     }
+    div.appendChild(figure);
   }
 
   function scan() {

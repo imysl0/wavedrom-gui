@@ -1,0 +1,21 @@
+{
+  "extension.description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。",
+  "command.editActive.title": "WaveDrom: 编辑当前 Markdown 中的图表",
+  "command.editFromPreview.title": "编辑波形",
+  "config.previewEditAffordance.menu": "不加可见入口，在波形上右键 →「编辑波形」（默认）",
+  "config.previewEditAffordance.button": "波形右上角显示一个铅笔图标按钮",
+  "config.previewEditAffordance.block": "不显示按钮，点击波形任意位置即进入编辑",
+  "config.previewEditAffordance.desc": "Markdown 预览中进入可视化编辑器的入口形式。三种形式下**右键菜单都可用**；改完若预览没变，重开一次预览（Ctrl+Shift+V）即可。源码里的「编辑波形」CodeLens 由 `wavedrom-gui.showCodeLens` 单独控制。",
+  "config.editorPanelPosition.current": "在当前聚焦的编辑栏里作标签页（默认）——从预览点「编辑」时即与预览同栏，不新增分栏",
+  "config.editorPanelPosition.beside": "在编辑区右侧新开一栏（VS Code 的默认行为）",
+  "config.editorPanelPosition.below": "在当前栏下方新开一栏，与该栏成上下关系——从预览点「编辑」即预览在上、编辑器在下",
+  "config.editorPanelPosition.newWindow": "编辑器搬到独立的窗口（VS Code 的「移动编辑器到新窗口」）",
+  "config.editorPanelPosition.desc": "可视化编辑面板打开的位置。无法做到「浮在预览窗口之上」：VS Code 未向扩展开放浮动/模态编辑器（`ViewColumn` 只有 Active / Beside / 1-9）。",
+  "config.showCodeLens.desc": "在 Markdown 源码里每个 ` ```wavedrom ` 代码块上方显示一行「编辑波形」CodeLens。这条入口不经过预览，与预览的安全级别无关，适合作为稳定入口；不想看到这行可以关掉。",
+  "config.editorViewMode.simple": "每次打开面板都使用「简约模式」（手机版紧凑布局，默认）",
+  "config.editorViewMode.auto": "不干预，沿用编辑器界面里记住的布局偏好",
+  "config.editorViewMode.desc": "可视化编辑器面板打开时使用的布局。`simple` 不论面板多宽都强制用简约（紧凑）布局——面板通常是一个窄分栏，简约布局更好用；面板里仍可临时切换，下次打开回到这里设置的模式。`auto` 则完全交给编辑器界面自己的偏好。",
+  "config.editorSidePanel.shown": "每次打开编辑器都展开「通道与分组」左栏（默认；编辑器界面自身默认是隐藏的）",
+  "config.editorSidePanel.auto": "不干预，沿用编辑器界面里记住的显隐偏好",
+  "config.editorSidePanel.desc": "编辑器面板打开时是否展开「通道与分组」左栏。它只在简约（手机）布局下生效，见 `wavedrom-gui.editorViewMode`；设为 `auto` 时沿用编辑器界面里记住的显隐状态。"
+}

@@ -19,8 +19,9 @@
   margin: 0 0 2px;
 }
 
-/* 编辑：VS Code 工具栏风格的幽灵图标按钮——无边框无底色，悬停才浮现底色 */
-.wd-actions button.wd-edit {
+/* 编辑：VS Code 工具栏风格的幽灵图标按钮——无边框无底色，悬停才浮现底色。
+   它是真锚点（深链接需要真实点击），所以要显式去掉链接的下划线与链接色 */
+.wd-actions a.wd-edit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -31,17 +32,19 @@
   border-radius: 5px;
   background: transparent;
   color: var(--vscode-icon-foreground, var(--vscode-foreground, inherit));
+  text-decoration: none;
   opacity: 0.6;
   cursor: pointer;
   transition: opacity 0.12s ease, background-color 0.12s ease;
 }
 
-.wd-actions button.wd-edit:hover {
+.wd-actions a.wd-edit:hover {
   opacity: 1;
+  text-decoration: none;
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
 }
 
-.wd-actions button.wd-edit:focus-visible {
+.wd-actions a.wd-edit:focus-visible {
   opacity: 1;
   outline: 1px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 1px;
@@ -51,13 +54,21 @@
   display: block;
 }
 
-/* 设置 previewEditAffordance = block：不加按钮，点波形任意处即编辑。
+/* 设置 previewEditAffordance = block：不加按钮，整块波形就是链接。
    没有按钮就没有可点的视觉线索，靠指针形状 + 悬停提示 + 键盘焦点环补上 */
-.wavedrom-block.wd-clickable {
+a.wd-blocklink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.wavedrom-block.wd-clickable:focus-visible {
+a.wd-blocklink:hover,
+a.wd-blocklink:focus {
+  text-decoration: none;
+}
+
+a.wd-blocklink:focus-visible {
   outline: 1px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 2px;
 }
@@ -77,18 +88,4 @@
   background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.1));
   border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
   border-radius: 4px;
-}
-
-.wd-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  z-index: 999;
-  background: var(--vscode-editorWidget-background, #252526);
-  color: var(--vscode-editorWidget-foreground, #cccccc);
-  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
-  border-radius: 4px;
-  padding: 6px 14px;
-  font-size: 12px;
 }
