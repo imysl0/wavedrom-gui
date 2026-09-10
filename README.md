@@ -48,7 +48,7 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 - **预览内渲染**：Markdown 预览中把 wavedrom 代码块和内嵌 WaveJSON 的 SVG/PNG 图片渲染为波形图，**在波形上右键「编辑波形」**即进入编辑（严格预览安全级别下即可用，无需放宽安全设置；设置 `wavedrom-gui.previewEditAffordance` 可改成右上角铅笔按钮或点波形即编辑）
 - **可视化编辑写回**：打开可视化编辑器（复用 `index.html`）进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则像素不动只更新内嵌的 WaveJSON 元数据。除预览里的入口外，源码中每个 wavedrom 代码块上方还有「编辑波形」CodeLens
 - **与前两者互通**：同一套 WaveJSON 元数据规格，Skill/编辑器导出的图片在插件里可直接识别与编辑
-- **中英双语**：界面文案跟随 VS Code 的显示语言（English / 简体中文），命令、设置项、提示与预览入口都随语言切换
+- **中英双语**：界面文案默认跟随 VS Code 的显示语言（判断不出语言时按中文），也可用设置 `wavedrom-gui.language` 固定中文或英文
 
 👉 详见 [vscode/README.md](./vscode/README.md)。
 

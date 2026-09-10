@@ -12,7 +12,25 @@
 
   function stripXml(s) { return s.replace(/^<\?xml[^>]*\?>\s*/, '').replace(/<!DOCTYPE[^>]*>\s*/i, ''); }
 
+  /* 候选就绪事件：build.js 生成的渲染库在挂上 window.WaveDromModern 之后立即派发 */
+  const RENDERER_READY = 'wavedrom-renderer-ready';
+
+  function rendererReady() {
+    return !!(window.WaveDromModern && typeof window.WaveDromModern.renderModern === 'function');
+  }
+
+  /* 渲染库就绪后回调；三种兜底：已经在 / 收到就绪事件 / load 事件（async 脚本到 load 时都已执行完） */
+  function whenRendererReady(cb) {
+    if (rendererReady()) { cb(); return; }
+    let done = false;
+    const run = function () { if (done) return; done = true; cb(); };
+    window.addEventListener(RENDERER_READY, run);
+    window.addEventListener('load', run);
+    setTimeout(run, 3000);
+  }
+
   function renderModern(jsonText) {
+    if (!rendererReady()) throw new Error(i18n.noRenderer);
     const src = JSON.parse(jsonText);
     const r = window.WaveDromModern.renderModern(src, {});
     return { svg: stripXml(r.svg) };
@@ -40,6 +58,7 @@
     return {
       edit: d.editLabel || 'Edit',
       editTitle: d.editTitle || 'Edit (opens in the visual editor)',
+      noRenderer: d.noRenderer || 'Waveform renderer not loaded (reopen the preview)',
     };
   })();
 
@@ -122,6 +141,9 @@
   }
 
   function scan() {
+    /* 渲染库还没到就先别动块（否则每块都会渲染成「渲染库未加载」），等就绪事件再扫。
+       VS Code 用 <script async> 注入预览脚本，执行顺序不保证——这里必须能等。 */
+    if (!rendererReady()) return;
     const blocks = document.querySelectorAll('.wavedrom-block:not([data-wd-init])');
     for (let i = 0; i < blocks.length; i++) {
       try { initBlock(blocks[i]); } catch (e) { /* 单块失败不影响其他 */ }
@@ -130,4 +152,6 @@
 
   scan();
   new MutationObserver(function () { scan(); }).observe(document.body, { childList: true, subtree: true });
+  /* preview.js 先于渲染库跑完时（async 注入，顺序不保证）在这里补扫一次 */
+  whenRendererReady(scan);
 })();

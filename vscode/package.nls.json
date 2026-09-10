@@ -17,5 +17,9 @@
   "config.editorViewMode.desc": "Which layout the visual editor panel opens with. `simple` forces the compact (mobile) layout regardless of panel width, which suits the narrow editor column the panel usually gets; you can still switch layouts inside the panel (the next open returns to this setting). `auto` leaves the layout to the editor UI's own preference.",
   "config.editorSidePanel.shown": "Expand the \"Lanes & groups\" panel every time the editor opens (default; the editor UI itself hides it by default)",
   "config.editorSidePanel.auto": "Do not touch it; use whatever the editor UI has remembered",
-  "config.editorSidePanel.desc": "Whether the editor panel opens with the \"Lanes & groups\" column expanded. It only takes effect in the compact (mobile) layout — see `wavedrom-gui.editorViewMode`. With `auto` the panel keeps whatever state the editor UI remembered."
+  "config.editorSidePanel.desc": "Whether the editor panel opens with the \"Lanes & groups\" column expanded. It only takes effect in the compact (mobile) layout — see `wavedrom-gui.editorViewMode`. With `auto` the panel keeps whatever state the editor UI remembered.",
+  "config.language.auto": "Follow VS Code's display language (default). If it cannot be determined, Chinese is used as the fallback",
+  "config.language.zh": "Always use Simplified Chinese",
+  "config.language.en": "Always use English",
+  "config.language.desc": "Language used for the extension's messages, the \"Edit waveform\" CodeLens and the preview entry points. `auto` follows VS Code's display language; messages also fall back to the built-in Chinese table when VS Code's own localization pipeline returns nothing. Note that command titles and settings descriptions come from VS Code's manifest localization, which this setting cannot override."
 }

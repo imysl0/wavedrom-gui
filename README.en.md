@@ -48,7 +48,7 @@ Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks and i
 - **Preview rendering**: turns wavedrom code blocks and SVG/PNG images with embedded WaveJSON into waveform diagrams in the Markdown preview; **right-click the diagram → "编辑波形"** opens the editor — it works under the default *Strict* preview security level with **no security setting to relax** (the `wavedrom-gui.previewEditAffordance` setting switches to a top-right pencil button or click-the-diagram instead)
 - **Visual editing, written back**: the editor reuses `index.html`; on save the fence content is written back for code blocks, while images keep their pixels and only have the embedded WaveJSON metadata updated. Besides the preview entries, every wavedrom code block also gets an "编辑波形" CodeLens in the source
 - **Interoperable with the other two**: same WaveJSON metadata spec, so images exported by the Skill/editor are recognized and editable here
-- **English / Chinese UI**: all texts follow VS Code's display language — commands, settings, messages and the preview entry points switch with it
+- **English / Chinese UI**: texts follow VS Code's display language by default (Chinese is the fallback when it cannot be determined), and the `wavedrom-gui.language` setting can pin either one
 
 👉 See [vscode/README.md](./vscode/README.md) (Chinese).
 

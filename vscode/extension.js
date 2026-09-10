@@ -8,20 +8,58 @@ const {
   pngReplaceITXt, pngExtractWaveJSON,
 } = require('./lib/meta-embed.js');
 
-/* 界面文案走 VS Code 的本地化：源语言是英文，中文在 l10n/bundle.l10n.zh-cn.json
-   （package.json 的贡献点在 package.nls*.json）。语言由 VS Code 的显示语言决定，
-   扩展不自己做语言切换。vscode.l10n 需要 1.73+，缺失时退回英文源串，功能不受影响。 */
-function t(message, ...args) {
-  const l10n = vscode.l10n;
-  if (l10n && typeof l10n.t === 'function') return l10n.t(message, ...args);
-  return args.reduce((s, a, i) => s.replace('{' + i + '}', String(a)), message);
+/* 界面文案：源语言英文，中文表自带一份（l10n/bundle.l10n.zh-cn.json）。
+   为什么不只靠 vscode.l10n：那是 VS Code 的本地化管道，bundle 解析不到时会**静默回退英文**
+   （且需要 1.73+），实测在装 VSIX 的环境里出现过界面中文、扩展英文的情况。所以自己读一份
+   中文表，语言判断失败时按中文保底——本项目以中文为主。 */
+let zhTable = null;
+function zhStrings() {
+  if (zhTable) return zhTable;
+  zhTable = {};
+  /* zh-cn 是 VS Code 的标准 id；zh-hans / zh 兼容其它写法 */
+  for (const f of ['bundle.l10n.zh-cn.json', 'bundle.l10n.zh-hans.json', 'bundle.l10n.zh.json']) {
+    try {
+      const p = path.join(_ctx.extensionUri.fsPath, 'l10n', f);
+      if (fs.existsSync(p)) { Object.assign(zhTable, JSON.parse(fs.readFileSync(p, 'utf8'))); break; }
+    } catch (e) { /* 读不到就继续找下一个 */ }
+  }
+  return zhTable;
 }
 
-/* 扩展宿主当前语言（zh / en）——只用于给编辑器界面写初始语言；预览文案走 t() */
-function uiLang() {
+/* 语言设置（wavedrom-gui.language）：auto = 跟随 VS Code（默认），zh / en = 固定 */
+function languageSetting() {
   try {
-    return (vscode.env.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
-  } catch (e) { return 'en'; }
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('language');
+    return (v === 'zh' || v === 'en') ? v : 'auto';
+  } catch (e) { return 'auto'; }
+}
+
+/* 最终生效的语言：auto 时看 VS Code 的显示语言；拿不到语言信息就按中文保底 */
+function uiLang() {
+  const s = languageSetting();
+  if (s === 'zh' || s === 'en') return s;
+  let host = '';
+  try { host = String(vscode.env.language || '').toLowerCase(); } catch (e) { host = ''; }
+  if (host.startsWith('zh')) return 'zh';
+  if (host) return 'en';
+  return 'zh'; // 语言不确定 → 中文保底
+}
+
+function t(message, ...args) {
+  const fill = s => args.reduce((x, a, i) => x.replace('{' + i + '}', String(a)), s);
+  const lang = uiLang();
+  if (lang === 'zh') {
+    const table = zhStrings();
+    if (table[message]) return fill(table[message]);
+  }
+  const l10n = vscode.l10n;
+  if (l10n && typeof l10n.t === 'function') {
+    try {
+      const out = l10n.t(message, ...args);
+      if (out && out !== message) return out;   // VS Code 管道翻出来了就用它
+    } catch (e) { /* 管道出错：继续走下面的兜底 */ }
+  }
+  return fill(message);
 }
 
 /* 围栏两端都要锚定：开头必须行首（0-3 空格缩进，与 markdown-it 一致），否则正文里
@@ -86,7 +124,8 @@ function editFromPreviewCommand(context) {
    （每个文档渲染一次，preview.js 读它的 data-*）。文案同样走 t()，翻译只此一处 */
 function previewI18nHtml() {
   return `<div id="wd-i18n" hidden data-edit-label="${escapeAttr(t('Edit'))}"`
-    + ` data-edit-title="${escapeAttr(t('Edit (opens in the visual editor)'))}"></div>\n`;
+    + ` data-edit-title="${escapeAttr(t('Edit (opens in the visual editor)'))}"`
+    + ` data-no-renderer="${escapeAttr(t('Waveform renderer not loaded — reopen the preview'))}"></div>\n`;
 }
 
 /* 预览里的编辑入口形式（wavedrom-gui.previewEditAffordance）：
@@ -514,6 +553,13 @@ let _ctx = null;
 
 async function activate(ctx) {
   _ctx = ctx;
+  /* 排查语言问题用的一行日志：Output → Extension Host 里能看到扩展实际采用的语言与来源 */
+  try {
+    console.log('[wavedrom-gui] i18n', JSON.stringify({
+      setting: languageSetting(), envLanguage: vscode.env.language, effective: uiLang(),
+      l10nApi: !!(vscode.l10n && vscode.l10n.t), zhTableKeys: Object.keys(zhStrings()).length,
+    }));
+  } catch (e) { /* 日志失败无所谓 */ }
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editActive', editActiveCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFence', editFenceCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFromPreview', editFromPreviewCommand));
@@ -540,7 +586,8 @@ module.exports = {
   activate,
   deactivate,
   __test: {
-    FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel, editLink, handleUri,
+    FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel,
+    languageSetting, uiLang, zhStrings, t, editLink, handleUri,
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editTargets, registerKey,
     findFence, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
   },

@@ -455,7 +455,19 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     return null;
   };
   let fakeI18nNode = null; // 模拟扩展渲染进去的 #wd-i18n（null = 缺失，测英文回退）
-  const runPreview = (renderModern, editMode, editUri) => {
+  let lastWin = null; // 最近一次 runPreview 用的伪 window（用于触发就绪事件）
+  /* 伪 window：带最小事件系统，模拟渲染库「稍后才到」的情况 */
+  const makeWin = (renderModern, noRenderer) => {
+    const listeners = {};
+    const win = {
+      addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); },
+      emit: t => (listeners[t] || []).forEach(fn => fn()),
+    };
+    if (!noRenderer) win.WaveDromModern = { renderModern };
+    return win;
+  };
+  const runPreview = (renderModern, editMode, editUri, opts) => {
+    const o = opts || {};
     const block = fakeEl('div');
     block.dataset.wd = 'fence';
     if (editMode) block.dataset.editMode = editMode;
@@ -470,9 +482,10 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
       getElementById: id => (id === 'wd-i18n' ? fakeI18nNode : null),
       querySelectorAll: sel => (String(sel).indexOf('.wavedrom-block') === 0 ? [block] : []),
     };
+    lastWin = makeWin(renderModern, o.noRenderer);
     const ctx = {
-      document: doc, window: { WaveDromModern: { renderModern } }, MutationObserver: class { observe() {} },
-      setTimeout, clearTimeout, btoa, atob, unescape, escape, console,
+      document: doc, window: lastWin, MutationObserver: class { observe() {} },
+      setTimeout: () => 0, clearTimeout: () => {}, btoa, atob, unescape, escape, console,
     };
     vm.createContext(ctx);
     vm.runInContext(previewSrc, ctx);
@@ -518,6 +531,29 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
 
   const broken = runPreview(() => { throw new Error('坏 JSON'); }, 'button');
   ok(broken.children[0].children.some(c => c.className === 'wd-code'), '渲染失败时仍回退显示 WaveJSON 原文');
+
+  /* ---- 8c. 回归：VS Code 用 <script async> 注入预览脚本，渲染库可能后到（曾报
+     「Cannot read properties of undefined (reading 'renderModern')」） ---- */
+  const svg = () => ({ svg: '<svg width="10" height="10"><g/></svg>' });
+  const late = runPreview(svg, 'button', undefined, { noRenderer: true });
+  ok(!find(late, 'wd-figure'), '渲染库未就绪：先不初始化块（不渲染成错误框）');
+  ok(!late.dataset.wdInit, '渲染库未就绪：块未被标记为已初始化（就绪后会补扫）');
+  lastWin.WaveDromModern = { renderModern: svg };
+  lastWin.emit('wavedrom-renderer-ready');
+  ok(find(late, 'wd-figure') && find(late, 'wd-svg') && !find(late, 'wd-code'), '渲染库就绪事件到达后补扫并正常渲染');
+
+  /* load 事件兜底与「渲染库始终没到」的提示 */
+  const late2 = runPreview(svg, 'button', undefined, { noRenderer: true });
+  lastWin.WaveDromModern = { renderModern: svg };
+  lastWin.emit('load');
+  ok(find(late2, 'wd-figure'), 'load 事件也能补扫（async 脚本到 load 时都已执行完）');
+  const never = runPreview(svg, 'button', undefined, { noRenderer: true });
+  lastWin.emit('wavedrom-renderer-ready');   // 库始终没到，事件里也没有 renderer
+  ok(!find(never, 'wd-figure') && !find(never, 'wd-code'), '渲染库始终没到：不渲染错误框，等下次事件');
+  ok(/renderer-not-loaded|Waveform renderer not loaded/.test(previewSrc), '渲染库缺失时的提示文案是明确说明（不是原始 TypeError）');
+  const builtRenderer = fs.readFileSync(path.join(__dirname, '..', 'media', 'modern-render.browser.js'), 'utf8');
+  ok(/dispatchEvent\(new Event\('wavedrom-renderer-ready'\)\)/.test(builtRenderer), '渲染库构建产物会广播就绪事件（npm run build 已同步）');
+  ok(/wavedrom-renderer-ready/.test(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build.js'), 'utf8')), 'build.js 里生成了就绪事件广播');
 
   /* ---- 8b. 编辑器 CodeLens：不经过预览的稳定入口 ---- */
   const { makeCodeLensProvider, editFenceCommand } = ext.__test;
@@ -658,8 +694,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(find(enBtn, 'wd-edit').getAttribute('aria-label') === 'Edit', 'en：缺文案元素时回退英文');
 
   /* 编辑器面板（index.html）按 VS Code 语言初始化，且不覆盖用户选过的语言 */
-  const zhPanel = buildEditorHtml('{"signal":[]}', 'k1');
-  ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && /localStorage\.setItem\('wdgui-lang'/.test(zhPanel), '编辑器界面打开时按 VS Code 语言写入初始语言');
+  const zhPanel = buildEditorHtml('{"signal":[]}', 'k1');  ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && /localStorage\.setItem\('wdgui-lang'/.test(zhPanel), '编辑器界面打开时按 VS Code 语言写入初始语言');
   ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && zhPanel.indexOf("getItem('wdgui-lang')") < zhPanel.indexOf("setItem('wdgui-lang'"), '先判断是否已有语言偏好，有则不覆盖');
 
   /* ---- 11. 编辑器面板的视图模式（wavedrom-gui.editorViewMode，默认 simple） ---- */
@@ -697,6 +732,54 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const onlyView = initScript(buildEditorHtml('{"signal":[]}', 'k1'));
   ok(/setItem\('wdgui-viewmode', 'simple'\)/.test(onlyView) && !/wdgui-side-dock/.test(onlyView), '视图模式与左栏两项设置各自独立生效');
   delete fakeConfig.editorSidePanel;
+
+  /* ---- 12. 语言设置与中文保底（wavedrom-gui.language，默认 auto） ---- */
+  const { languageSetting, uiLang, zhStrings, t } = ext.__test;
+  ok(languageSetting() === 'auto' && uiLang() === 'en', '默认 language=auto（此断言时 env.language=en，故判定英文）');
+  ok(Object.keys(zhStrings()).length >= 24, '自带中文表已从 l10n 包读入（' + Object.keys(zhStrings()).length + ' 条）');
+
+  /* auto + 界面中文 + VS Code 本地化管道「什么都没翻出来」→ 仍走中文表（这就是用户报的故障场景） */
+  fakeVscode.env.language = 'zh-cn';
+  delete fakeVscode.l10n; // 模拟 l10n 缺失 / 管道静默返回源串
+  ok(languageSetting() === 'auto' && uiLang() === 'zh', 'auto：env.language=zh-cn 判定为中文');
+  ok(t('Edit waveform') === '编辑波形', 'auto + 中文界面 + 无 l10n：文案仍为中文（内置表兜底）');
+  ok(t('WaveDrom: Failed to read the diagram — {0}', 'x') === 'WaveDrom: 读取图表失败 — x', '兜底路径下占位符替换正确');
+
+  /* auto + 界面英文 → 英文源串 */
+  fakeVscode.env.language = 'en-US';
+  ok(uiLang() === 'en' && t('Edit waveform') === 'Edit waveform', 'auto：英文界面用英文源串');
+
+  /* 语言信息拿不到 → 中文保底 */
+  fakeVscode.env.language = '';
+  ok(uiLang() === 'zh' && t('Edit waveform') === '编辑波形', 'auto：拿不到界面语言时中文保底');
+  delete fakeVscode.env.language;
+  ok(uiLang() === 'zh', 'auto：env.language 缺失同样中文保底');
+  fakeVscode.env.language = 'en';
+
+  /* 强制 zh / en 覆盖界面语言 */
+  fakeConfig.language = 'zh';
+  ok(uiLang() === 'zh' && t('Edit waveform') === '编辑波形', 'language=zh：英文界面下也强制中文');
+  fakeVscode.l10n = { t: msg => msg }; // 管道只回源串，也不影响强制中文
+  ok(t('Edit waveform') === '编辑波形', 'language=zh：不依赖 VS Code 管道');
+  fakeConfig.language = 'en';
+  fakeVscode.env.language = 'zh-cn';
+  ok(uiLang() === 'en' && t('Edit waveform') === 'Edit waveform', 'language=en：中文界面下也强制英文');
+  delete fakeVscode.l10n; delete fakeConfig.language;
+  fakeVscode.env.language = 'en';
+
+  /* 语言设置还会驱动编辑器界面的初始语言（两处一致） */
+  fakeConfig.language = 'zh';
+  ok(/setItem\('wdgui-lang', "zh"\)/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), 'language=zh：编辑器界面初始语言也写 zh');
+  delete fakeConfig.language;
+
+  const langProp = pkg.contributes.configuration.properties['wavedrom-gui.language'];
+  ok(langProp && langProp.default === 'auto' && langProp.enum.join(',') === 'auto,zh,en', 'package.json 声明了语言设置，默认 auto、可选 auto/zh/en');
+
+  /* zh-hans 兼容别名（万一宿主报的语言 id 不是 zh-cn） */
+  const zhHansNls = readJson('package.nls.zh-hans.json');
+  const zhHansBundle = readJson('l10n/bundle.l10n.zh-hans.json');
+  ok(JSON.stringify(zhHansNls) === JSON.stringify(nlsZh), 'package.nls.zh-hans.json 与 zh-cn 内容一致');
+  ok(JSON.stringify(zhHansBundle) === JSON.stringify(l10nZh), 'l10n/bundle.l10n.zh-hans.json 与 zh-cn 内容一致');
 
   console.log('\n全部 ' + passed + ' 项断言通过');
   process.exit(0);

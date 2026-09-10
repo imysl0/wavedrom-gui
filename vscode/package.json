@@ -2,7 +2,7 @@
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
   "description": "%extension.description%",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "publisher": "wavedrom-gui",
   "license": "MIT",
   "repository": {
@@ -123,6 +123,21 @@
           ],
           "default": "shown",
           "markdownDescription": "%config.editorSidePanel.desc%"
+        },
+        "wavedrom-gui.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "zh",
+            "en"
+          ],
+          "enumDescriptions": [
+            "%config.language.auto%",
+            "%config.language.zh%",
+            "%config.language.en%"
+          ],
+          "default": "auto",
+          "markdownDescription": "%config.language.desc%"
         }
       }
     }

@@ -67,12 +67,25 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（�
   - `shown`（默认）：每次打开面板都**展开**它。编辑器界面自身的默认是隐藏，而面板里这一栏常要用（＋信号/时钟/总线/占位/分组、节点、图表都在这里）
   - `auto`：不干预，沿用编辑器界面里记住的显隐状态
 
+- **`wavedrom-gui.language`** — 扩展界面的语言：
+  - `auto`（默认）：跟随 VS Code 的显示语言；判断不出语言时按中文
+  - `zh`：固定简体中文；`en`：固定英文
+
+  只影响扩展自己能控制的部分（消息、CodeLens、预览入口文案、编辑器界面初始语言）；命令标题与设置说明是 VS Code 的清单本地化，运行时无法覆盖。
+
 ## 语言与布局
 
-- 扩展的界面文案**跟随 VS Code 的显示语言**，自带 **English** 与 **简体中文**：命令、设置项、消息提示、预览入口的悬停提示都按当前语言显示。中文需要 VS Code 1.73 及以上（`vscode.l10n`），更老的版本回退英文；除中英之外的语言也回退英文。
-- 可视化编辑器面板（`index.html`）**有自己的语言菜单**（跟随系统 / 简体中文 / English，偏好持久化）。首次打开时按 VS Code 的显示语言初始化，之后以你在面板里选的语言为准，扩展不再覆盖。
+- 扩展的界面文案自带 **English** 与 **简体中文** 两份，由设置 **`wavedrom-gui.language`** 决定：
+  - `auto`（默认）：跟随 VS Code 的显示语言；**判断不出语言时按中文**（本项目以中文为主）
+  - `zh` / `en`：固定中文 / 英文，不受宿主语言影响
+- 生效范围：消息提示、QuickPick 文案、状态栏、编辑器面板标题、「编辑波形」CodeLens、预览里入口的悬停提示、以及编辑器界面的初始语言。
+- 实现上**不单纯依赖 VS Code 的本地化管道**：`vscode.l10n` 在 bundle 解析不到时会静默回退英文（实测在装 VSIX 的环境里出现过「宿主界面中文、扩展英文」），所以扩展自己读一份 `l10n/bundle.l10n.zh-cn.json`（另备 `zh-hans` 别名）作为中文兜底；`auto` + 中文界面时必定显示中文。
+- 命令标题与设置说明属于 VS Code 的**清单本地化**（`package.nls*.json`），由宿主在加载时替换，运行时改不了——`wavedrom-gui.language` 覆盖不到它们。若这几处语言不对，用下面的日志与说明排查。
+- 排查：Output 面板选 **Extension Host**，激活时会打印一行
+  `[wavedrom-gui] i18n {"setting":"auto","envLanguage":"zh-cn","effective":"zh","l10nApi":true,"zhTableKeys":24}`。
+- ⚠️ 用 **F5 的扩展开发宿主**调试时，**命令标题与设置说明会显示英文**：VS Code 在开发模式下会直接跳过 `package.nls.<locale>.json`（工作台代码里是 `if (t.devMode || t.pseudo || !t.language) return { localized: package.nls.json }`），这是宿主行为、扩展无法绕过；消息、CodeLens 与预览文案不受此限。想看完整中文界面请装 VSIX 后再测。
+- 编辑器面板（`index.html`）**有自己的语言菜单**（跟随系统 / 简体中文 / English，偏好持久化），初始值取 `wavedrom-gui.language` 的结果，之后以你在面板里选的语言为准。
 - 编辑器面板的布局：`wavedrom-gui.editorViewMode` 默认 `simple`，**每次打开都是简约模式**（面板通常是窄分栏，简约布局更合用）；`wavedrom-gui.editorSidePanel` 默认 `shown`，**「通道与分组」左栏默认展开**（界面自身的默认是隐藏）。两项都可设成 `auto` 以沿用界面里记住的偏好，面板内也能临时切换。
-- 想验证另一种语言：命令面板执行「Configure Display Language」切换 VS Code 语言后重开预览即可。
 
 ## 安装与调试
 

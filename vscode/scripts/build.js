@@ -29,6 +29,9 @@ ${src}
     throw new Error('browser build: require("' + name + '") is unavailable');
   }, '.', 'render-modern.js');
   window.WaveDromModern = mod.exports;
+  /* VS Code 用 <script async> 注入预览脚本，preview.js 可能先于本文件执行完；
+     挂上全局后立刻广播，让 preview.js 不必靠执行顺序也能补扫 */
+  try { window.dispatchEvent(new Event('wavedrom-renderer-ready')); } catch (e) { /* noop */ }
 })();
 `;
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
