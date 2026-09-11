@@ -94,6 +94,21 @@
               - "./wavedrom-gui.html"
               - "./vscode/wavedrom-gui-vscode.vsix"
 
+        # 把远端分支实体化成真正的本地分支，供下一步 git-sync 推送
+        - name: 准备待同步的分支
+          image: tencentcom/git-sync
+          # 复用插件镜像：里面自带 git / git-lfs，无需额外拉基础镜像
+          script: |
+            set -eu
+            git fetch origin '+refs/heads/*:refs/heads/*' --no-tags
+            echo "本地分支："
+            git for-each-ref --format='  %(refname:short) %(objectname:short)' refs/heads/
+
+        # git-sync 只推送「本地已有的分支 ref」。tag_push 事件下 CNB 检出的是
+        # detached HEAD，refs/heads/ 里一个分支都没有，此时插件打印
+        # "Pushing all branches" 后必然走到 "No refs in common and none specified"，
+        # 一个分支都推不过去（分支参数也一样：git rev-parse main 直接失败并 skip）。
+        # 所以先在 `.git` 目录里把远端分支实体化成真正的本地分支，再交给插件推送。
         - name: sync to github
           image: tencentcom/git-sync
           imports:
@@ -103,4 +118,11 @@
             auth_type: https
             username: $GIT_USERNAME
             password: $GIT_ACCESS_TOKEN
-            push_tags: true      # 需要同步 tag 就加上
+            # 只推 main，避免把 CI 自动生成的分支同步到 GitHub；
+            # 有上面的本地分支后该参数才会生效（否则插件会 skip 并报 Warning）
+            branch: main
+            # 同步 tag
+            push_tags: true
+            # 关键参数：默认深度检出时的 .git 是 shallow 的，推到 GitHub 会报
+            # "shallow update not allowed"，这里把仓库补全成完整历史
+            fetch_options: --unshallow
