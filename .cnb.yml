@@ -96,9 +96,11 @@
 
         - name: sync to github
           image: tencentcom/git-sync
+          imports:
+            - https://cnb.cool/linshi-2026/env/-/blob/main/github_sync.yml
           settings:
             target_url: https://github.com/imysl0/wavedrom-gui.git
             auth_type: https
-            username: ${GIT_USERNAME}
-            password: ${GIT_ACCESS_TOKEN}
+            username: $GIT_USERNAME
+            password: $GIT_ACCESS_TOKEN
             push_tags: true      # 需要同步 tag 就加上
