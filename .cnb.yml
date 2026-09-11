@@ -97,7 +97,7 @@
         - name: sync to github
           image: tencentcom/git-sync
           imports:
-            - https://cnb.cool/linshi-2026/env/-/blob/main/github_sync.yml
+            - https://cnb.cool/linshi-2026/env/-/blob/main/tencent_edgeone.yml
           settings:
             target_url: https://github.com/imysl0/wavedrom-gui.git
             auth_type: https
