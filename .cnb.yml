@@ -93,3 +93,11 @@
             attachments:
               - "./wavedrom-gui.html"
               - "./vscode/wavedrom-gui-vscode.vsix"
+
+        - name: sync to github
+          image: tencentcom/git-sync
+          settings:
+            target_url: https://github.com/imysl0/wavedrom-gui.git
+            auth_type: https
+            username: ${GIT_USERNAME}
+            password: ${GIT_ACCESS_TOKEN}
