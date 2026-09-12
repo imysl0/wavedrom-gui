@@ -1,0 +1,98 @@
+# GitHub 侧只负责「打 tag 后构建 + 发布同名 Release」；代码由 CNB 流水线
+# 同步过来（.cnb.yml 的 git-sync push_tags），这里不做部署、也不回写任何分支。
+# 构建步骤与 .cnb.yml 的 tag_push 流水线保持一致：写入版本号 → 打包 VS Code
+# 扩展 → index.html 改名为 wavedrom-gui.html → 上传两个 Release 附件。
+name: Release
+
+on:
+  push:
+    # 与 CNB 侧 tag 格式校验（^v[0-9]...）对齐
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 使用 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 写入版本号
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const tag = process.env.TAG;
+          if (!/^v[0-9][0-9A-Za-z]*(?:[._-][0-9A-Za-z]+)*$/.test(tag || '')) {
+            throw new Error(`Tag 格式无效：${tag || '(空)'}`);
+          }
+
+          const file = 'index.html';
+          const marker = '<meta name="app-version" content="dev">';
+          const html = fs.readFileSync(file, 'utf8');
+          const matches = html.split(marker).length - 1;
+          if (matches !== 1) {
+            throw new Error(`预期找到 1 个开发版版本源，实际找到 ${matches} 个`);
+          }
+
+          const versionMeta = `<meta name="app-version" content="${tag}">`;
+          const next = html.replace(marker, versionMeta);
+          fs.writeFileSync(file, next, 'utf8');
+
+          const saved = fs.readFileSync(file, 'utf8');
+          if (!saved.includes(versionMeta) || saved.includes(marker)) {
+            throw new Error('版本号写入后校验失败');
+          }
+          console.log(`已将应用版本号写入为 ${tag}`);
+          NODE
+
+      - name: 打包 VS Code 扩展
+        run: |
+          set -euo pipefail
+          # 必须排在「index.html 改名」之前：scripts/build.js 会把仓库根的
+          # index.html 拷进 media/editor.html，改名之后打包会 ENOENT
+          # （CNB 侧 v260911.0 就是这么挂的）。干净检出即可打包：
+          # vsce 执行的 vscode:prepublish（scripts/build.js）零依赖。
+          test -f index.html
+          cd vscode
+          npx --yes @vscode/vsce@3 package --out wavedrom-gui-vscode.vsix
+          test -s wavedrom-gui-vscode.vsix
+
+      - name: 准备 Release 附件
+        run: |
+          set -euo pipefail
+          test -f index.html
+          mv index.html wavedrom-gui.html
+          test -f wavedrom-gui.html
+          test -f vscode/wavedrom-gui-vscode.vsix
+
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          notes="WaveDrom-Gui ${TAG}
+
+          Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。"
+          files=(wavedrom-gui.html vscode/wavedrom-gui-vscode.vsix)
+          # 同名 Release 已存在时（流水线重跑/补附件）改为覆盖上传，避免重复创建报错
+          if gh release view "$TAG" --json id >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber "${files[@]}"
+          else
+            gh release create "$TAG" "${files[@]}" --title "$TAG" --notes "$notes" --latest
+          fi
