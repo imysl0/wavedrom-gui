@@ -788,8 +788,9 @@ function renderModern(source, opts = {}) {
     }
   }
 
-  /* --- name column (sticky, drawn last to cover crossing edges) --- */
-  nameLayer += tag('rect', { x: 0, y: 0, width: namew, height: totalH, fill: C.panel });
+  /* --- name column (sticky, drawn last to cover crossing edges) ---
+     名称列默认与波形区同底色（C.bg，右缘分割线保留），对齐编辑器「信号名底色 = 与波形同色」的默认 */
+  nameLayer += tag('rect', { x: 0, y: 0, width: namew, height: totalH, fill: C.bg });
   nameLayer += tag('line', { x1: namew, y1: 0, x2: namew, y2: totalH, stroke: C.line });
   for (const r of rows) {
     if (r.type !== 'lane' && r.type !== 'group' && r.type !== 'spacer') continue;

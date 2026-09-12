@@ -1643,9 +1643,9 @@ document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === '
 document.documentElement.dataset.showPreview = localStorage.getItem('wdgui-show-preview') === '0' ? '0' : '1';
 document.documentElement.dataset.showCode = localStorage.getItem('wdgui-show-code') === '0' ? '0' : '1';
 document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
-/* 波形背景配色组与信号名同色（设置 → 外观） */
+/* 波形背景配色组（设置 → 外观）；信号名底色默认与波形同色，显式选过「独立底色」（存 '0'）才恢复独立 */
 document.documentElement.dataset.wavebg = localStorage.getItem('wdgui-wavebg') || 'default';
-if (localStorage.getItem('wdgui-head-same') === '1') document.documentElement.dataset.headSame = '1';
+if (localStorage.getItem('wdgui-head-same') !== '0') document.documentElement.dataset.headSame = '1';
 document.documentElement.dataset.zebra = localStorage.getItem('wdgui-zebra') === '0' ? '0' : '1';
 /* ---------- 视图模式：auto=按屏宽判断桌面/手机；simple=强制手机（简约）布局 ---------- */
 const VIEWMODE_MQ = window.matchMedia('(max-width: 800px)');
@@ -4959,7 +4959,7 @@ function buildSettingsMenu(menu) {
     row(body, i18n('波形背景'), WBGS, () => root.dataset.wavebg || 'default', v => {
       root.dataset.wavebg = v; localStorage.setItem('wdgui-wavebg', v);
     });
-    /* 信号名底色：默认独立（--panel），可选与波形区同色 */
+    /* 信号名底色：默认与波形区同色（--wave-bg），可选独立（--panel） */
     row(body, i18n('信号名底色'), HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
       if (v === 'same') { root.dataset.headSame = '1'; localStorage.setItem('wdgui-head-same', '1'); }
       else { delete root.dataset.headSame; localStorage.setItem('wdgui-head-same', '0'); }
