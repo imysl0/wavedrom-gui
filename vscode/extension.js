@@ -228,6 +228,128 @@ function probeImagePath(docFs, src) {
   } catch (e) { return null; }
 }
 
+/* ---------------- 宿主侧波形渲染（hover 悬浮预览 / 预览面板共用） ---------------- */
+
+/* 宽松解析：与 media/preview.js 的 parseLoose 保持同一覆盖面（// 与块注释、免引号键、
+   单引号串、尾逗号），否则同一代码块预览里能渲染、悬浮预览里报错。纯字符串扫描，
+   不做任何求值——解析对象是文档内容，不能给恶意构造的代码执行机会。 */
+function parseLoose(text) {
+  let out = '';
+  let expectKey = false; // 刚出现 { 或 ,（且非尾逗号）：接下来允许隔着空白/注释出现对象键
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '/' && text[i + 1] === '/') { while (i < n && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      /* 字符串整体消费：单引号转双引号，内部未转义的双引号补转义 */
+      out += '"';
+      i++;
+      while (i < n && text[i] !== c) {
+        if (text[i] === '\\') { out += text[i] + (text[i + 1] || ''); i += 2; continue; }
+        out += text[i] === '"' ? '\\"' : text[i];
+        i++;
+      }
+      out += '"';
+      i++;
+      expectKey = false;
+      continue;
+    }
+    if (c === ',') {
+      /* 尾逗号：向后只跳空白，直接跟 } / ] 即丢弃（不跨字符串，无误伤） */
+      let j = i + 1;
+      while (j < n && /\s/.test(text[j])) j++;
+      if (text[j] === '}' || text[j] === ']') { i++; continue; }
+      out += c;
+      i++;
+      expectKey = true;
+      continue;
+    }
+    if (c === '{' || c === '[') {
+      out += c;
+      i++;
+      if (c === '{') expectKey = true; // [ 之后是元素不是键
+      continue;
+    }
+    if (expectKey && /[A-Za-z_$]/.test(c)) {
+      const m = /^[A-Za-z_$][\w$]*\s*:/.exec(text.slice(i, i + 128));
+      if (m) {
+        out += '"' + m[0].replace(/\s*:/, '') + '":';
+        i += m[0].length;
+        expectKey = false;
+        continue;
+      }
+    }
+    /* 空白不驱散键期待（{ 换行 key 的写法）；其它字符视为值的一部分 */
+    expectKey = expectKey && /\s/.test(c);
+    out += c;
+    i++;
+  }
+  return JSON.parse(out);
+}
+
+/* render-modern.js 是 SKILL/wavedrom-render 里的无 DOM 渲染器（纯 SVG 字符串输出，
+   Node 可直接 require）。仓库内开发时读源文件（改动即时生效）；VSIX 打包范围不含
+   SKILL/，装包后回退到 scripts/build.js 拷入的 media/render-modern.js。 */
+let _rendererMod = undefined; // undefined=未探测，false=不可用
+function rendererModule() {
+  if (_rendererMod !== undefined) return _rendererMod;
+  const candidates = _ctx ? [
+    path.join(_ctx.extensionUri.fsPath, '..', 'SKILL', 'wavedrom-render', 'lib', 'render-modern.js'),
+    path.join(_ctx.extensionUri.fsPath, 'media', 'render-modern.js'),
+  ] : [];
+  for (const p of candidates) {
+    try { _rendererMod = require(p); return _rendererMod; } catch (e) { /* 试下一个来源 */ }
+  }
+  _rendererMod = false;
+  return _rendererMod;
+}
+
+function renderSvg(jsonText) {
+  const mod = rendererModule();
+  if (!mod || typeof mod.renderModern !== 'function') return { err: t('WaveDrom: renderer not available') };
+  let doc;
+  try { doc = parseLoose(jsonText); }
+  catch (e) { return { err: t('WaveDrom: Failed to parse WaveJSON — {0}', e.message) }; }
+  try {
+    const r = mod.renderModern(doc, {});
+    const svg = String((r && r.svg) || '').replace(/^<\?xml[^>]*\?>\s*/, '');
+    return svg ? { svg } : { err: t('WaveDrom: Failed to render — {0}', 'empty output') };
+  } catch (e) { return { err: t('WaveDrom: Failed to render — {0}', e.message) }; }
+}
+
+/* hover 会在同一段代码上反复触发：按围栏内容缓存渲染结果，免得每次鼠标停留都重算 */
+const svgCache = new Map(); // fenceRaw -> { svg } | { err }
+function renderSvgCached(jsonText) {
+  const hit = svgCache.get(jsonText);
+  if (hit) return hit;
+  const out = renderSvg(jsonText);
+  if (svgCache.size > 200) svgCache.clear();
+  svgCache.set(jsonText, out);
+  return out;
+}
+
+/* 按围栏起始行定位（hover 与预览镜头只有行号，没有内容；行号由 provideXxx 在
+   同一次渲染里给出，漂移风险与 editFence 的行号兜底一致） */
+function findFenceAtLine(text, line) {
+  FENCE_RE.lastIndex = 0;
+  let m;
+  while ((m = FENCE_RE.exec(text))) {
+    if (lineOfIndex(text, m.index) === line) return m;
+  }
+  return null;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 /* ---------------- 可视化编辑面板（复用 index.html） ---------------- */
 
 /* 编辑面板落在哪儿（wavedrom-gui.editorPanelPosition）：
@@ -570,12 +692,14 @@ function findFence(text, wanted, lineHint) {
   while ((m = FENCE_RE.exec(text))) all.push(m);
 
   /* 行号 + 内容双重要求：内容相同的重复块只有行号能区分；行号漂了（文件被改过）
-     则内容对不上，自动退回按内容匹配 */
+     则内容对不上，自动退回按内容匹配。list 为空（hover 链接只带行号，不带内容——
+     command URI 里塞整段 JSON 会超长）时行号即唯一依据 */
   if (typeof lineHint === 'number' && lineHint >= 0) {
-    const at = all.find(c => lineOfIndex(text, c.index) === lineHint && (hitContent(c) || hitLoose(c)));
+    const at = all.find(c => lineOfIndex(text, c.index) === lineHint && (list.length === 0 || hitContent(c) || hitLoose(c)));
     if (at) return at;
   }
-  return all.find(hitContent) || all.find(hitLoose) || null;
+  if (list.length) return all.find(hitContent) || all.find(hitLoose) || null;
+  return null;
 }
 
 /* 写回文本：优先用编辑器界面给出的显示文本（跟随紧凑/舒缓模式），但它必须与状态 JSON
@@ -713,6 +837,107 @@ async function editImageCommand(target) {
   openEditor({ kind: 'image', docPath: target.docPath, imgPath: probe.absPath });
 }
 
+/* ---------------- 预览镜头的侧边预览面板（「钉住」的悬浮预览） ----------------
+ * VS Code 没有悬浮窗 API，悬浮形态只有 hover（不可交互、不可钉住）。所以点击
+ * CodeLens「预览」开的是 Beside 分栏的轻量只读面板：不遮挡代码，再点同一条镜头
+ * 关闭，面板里也有关闭按钮；编辑写回引起的文档变更会自动刷新这里的渲染。 */
+let pinnedPreview = null; // { key, docPath, line, panel, timer }
+const previewKey = (docPath, line) => docPath + '#' + line;
+
+async function previewFenceCommand(target) {
+  if (!target || target.kind !== 'fence') return;
+  const key = previewKey(target.docPath, target.line);
+  if (pinnedPreview && pinnedPreview.key === key) { pinnedPreview.panel.dispose(); return; }
+  if (pinnedPreview) pinnedPreview.panel.dispose(); // 换一块：旧面板让位（onDidDispose 清指针）
+  await openPinnedPreview(target);
+}
+
+async function openPinnedPreview(target) {
+  let doc;
+  try { doc = await vscode.workspace.openTextDocument(target.docPath); }
+  catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to open the editor — {0}', e.message)); return; }
+  const hit = findFenceAtLine(doc.getText(), target.line);
+  if (!hit) { vscode.window.showErrorMessage(t('WaveDrom: Cannot find this code block (has the document changed?)')); return; }
+  const panel = vscode.window.createWebviewPanel(
+    'wavedromPreview',
+    t('WaveDrom Preview — {0}', 'L' + (target.line + 1)),
+    vscode.ViewColumn.Beside,
+    { enableScripts: true },
+  );
+  pinnedPreview = { key: previewKey(target.docPath, target.line), docPath: target.docPath, line: target.line, panel, timer: null };
+  panel.webview.html = previewWebviewHtml(renderSvg(hit[1]));
+  panel.webview.onDidReceiveMessage(msg => { if (msg && msg.type === 'close') panel.dispose(); });
+  panel.onDidDispose(() => { if (pinnedPreview && pinnedPreview.panel === panel) pinnedPreview = null; });
+}
+
+/* 编辑写回 → 文档变更 → 这里重建面板 HTML。debounce 与编辑面板的连续保存节奏对齐，
+   避免逐键重渲染；行号漂移找不到块时如实提示，不静默留在旧画面 */
+function pinRefresh() {
+  if (!pinnedPreview) return;
+  if (pinnedPreview.timer) clearTimeout(pinnedPreview.timer);
+  pinnedPreview.timer = setTimeout(async () => {
+    const pin = pinnedPreview;
+    if (!pin) return;
+    pin.timer = null;
+    try {
+      const doc = await vscode.workspace.openTextDocument(pin.docPath);
+      const hit = findFenceAtLine(doc.getText(), pin.line);
+      pin.panel.webview.html = previewWebviewHtml(hit ? renderSvgCached(hit[1]) : { err: t('WaveDrom: Cannot find this code block (has the document changed?)') });
+    } catch (e) { /* 文档已关闭等：留着旧画面 */ }
+  }, 250);
+}
+
+function previewWebviewHtml(res) {
+  const body = res.svg
+    ? `<img alt="WaveDrom preview" src="data:image/svg+xml;base64,${Buffer.from(res.svg, 'utf8').toString('base64')}">`
+    : `<div class="err">${escapeHtml(res.err || '')}</div>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
+<style>
+  html, body { margin: 0; height: 100%; background: #EEF1F6; }
+  body { display: flex; flex-direction: column; }
+  .bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+         border-bottom: 1px solid #CBD5E4; font: 12px/1.4 sans-serif; color: #54637F; }
+  .bar button { margin-left: auto; border: 1px solid #CBD5E4; border-radius: 6px; background: #fff;
+                color: #1B2536; font: 12px/1 sans-serif; padding: 4px 10px; cursor: pointer; }
+  .bar button:hover { border-color: #0E9F6E; color: #0B7A55; }
+  .stage { flex: 1; overflow: auto; padding: 10px; }
+  .stage img { display: block; max-width: none; }
+  .err { font: 12px/1.6 sans-serif; color: #B44; padding: 8px; }
+</style></head><body>
+<div class="bar"><span>${escapeHtml(t('WaveDrom Preview'))}</span><button onclick="acquireVsCodeApi().postMessage({type:'close'})">${escapeHtml(t('Close'))}</button></div>
+<div class="stage">${body}</div>
+</body></html>`;
+}
+
+/* ---------------- hover 悬浮预览（临时形态：离开自动关闭） ----------------
+ * VS Code 的 hover 只能挂在文档文本上，CodeLens 那条带不触发 hover——所以悬停
+ * 预览落在围栏起始行（```wavedrom，即 CodeLens 正下方）：鼠标从镜头下移即入，
+ * 移开自动关闭是 hover 的原生行为。位置（下方/上方）由 VS Code 按空间自动选。 */
+function makeHoverProvider() {
+  return {
+    provideHover(doc, pos) {
+      if (doc.languageId !== 'markdown') return null;
+      const hit = findFenceAtLine(doc.getText(), pos.line);
+      if (!hit) return null;
+      const line = lineOfIndex(doc.getText(), hit.index);
+      const res = renderSvgCached(hit[1]);
+      const md = new vscode.MarkdownString();
+      md.isTrusted = true; // 允许 command 链接（固定预览 / 编辑入口）
+      md.supportHtml = false;
+      if (res.svg) {
+        md.appendMarkdown(`![waveform](data:image/svg+xml;base64,${Buffer.from(res.svg, 'utf8').toString('base64')})\n\n`);
+      } else {
+        md.appendMarkdown(res.err + '\n\n');
+      }
+      /* 链接只带 docPath+line：command URI 里塞整段 JSON 会超长；两个命令内部都按行号重新定位 */
+      const args = encodeURIComponent(JSON.stringify([{ kind: 'fence', docPath: doc.uri.fsPath, line }]));
+      md.appendMarkdown(`[${t('Pin preview (opens beside)')}](command:wavedrom-gui.previewFence?${args})`);
+      return new vscode.Hover(md, new vscode.Range(pos.line, 0, pos.line, 0));
+    },
+  };
+}
+
 function makeCodeLensProvider() {
   return {
     provideCodeLenses(doc) {
@@ -723,6 +948,12 @@ function makeCodeLensProvider() {
       let m;
       while ((m = FENCE_RE.exec(text))) {
         const line = lineOfIndex(text, m.index);
+        /* 预览镜头在前：看波形是高频动作；点击开侧边预览面板，再点同一条关闭 */
+        lenses.push(new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
+          title: t('Preview'),
+          command: 'wavedrom-gui.previewFence',
+          arguments: [{ kind: 'fence', docPath: doc.uri.fsPath, line }],
+        }));
         lenses.push(new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
           title: t('Edit waveform'),
           command: 'wavedrom-gui.editFence',
@@ -788,8 +1019,14 @@ async function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFence', editFenceCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editImage', editImageCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFromPreview', editFromPreviewCommand));
+  ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.previewFence', previewFenceCommand));
   ctx.subscriptions.push(vscode.window.registerUriHandler({ handleUri }));
   ctx.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'markdown' }, makeCodeLensProvider()));
+  ctx.subscriptions.push(vscode.languages.registerHoverProvider({ language: 'markdown' }, makeHoverProvider()));
+  /* 预览面板开着时跟随文档变更（编辑面板写回、手改代码都会走到这里） */
+  ctx.subscriptions.push(vscode.workspace.onDidChangeTextDocument(ev => {
+    if (pinnedPreview && ev.document.uri.fsPath === pinnedPreview.docPath) pinRefresh();
+  }));
   /* 入口形式烙在渲染出的 HTML 里，改设置后必须重渲染预览才生效；markdown 预览不会因为
      别的扩展的设置变化自动刷新，这里主动刷一次。命令不存在也不该影响设置本身 */
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(ev => {
@@ -814,7 +1051,8 @@ module.exports = {
     FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel,
     languageSetting, uiLang, zhStrings, t, editLink, handleUri,
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
-    findFence, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
+    findFence, findFenceAtLine, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
+    parseLoose, rendererModule, renderSvg, previewFenceCommand, makeHoverProvider, previewWebviewHtml,
   },
 };
 

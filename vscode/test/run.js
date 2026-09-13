@@ -31,12 +31,14 @@ let fakeNewPanelActive = true; // 新建面板是否立即成为活动编辑器�
 let fakeUriHandler = null; // registerUriHandler 注册进来的处理器
 let fakeCodeLensProvider = null;
 let fakeCodeLensSelector = null;
+let fakeHoverProvider = null;
 const fakeRegisteredCommands = {}; // id -> handler
 const fakeVscode = {
   Uri: { parse: s => ({ fsPath: s, scheme: 'file' }) },
   Range: class { constructor(start, end) { this.start = start; this.end = end; this.line = start; } },
   CodeLens: class { constructor(range, command) { this.range = range; this.command = command; } },
   WorkspaceEdit: class { replace(uri, range, text) { this._uri = uri; this._range = range; this._text = text; } },
+  ViewColumn: { Active: -1, Beside: -2 },
   env: { uriScheme: 'vscodium', language: 'en' },
   window: {
     showErrorMessage(m) { fakeMessages.push(['error', m]); },
@@ -68,12 +70,22 @@ const fakeVscode = {
       fakeCodeLensProvider = provider;
       return { dispose() {} };
     },
+    registerHoverProvider(selector, provider) {
+      fakeHoverProvider = provider;
+      return { dispose() {} };
+    },
   },
+  MarkdownString: class {
+    constructor(value) { this.value = value || ''; this.isTrusted = false; }
+    appendMarkdown(s) { this.value += s; }
+  },
+  Hover: class { constructor(content, range) { this.contents = [content]; this.range = range; } },
   workspace: {
     getConfiguration: () => ({
       get: (key, dflt) => (Object.prototype.hasOwnProperty.call(fakeConfig, key) ? fakeConfig[key] : dflt),
     }),
     onDidChangeConfiguration: () => ({ dispose() {} }),
+    onDidChangeTextDocument: () => ({ dispose() {} }),
     openTextDocument: async p => {
       const rec = fakeDocs.get(p);
       if (!rec) throw new Error('单测未注册的文档: ' + p);
@@ -673,10 +685,12 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     getText: () => '# t\n\n```wavedrom\n' + A2 + '\n```\n\n正文\n\n```wavedrom\n' + B + '\n```\n',
   };
   const lenses = makeCodeLensProvider().provideCodeLenses(lensDoc);
-  ok(lenses.length === 2, '每个 wavedrom 围栏给一个 CodeLens');
-  ok(lenses[0].range.line === 2 && lenses[1].range.line === 8, 'CodeLens 落在各围栏的首行');
-  ok(lenses[0].command.title === 'Edit waveform' && lenses[0].command.command === 'wavedrom-gui.editFence', 'CodeLens 指向 editFence 命令（文案取自 l10n 源串）');
-  ok(lenses[0].command.arguments[0].docPath === mdPath && lenses[0].command.arguments[0].line === 2, 'CodeLens 参数带文档路径与行号');
+  ok(lenses.length === 4, '每个 wavedrom 围栏给两个 CodeLens（预览 + 编辑）');
+  ok(lenses[0].range.line === 2 && lenses[1].range.line === 2 && lenses[2].range.line === 8 && lenses[3].range.line === 8, 'CodeLens 落在各围栏的首行');
+  ok(lenses[0].command.title === 'Preview' && lenses[0].command.command === 'wavedrom-gui.previewFence', '围栏第一条镜头是预览（指向 previewFence）');
+  ok(lenses[0].command.arguments[0].docPath === mdPath && lenses[0].command.arguments[0].line === 2, '预览镜头参数带文档路径与行号');
+  ok(lenses[1].command.title === 'Edit waveform' && lenses[1].command.command === 'wavedrom-gui.editFence', '围栏第二条镜头指向 editFence（文案取自 l10n 源串）');
+  ok(lenses[1].command.arguments[0].docPath === mdPath && lenses[1].command.arguments[0].line === 2, '编辑镜头参数带文档路径与行号');
   ok(makeCodeLensProvider().provideCodeLenses({ languageId: 'markdown', uri: { fsPath: mdPath }, getText: () => '# 无围栏\n' }).length === 0, '没有 wavedrom 围栏时不给 CodeLens');
   fakeConfig.showCodeLens = false;
   ok(makeCodeLensProvider().provideCodeLenses(lensDoc).length === 0, 'showCodeLens=false 时不给 CodeLens');
@@ -691,6 +705,46 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   fakePanels.length = 0; fakeMessages.length = 0;
   await editFenceCommand({ kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 });
   ok(fakePanels.length === 0 && /Cannot find this code block/.test(fakeMessages[0][1] || ''), 'editFence：内容也对不上时提示而不是打开错块');
+
+  /* ---- 8c. 预览镜头：侧边预览面板（toggle / 关闭 / 渲染进面板） ---- */
+  const { previewFenceCommand, makeHoverProvider, findFenceAtLine, parseLoose, renderSvg } = ext.__test;
+  const lensDoc2 = {
+    languageId: 'markdown',
+    uri: { fsPath: mdPath },
+    getText: () => '# t\n\n```wavedrom\n' + A2 + '\n```\n\n正文\n\n```wavedrom\n' + B + '\n```\n',
+  };
+  setDoc(lensDoc2.getText());
+  fakePanels.length = 0;
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 2 });
+  ok(fakePanels.length === 1 && fakePanels[0].viewType === 'wavedromPreview', 'previewFence：点击预览镜头打开侧边预览面板');
+  ok(fakePanels[0].column === -2 /* ViewColumn.Beside */, 'previewFence：面板开在 Beside 分栏');
+  ok(/data:image\/svg\+xml;base64,/.test(fakePanels[0].webview.html) && !/class="err"/.test(fakePanels[0].webview.html), 'previewFence：面板内是渲染出的波形 SVG');
+  ok(/postMessage\(\{type:'close'\}\)/.test(fakePanels[0].webview.html), 'previewFence：面板内含关闭按钮');
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 2 });
+  ok(fakePanels[0].disposed && fakePanels.length === 1, 'previewFence：再点同一镜头关闭面板');
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 8 });
+  ok(fakePanels.length === 2 && fakePanels[1].disposed === false, 'previewFence：点另一块换面板');
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 2 });
+  ok(fakePanels[0].disposed && fakePanels[1].disposed, 'previewFence：点第三块时旧面板让位');
+
+  /* ---- 8d. hover 悬浮预览：围栏行出波形图，离开由 VS Code 原生关闭 ---- */
+  const hover = fakeHoverProvider.provideHover(lensDoc2, { line: 2, character: 0 });
+  ok(hover && hover.contents[0].value.includes('data:image/svg+xml;base64,'), 'hover：围栏行返回渲染波形（data URI SVG）');
+  ok(/command:wavedrom-gui\.previewFence\?/.test(hover.contents[0].value), 'hover：内含「固定预览」command 链接');
+  ok(hover.contents[0].isTrusted === true, 'hover：isTrusted 开启（command 链接可点）');
+  ok(fakeHoverProvider.provideHover(lensDoc2, { line: 0, character: 0 }) === null, 'hover：非围栏行不返回内容');
+  const hoverErr = fakeHoverProvider.provideHover(
+    { languageId: 'markdown', uri: { fsPath: mdPath }, getText: () => '```wavedrom\n{ signal\n```\n' },
+    { line: 0, character: 0 });
+  ok(hoverErr && /Failed to parse WaveJSON/.test(hoverErr.contents[0].value), 'hover：坏 JSON 显示解析错误而不是抛异常');
+
+  /* ---- 8e. 宿主渲染与宽松解析 ---- */
+  const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');
+  ok(svg1.svg && svg1.svg.includes('<svg'), 'renderSvg：渲染出 SVG');
+  ok(renderSvg('not json').err, 'renderSvg：坏输入返回 err');
+  ok(parseLoose("{ signal: [ { name: 'a', wave: '01' } ] } // 注释\n").signal.length === 1, 'parseLoose：单引号/免尾逗号/注释均可');
+  ok(findFenceAtLine(lensDoc2.getText(), 2)[1].trim() === A2 && findFenceAtLine(lensDoc2.getText(), 8)[1].trim() === B, 'findFenceAtLine：按行号定位各围栏');
+  ok(findFenceAtLine(lensDoc2.getText(), 0) === null, 'findFenceAtLine：非围栏行返回 null');
 
   /* 8b-2. 图片引用的 CodeLens：只有内嵌 WaveJSON 的图片才有 */
   const imgLensDoc = {

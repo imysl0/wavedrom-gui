@@ -40,3 +40,10 @@ console.log('wrote ' + OUT + ' (' + out.length + ' bytes)');
 
 fs.copyFileSync(EDITOR_SRC, EDITOR_OUT);
 console.log('copied ' + EDITOR_SRC + ' -> ' + EDITOR_OUT + ' (' + fs.statSync(EDITOR_OUT).size + ' bytes)');
+
+/* 宿主侧渲染器（hover 悬浮预览 / 预览面板用）：render-modern.js 无 DOM 依赖、
+   Node 可直接 require。源文件在仓库根 SKILL/，不在 vscode/ 打包范围内，
+   VSIX 里必须有这份拷贝（extension.js 仓库内优先读源文件、打包后回退到这里）。 */
+const RENDERER_OUT = path.join(ROOT, 'media', 'render-modern.js');
+fs.copyFileSync(SRC, RENDERER_OUT);
+console.log('copied ' + SRC + ' -> ' + RENDERER_OUT);
