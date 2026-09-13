@@ -2,7 +2,7 @@
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
   "description": "%extension.description%",
-  "version": "260913.6.0",
+  "version": "260913.7.0",
   "publisher": "wavedrom-gui",
   "license": "MIT",
   "repository": {
@@ -112,6 +112,21 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%config.showCodeLens.desc%"
+        },
+        "wavedrom-gui.imageExportTheme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "modern",
+            "traditional"
+          ],
+          "enumDescriptions": [
+            "%config.imageExportTheme.auto%",
+            "%config.imageExportTheme.modern%",
+            "%config.imageExportTheme.traditional%"
+          ],
+          "default": "auto",
+          "markdownDescription": "%config.imageExportTheme.desc%"
         },
         "wavedrom-gui.editorViewMode": {
           "type": "string",

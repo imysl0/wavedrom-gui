@@ -22,5 +22,9 @@
   "config.language.zh": "Always use Simplified Chinese",
   "config.language.en": "Always use English",
   "config.language.desc": "Language used for the extension's messages, the \"Edit waveform\" CodeLens and the preview entry points. `auto` follows VS Code's display language; messages also fall back to the built-in Chinese table when VS Code's own localization pipeline returns nothing. Note that command titles and settings descriptions come from VS Code's manifest localization, which this setting cannot override.",
-  "command.openImage.title": "Open with WaveDrom-Gui Editor"
+  "command.openImage.title": "Open with WaveDrom-Gui Editor",
+  "config.imageExportTheme.auto": "Faithful to each image's own export style (default) — detected from its embedded marker or fingerprint",
+  "config.imageExportTheme.modern": "Always redraw in the modern style, regardless of the image's origin",
+  "config.imageExportTheme.traditional": "Always redraw in the official WaveDrom (traditional) style, regardless of the image's origin",
+  "config.imageExportTheme.desc": "Pixel style used when an edited waveform image is saved. Applies when the editor panel is opened; panels already open keep their style. The embedded WaveJSON is always updated either way."
 }

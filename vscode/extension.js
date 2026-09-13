@@ -395,7 +395,24 @@ function readImageTarget(imgPath) {
 /* 编辑面板的全部行为：初始化界面、自动写回（代码块 / 图片元数据）、图片像素重绘落盘。
    openEditor（CodeLens / hover / 命令）与「打开方式」自定义编辑器共用，保证两条入口
    的编辑与保存行为完全一致。 */
+/* 「图片输出主题」（wavedrom-gui.imageExportTheme）：编辑保存时像素按什么风格重绘。
+   auto = 原风格保真（默认）：按打开时检测的导出来源（editor/skill-modern/wavedrom）
+   重绘同一种风格；modern / traditional = 无视来源，一律按现代 / 官方传统重绘。
+   取值非法或读不到时按 auto。覆盖点在面板建立时改写 imgKind，重绘与来源标记
+   （SVG 的 data-editor-export）都会跟着走，风格不会在编辑迭代中漂移。 */
+function imageExportTheme() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('imageExportTheme');
+    return (v === 'modern' || v === 'traditional') ? v : 'auto';
+  } catch (e) { return 'auto'; }
+}
+
 function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null) {
+  if (target.kind === 'image') {
+    const theme = imageExportTheme();
+    if (theme === 'modern') imgKind = 'skill-modern';
+    else if (theme === 'traditional') imgKind = 'wavedrom';
+  }
   /* 先备好 HTML：界面读不到时直接报错返回，不留下一个空白面板 */
   try {
     panel.webview.html = buildEditorHtml(jsonText, panelDocKey(target), target.kind === 'image' && {
@@ -1097,6 +1114,10 @@ async function activate(ctx) {
   /* 入口形式烙在渲染出的 HTML 里，改设置后必须重渲染预览才生效；markdown 预览不会因为
      别的扩展的设置变化自动刷新，这里主动刷一次。命令不存在也不该影响设置本身 */
   ctx.subscriptions.push(vscode.workspace.onDidChangeConfiguration(ev => {
+    if (ev.affectsConfiguration('wavedrom-gui.imageExportTheme')) {
+      /* 图片输出主题在面板建立时生效：已打开的编辑面板拿着旧 kind，提示重开 */
+      vscode.window.showInformationMessage(t('WaveDrom: image export theme applies to editor panels opened from now on'));
+    }
     if (!ev.affectsConfiguration('wavedrom-gui.previewEditAffordance')) return;
     try { Promise.resolve(vscode.commands.executeCommand('markdown.preview.refresh')).catch(() => {}); }
     catch (e) { /* 命令不可用：用户重开预览即可 */ }
@@ -1120,7 +1141,7 @@ module.exports = {
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
     findFence, findFenceAtLine, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
     parseLoose, rendererModule, renderSvg, previewFenceCommand, makeHoverProvider, previewWebviewHtml,
-    readImageTarget, setupEditorPanel, openImageCommand,
+    readImageTarget, setupEditorPanel, openImageCommand, imageExportTheme,
   },
 };
 

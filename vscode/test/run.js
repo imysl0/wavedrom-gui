@@ -803,6 +803,41 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   await new Promise(r => setTimeout(r, 50));
   ok(!fs.existsSync(path.join(outDir, 'cancel.png')), '取消保存对话框时不写盘');
 
+  /* ---- 8h. 图片输出主题设置：auto 保真 / 强制 modern / 强制 traditional ---- */
+  const { imageExportTheme } = ext.__test;
+  ok(imageExportTheme() === 'auto', 'imageExportTheme：未设置时默认 auto（原风格保真）');
+  const mkImgPanel = () => {
+    const p = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+    setupEditorPanel(p, { kind: 'image', docPath: withData, imgPath: withData }, json1, 100, 'editor');
+    return p;
+  };
+  // auto（默认）：跟随检测值 editor
+  fakePanels.length = 0;
+  const autoPanel = mkImgPanel();
+  ok(autoPanel.webview.html.includes('"kind":"editor"'), 'auto：面板按图片自身来源（editor）重绘');
+  // 强制 modern / traditional：无视来源
+  fakeConfig.imageExportTheme = 'modern';
+  fakePanels.length = 0;
+  const modernPanel = mkImgPanel();
+  ok(modernPanel.webview.html.includes('"kind":"skill-modern"'), 'modern：面板强制按现代渲染重绘');
+  fakeConfig.imageExportTheme = 'traditional';
+  fakePanels.length = 0;
+  const tradPanel = mkImgPanel();
+  ok(tradPanel.webview.html.includes('"kind":"wavedrom"'), 'traditional：面板强制按官方传统渲染重绘');
+  // 非法值回退 auto
+  fakeConfig.imageExportTheme = 'nope';
+  ok(imageExportTheme() === 'auto', 'imageExportTheme：非法取值回退 auto');
+  delete fakeConfig.imageExportTheme;
+  // fence 目标不涉及像素风格：IMG 恒为 null，设置不影响
+  fakeConfig.imageExportTheme = 'modern';
+  fakePanels.length = 0;
+  const fencePanel = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(fencePanel, { kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 }, A2, null, null);
+  ok(fencePanel.webview.html.includes('var IMG = null'), 'fence 目标无像素风格概念（IMG=null），不受该设置影响');
+  delete fakeConfig.imageExportTheme;
+  const ce2 = pkgJson.contributes.configuration.properties['wavedrom-gui.imageExportTheme'];
+  ok(ce2 && ce2.enum.join() === 'auto,modern,traditional' && ce2.default === 'auto', 'package.json：设置声明三档枚举、默认 auto');
+
   /* ---- 8e. 宿主渲染与宽松解析 ---- */
   const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');
   ok(svg1.svg && svg1.svg.includes('<svg'), 'renderSvg：渲染出 SVG');

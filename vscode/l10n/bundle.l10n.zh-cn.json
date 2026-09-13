@@ -26,6 +26,7 @@
   "WaveDrom: Failed to parse WaveJSON — {0}": "WaveDrom: WaveJSON 解析失败 — {0}",
   "WaveDrom: Failed to read the diagram — {0}": "WaveDrom: 读取图表失败 — {0}",
   "WaveDrom: Failed to render — {0}": "WaveDrom: 渲染失败 — {0}",
+  "WaveDrom: image export theme applies to editor panels opened from now on": "WaveDrom: 图片输出主题对之后打开的编辑面板生效",
   "WaveDrom: Image re-rendered and saved": "WaveDrom: 图片已重绘并保存",
   "WaveDrom: Image write-back failed — {0}": "WaveDrom: 图片写回失败 — {0}",
   "WaveDrom: Invalid JSON, save skipped": "WaveDrom: JSON 无效，已跳过保存",

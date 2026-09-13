@@ -22,5 +22,9 @@
   "config.language.zh": "固定使用简体中文",
   "config.language.en": "固定使用 English",
   "config.language.desc": "扩展消息、「编辑波形」CodeLens 与预览入口文案使用的语言。`auto` 跟随 VS Code 的显示语言；当 VS Code 自身的本地化管道没有返回译文时，消息还会用扩展内置的中文表兜底（所以界面是中文时扩展也一定是中文）。注意命令标题与设置说明来自 VS Code 的清单本地化，本设置无法覆盖。",
-  "command.openImage.title": "使用 WaveDrom-Gui 编辑器打开"
+  "command.openImage.title": "使用 WaveDrom-Gui 编辑器打开",
+  "config.imageExportTheme.auto": "原风格保真（默认）——按图片内嵌标记 / 指纹检测到的导出来源重绘",
+  "config.imageExportTheme.modern": "一律按现代渲染重绘，无论图片来源",
+  "config.imageExportTheme.traditional": "一律按 WaveDrom 官方（传统）渲染重绘，无论图片来源",
+  "config.imageExportTheme.desc": "编辑波形图片保存时像素使用的风格。在编辑面板打开时生效，已打开的面板保持原风格。无论选哪种，内嵌的 WaveJSON 都会更新为编辑后的内容。"
 }
