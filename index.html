@@ -5451,12 +5451,17 @@ function loadExample(i) {
   toast(i18n('已载入示例：') + i18n(EXAMPLES[i].name));
 }
 function applyDocJSON(json) {
+  importSourceName = null; // 文档被替换（粘贴/示例/代码框应用）后来源不再成立；导入文件的来源名在 importFile 里随后补上
   adoptState(parseDoc(json));
   state.zoom = 1; state.autoFit = true;
   syncSettings();
   update(true);
   persist();
 }
+/* 导入文件的来源名（去扩展名）：导出时的默认文件名沿用它。浏览器拿不到来源目录
+   （下载目录是浏览器行为）；VS Code 面板由扩展用原图所在目录弹系统保存框，
+   见 buildEditorHtml 注入的导出钩子。 */
+let importSourceName = null;
 function syncSettings() { renderSettings(); $('#zoomLabel').textContent = Math.round(state.zoom * 100) + '%'; applyZoom(); }
 
 /* ---------- WaveJSON 元数据嵌入/回读（SVG <metadata> + PNG iTXt 文本块，均不影响图片显示） ---------- */
@@ -5586,6 +5591,7 @@ function importFile(f) {
       }
       /* 导入的文件同样是外部内容：无求值解析（parseWaveJSON 只留给代码框/粘贴框） */
       applyDocJSON(parseLoose(jsonText));
+      importSourceName = f.name.replace(/\.[^.]+$/, ''); // 导出默认文件名沿用导入名（exportBaseName）
       toast(i18n('已导入 ') + f.name);
     } catch (e) { toast(i18n('文件解析失败：') + e.message, true); }
   };
@@ -5633,15 +5639,23 @@ async function pngWithMeta(blob, json, kind) {
 }
 
 function download(name, blob) {
+  /* VS Code 面板：导出交给扩展宿主——它能弹出定位到原图所在目录的系统保存框，
+     比浏览器式下载的未知路径友好（钩子由 buildEditorHtml 注入的脚本安装） */
+  if (typeof window.__wdDownloadHook === 'function') { window.__wdDownloadHook(name, blob); return; }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
 }
-/* 导出文件名：有标题 → wavdrom_gui_标题（清洗文件系统非法字符、超长截断）；
+/* 导出文件名：导入过文件 → 沿用导入文件名（改扩展名即可，来源图迭代编辑的默认动作）；
+   有标题 → wavdrom_gui_标题（清洗文件系统非法字符、超长截断）；
    无标题 → wavdrom_gui_日期_序号（日期 YYMMDD，序号 = 当天第 N 次导出，localStorage 跨刷新记忆） */
 function exportBaseName() {
+  if (importSourceName) {
+    const clean = importSourceName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, ' ').slice(0, 60).trim().replace(/[. ]+$/, '');
+    if (clean) return clean;
+  }
   const title = (state.head.text || '').trim()
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
     .replace(/\s+/g, ' ').slice(0, 40).trim().replace(/[. ]+$/, '');

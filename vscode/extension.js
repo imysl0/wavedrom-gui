@@ -455,6 +455,8 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
         png: typeof msg.png === 'string' ? Buffer.from(msg.png, 'base64') : null,
       };
       armFlush();
+    } else if (msg.type === 'export' && msg.name && typeof msg.b64 === 'string') {
+      exportFromPanel(saveTarget, msg.name, msg.b64);
     }
   });
   /* 切走面板标签：先把画面落盘，回来时预览就是新的（placePanel 搬动面板也会触发，
@@ -462,6 +464,23 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
   panel.onDidChangeViewState(ev => { if (!ev.webviewPanel.visible) flushPixels(); });
   /* 关闭面板：onDidDispose 时 webview 已销毁，落盘宿主手里的最后一份像素 */
   panel.onDidDispose(() => flushPixels());
+}
+
+/* 面板导出的落盘：系统保存框默认定位到来源文件所在目录（图片 = 原图路径，
+   代码块 = markdown 文档路径），默认文件名沿用编辑器给出的导出名。 */
+async function exportFromPanel(saveTarget, name, b64) {
+  const anchor = saveTarget.kind === 'image' ? saveTarget.imgPath : saveTarget.docPath;
+  const extMatch = /\.([a-z0-9]+)$/i.exec(name);
+  const ext = extMatch ? extMatch[1].toLowerCase() : 'png';
+  try {
+    const picked = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(path.join(path.dirname(anchor), path.basename(name))),
+      filters: { [ext.toUpperCase()]: [ext] },
+    });
+    if (!picked) return; // 用户取消
+    fs.writeFileSync(picked.fsPath, Buffer.from(b64, 'base64'));
+    vscode.window.setStatusBarMessage(t('WaveDrom: Exported to {0}', picked.fsPath), 4000);
+  } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Export failed — {0}', e.message)); }
 }
 
 function openEditor(target) {
@@ -585,6 +604,19 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
   /* 图片目标才上报画面：{ext:'png',pxW:原图像素宽} / {ext:'svg'} / null（代码块目标） */
   var IMG = ${JSON.stringify(imageTarget || null)};
   var last = null, armed = false;
+  /* ---- 导出钩子：编辑器界面的 download() 在面板里把产物交给宿主 ----
+     宿主能弹出定位到原图 / md 文档所在目录的系统保存框，比浏览器式下载的
+     未知路径友好（默认目录与默认文件名都来自来源文件）。 */
+  window.__wdDownloadHook = function (name, blob) {
+    try {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var s = String(fr.result || '');
+        if (s.indexOf(',') > 0) vs.postMessage({ type: 'export', name: name, b64: s.slice(s.indexOf(',') + 1) });
+      };
+      fr.readAsDataURL(blob);
+    } catch (e) { /* blob 不可读：放弃本次导出 */ }
+  };
   /* 写回风格跟随代码页当前的显示模式（紧凑/舒缓）：界面里的格式化器认得该模式，
      这里只取它的结果；取不到时扩展侧退回默认缩进，不影响写回内容 */
   function displayText(v) {

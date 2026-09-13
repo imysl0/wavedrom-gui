@@ -32,9 +32,11 @@ let fakeUriHandler = null; // registerUriHandler 注册进来的处理器
 let fakeCodeLensProvider = null;
 let fakeCodeLensSelector = null;
 let fakeHoverProvider = null;
+let fakeSaveDialogOpts = null; // 最近一次 showSaveDialog 的入参（defaultUri / filters）
+let fakeSaveDialogResult = null; // showSaveDialog 的返回值（测试用例里设置）
 const fakeRegisteredCommands = {}; // id -> handler
 const fakeVscode = {
-  Uri: { parse: s => ({ fsPath: s, scheme: 'file' }) },
+  Uri: { parse: s => ({ fsPath: s, scheme: 'file' }), file: s => ({ fsPath: s, scheme: 'file' }) },
   Range: class { constructor(start, end) { this.start = start; this.end = end; this.line = start; } },
   CodeLens: class { constructor(range, command) { this.range = range; this.command = command; } },
   WorkspaceEdit: class { replace(uri, range, text) { this._uri = uri; this._range = range; this._text = text; } },
@@ -46,6 +48,10 @@ const fakeVscode = {
     showInformationMessage(m) { fakeMessages.push(['info', m]); },
     setStatusBarMessage() {},
     showQuickPick: async p => p[0],
+    showSaveDialog: async opts => {
+      fakeSaveDialogOpts = opts;
+      return fakeSaveDialogResult;
+    },
     registerUriHandler(handler) { fakeUriHandler = handler; return { dispose() {} }; },
     createWebviewPanel(viewType, title, column, options) {
       const panel = {
@@ -770,6 +776,32 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   fs.writeFileSync(svgPathTmp, svgWith);
   ok(readImageTarget(svgPathTmp).jsonText === json1 && readImageTarget(svgPathTmp).kind === 'editor', 'readImageTarget：SVG 提取元数据与导出来源');
   ok(readImageTarget(plainImg) === null, 'readImageTarget：无元数据返回 null');
+
+  /* ---- 8g. 面板导出：保存框默认定位到来源文件所在目录 ---- */
+  const { setupEditorPanel } = ext.__test;
+  const outDir = path.join(tmp, 'export-out');
+  fs.mkdirSync(outDir, { recursive: true });
+  // 图片目标：默认路径 = 原图目录 / 导出名
+  fakePanels.length = 0;
+  const expPanel = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(expPanel, { kind: 'image', docPath: withData, imgPath: withData }, json1, 100, 'editor');
+  ok(/__wdDownloadHook/.test(expPanel.webview.html), '编辑面板注入了导出钩子（download 交宿主保存）');
+  fakeSaveDialogOpts = null; fakeSaveDialogResult = { fsPath: path.join(outDir, 'my.png') };
+  await expPanel.webview._onMsg({ type: 'export', name: 'my.png', b64: Buffer.from('PNGDATA').toString('base64') });
+  await new Promise(r => setTimeout(r, 50));
+  ok(fakeSaveDialogOpts && fakeSaveDialogOpts.defaultUri.fsPath === path.join(path.dirname(withData), 'my.png'), '导出保存框默认原图目录与导出名');
+  ok(fakeSaveDialogOpts.filters && fakeSaveDialogOpts.filters.PNG && fakeSaveDialogOpts.filters.PNG[0] === 'png', '导出保存框按扩展名给出过滤器');
+  ok(fs.readFileSync(path.join(outDir, 'my.png'), 'utf8') === 'PNGDATA', '导出内容正确落盘');
+  // 代码块目标：默认目录 = markdown 文档所在目录
+  fakeSaveDialogOpts = null; fakeSaveDialogResult = { fsPath: path.join(outDir, 'doc.svg') };
+  await expPanel.webview._onMsg({ type: 'export', name: 'doc.svg', b64: Buffer.from('<svg/>').toString('base64') });
+  await new Promise(r => setTimeout(r, 50));
+  ok(fakeSaveDialogOpts.defaultUri.fsPath === path.join(path.dirname(mdPath), 'doc.svg'), '代码块面板导出默认 md 文档目录');
+  // 用户取消：不写盘不报错
+  fakeSaveDialogResult = undefined;
+  await expPanel.webview._onMsg({ type: 'export', name: 'cancel.png', b64: Buffer.from('X').toString('base64') });
+  await new Promise(r => setTimeout(r, 50));
+  ok(!fs.existsSync(path.join(outDir, 'cancel.png')), '取消保存对话框时不写盘');
 
   /* ---- 8e. 宿主渲染与宽松解析 ---- */
   const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');

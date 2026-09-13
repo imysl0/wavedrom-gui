@@ -19,6 +19,8 @@
   "WaveDrom: Cannot read this image (has it moved, or lost its embedded WaveJSON?)": "WaveDrom: 读取这张图片失败（文件被移动或已无内嵌 WaveJSON？）",
   "WaveDrom: Code block updated (press Ctrl+S to save the file)": "WaveDrom: 已写回代码块（Ctrl+S 保存文件）",
   "WaveDrom: Embedded WaveJSON in the image updated": "WaveDrom: 已更新图片内嵌 WaveJSON",
+  "WaveDrom: Export failed — {0}": "WaveDrom: 导出失败 — {0}",
+  "WaveDrom: Exported to {0}": "WaveDrom: 已导出到 {0}",
   "WaveDrom: Failed to load the editor UI — {0}": "WaveDrom: 编辑器界面加载失败 — {0}",
   "WaveDrom: Failed to open the editor — {0}": "WaveDrom: 打开编辑器失败 — {0}",
   "WaveDrom: Failed to parse WaveJSON — {0}": "WaveDrom: WaveJSON 解析失败 — {0}",
