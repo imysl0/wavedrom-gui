@@ -867,8 +867,13 @@ async function saveBack(target, json, displayText) {
   // image：像素不动，只替换内嵌元数据
   try {
     const bytes = fs.readFileSync(target.imgPath);
-    const out = /\.svg$/i.test(target.imgPath)
-      ? Buffer.from(svgWithMeta(bytes.toString('utf8'), json), 'utf8')
+    const isSvg = /\.svg$/i.test(target.imgPath);
+    /* SVG 要把检测到的来源标记一并写回：svgWithMeta 不带 kind 会重写整个 metadata
+       块、剥掉 data-export——标记丢失后只能靠指纹兜底（skill-modern 的指纹较弱），
+       与像素路径（flushPixels 的 svgWithMeta 带标记）保持同一策略 */
+    const out = isSvg
+      ? Buffer.from(svgWithMeta(bytes.toString('utf8'), json,
+          svgDetectExportKind(bytes.toString('utf8')) || 'skill-modern'), 'utf8')
       : pngReplaceITXt(bytes, 'WaveJSON', json);
     fs.writeFileSync(target.imgPath, out);
     target.lastSaved = json;

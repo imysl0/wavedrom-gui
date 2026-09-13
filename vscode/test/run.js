@@ -862,6 +862,16 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   await barePanel.webview._onMsg({ type: 'pixels', json: editedJson, png: meta.pngMakeFenceSkeleton().toString('base64') });
   barePanel.fireViewState(false);
   ok(meta.pngDetectExportKind(fs.readFileSync(barePath)) === 'skill-modern', '无标记图落盘后固化 skill-modern 标记');
+  // SVG 元数据更新同样保留来源标记（saveBack 不带 kind 会重写 metadata 块、剥掉 data-export）
+  const svgTradPath = path.join(tmp, 'save-loop.svg');
+  fs.writeFileSync(svgTradPath, meta.svgWithMeta('<svg xmlns="http://www.w3.org/2000/svg"><g id="waves_0"/></svg>', json1, 'wavedrom'));
+  fakePanels.length = 0;
+  const svgEditPanel = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(svgEditPanel, { kind: 'image', docPath: svgTradPath, imgPath: svgTradPath }, json1, null, 'wavedrom');
+  await svgEditPanel.webview._onMsg({ type: 'save', json: editedJson });
+  const svgAfter = fs.readFileSync(svgTradPath, 'utf8');
+  ok(/data-export="wavedrom"/.test(svgAfter), 'SVG 元数据更新保留来源标记');
+  ok(meta.svgExtractWaveJSON(svgAfter) === editedJson, 'SVG 元数据更新为编辑后的内容');
 
   /* ---- 8e. 宿主渲染与宽松解析 ---- */
   const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');
