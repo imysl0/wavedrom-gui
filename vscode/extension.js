@@ -375,48 +375,40 @@ async function placePanel(panel, cmd) {
   try { await vscode.commands.executeCommand(cmd); } catch (e) { /* 命令不存在：留在原地 */ }
 }
 
-function openEditor(target) {
-  let jsonText, imgPxW = null, imgKind = null;
-  try {
-    if (target.kind === 'fence') jsonText = target.fenceRaw;
-    else {
-      const bytes = fs.readFileSync(target.imgPath);
-      const isSvg = /\.svg$/i.test(target.imgPath);
-      jsonText = isSvg
-        ? svgExtractWaveJSON(bytes.toString('utf8'))
-        : pngExtractWaveJSON(bytes);
-      /* 原图像素宽：像素写回时按它定栅格化比例，避免重绘后 Markdown 里的布局跳动 */
-      if (!isSvg) { const dim = pngGetSize(bytes); imgPxW = dim ? dim.width : null; }
-      /* 原图的导出来源（wavedrom 官方渲染 / editor 编辑区矢量重建）：
-         写回重绘时选同一种，编辑区导出的图才不会在保存后被重绘成官方样式 */
-      imgKind = (isSvg ? svgDetectExportKind(bytes.toString('utf8')) : pngDetectExportKind(bytes)) || 'skill-modern';
-    }
-  } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to read the diagram — {0}', e.message)); return; }
-  if (!jsonText) { vscode.window.showErrorMessage(t('WaveDrom: No editable WaveJSON in this target')); return; }
+/* 读图片目标的内嵌 WaveJSON 与写回所需的元信息；不含可编辑数据时返回 null */
+function readImageTarget(imgPath) {
+  const bytes = fs.readFileSync(imgPath);
+  const isSvg = /\.svg$/i.test(imgPath);
+  const jsonText = isSvg
+    ? svgExtractWaveJSON(bytes.toString('utf8'))
+    : pngExtractWaveJSON(bytes);
+  if (!jsonText) return null;
+  /* 原图像素宽：像素写回时按它定栅格化比例，避免重绘后 Markdown 里的布局跳动 */
+  let pxW = null;
+  if (!isSvg) { const dim = pngGetSize(bytes); pxW = dim ? dim.width : null; }
+  /* 原图的导出来源（wavedrom 官方渲染 / editor 编辑区矢量重建 / skill-modern）：
+     写回重绘时选同一种，编辑区导出的图才不会在保存后被重绘成官方样式 */
+  const kind = (isSvg ? svgDetectExportKind(bytes.toString('utf8')) : pngDetectExportKind(bytes)) || 'skill-modern';
+  return { jsonText, pxW, kind };
+}
 
-  /* 先备好 HTML 再建面板：界面读不到时直接报错返回，不留下一个空白面板 */
-  let html;
+/* 编辑面板的全部行为：初始化界面、自动写回（代码块 / 图片元数据）、图片像素重绘落盘。
+   openEditor（CodeLens / hover / 命令）与「打开方式」自定义编辑器共用，保证两条入口
+   的编辑与保存行为完全一致。 */
+function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null) {
+  /* 先备好 HTML：界面读不到时直接报错返回，不留下一个空白面板 */
   try {
-    html = buildEditorHtml(jsonText, panelDocKey(target), target.kind === 'image' && {
+    panel.webview.html = buildEditorHtml(jsonText, panelDocKey(target), target.kind === 'image' && {
       ext: /\.svg$/i.test(target.imgPath) ? 'svg' : 'png',
       pxW: imgPxW,
       kind: imgKind || 'skill-modern',
     });
   }
-  catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to load the editor UI — {0}', e.message)); return; }
-
-  const pos = editorPanelPosition();
-  const name = path.basename(target.kind === 'fence' ? target.docPath : target.imgPath);
-  const panel = vscode.window.createWebviewPanel(
-    'wavedromGuiEditor', t('WaveDrom Editor — {0}', name),
-    /* below / newWindow 都先落在当前栏再交给命令搬走：先 Beside 会多出一栏、搬走后又收起，
-       中间白闪一下 */
-    pos === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
-    { enableScripts: true, retainContextWhenHidden: true },
-  );
-  panel.webview.html = html;
-  if (pos === 'below') placePanel(panel, 'workbench.action.moveEditorToBelowGroup');
-  else if (pos === 'newWindow') placePanel(panel, 'workbench.action.moveEditorToNewWindow');
+  catch (e) {
+    vscode.window.showErrorMessage(t('WaveDrom: Failed to load the editor UI — {0}', e.message));
+    panel.dispose();
+    return;
+  }
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   const isImage = saveTarget.kind === 'image';
@@ -470,6 +462,48 @@ function openEditor(target) {
   panel.onDidChangeViewState(ev => { if (!ev.webviewPanel.visible) flushPixels(); });
   /* 关闭面板：onDidDispose 时 webview 已销毁，落盘宿主手里的最后一份像素 */
   panel.onDidDispose(() => flushPixels());
+}
+
+function openEditor(target) {
+  let jsonText, imgPxW = null, imgKind = null;
+  try {
+    if (target.kind === 'fence') jsonText = target.fenceRaw;
+    else {
+      const img = readImageTarget(target.imgPath);
+      if (!img) { vscode.window.showErrorMessage(t('WaveDrom: No editable WaveJSON in this target')); return; }
+      jsonText = img.jsonText; imgPxW = img.pxW; imgKind = img.kind;
+    }
+  } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to read the diagram — {0}', e.message)); return; }
+
+  const pos = editorPanelPosition();
+  const name = path.basename(target.kind === 'fence' ? target.docPath : target.imgPath);
+  const panel = vscode.window.createWebviewPanel(
+    'wavedromGuiEditor', t('WaveDrom Editor — {0}', name),
+    /* below / newWindow 都先落在当前栏再交给命令搬走：先 Beside 会多出一栏、搬走后又收起，
+       中间白闪一下 */
+    pos === 'beside' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active,
+    { enableScripts: true, retainContextWhenHidden: true },
+  );
+  setupEditorPanel(panel, target, jsonText, imgPxW, imgKind);
+  if (pos === 'below') placePanel(panel, 'workbench.action.moveEditorToBelowGroup');
+  else if (pos === 'newWindow') placePanel(panel, 'workbench.action.moveEditorToNewWindow');
+}
+
+/* ---------------- 资源管理器右键：「使用 WaveDrom-Gui 编辑器打开」 ----------------
+ * PNG / SVG 的右键菜单入口。打开前先探测内嵌 WaveJSON（与「编辑波形」同一套
+ * readImageTarget）：有 → 走与 md 预览「编辑波形」完全相同的 openEditor 临时面板
+ * （那条路径在真实环境验证最充分，不走自定义编辑器，规避其 webview 初始化时序差异）；
+ * 无 → 一次性警告提示，不打开任何面板。 */
+async function openImageCommand(uri) {
+  const fsPath = uri && uri.fsPath;
+  if (!fsPath) return;
+  let img = null;
+  try { img = readImageTarget(fsPath); } catch (e) { /* 读不到/解析失败都按无数据处理 */ }
+  if (!img) {
+    vscode.window.showWarningMessage(t('WaveDrom: No WaveDrom waveform data embedded in this image'));
+    return;
+  }
+  openEditor({ kind: 'image', docPath: fsPath, imgPath: fsPath });
 }
 
 /* 每个编辑目标一份独立的自动保存键：webview 之间共享 localStorage，若都用 wdgui-doc-v1，
@@ -1020,6 +1054,7 @@ async function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editImage', editImageCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFromPreview', editFromPreviewCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.previewFence', previewFenceCommand));
+  ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.openImage', openImageCommand));
   ctx.subscriptions.push(vscode.window.registerUriHandler({ handleUri }));
   ctx.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'markdown' }, makeCodeLensProvider()));
   ctx.subscriptions.push(vscode.languages.registerHoverProvider({ language: 'markdown' }, makeHoverProvider()));
@@ -1053,6 +1088,7 @@ module.exports = {
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
     findFence, findFenceAtLine, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
     parseLoose, rendererModule, renderSvg, previewFenceCommand, makeHoverProvider, previewWebviewHtml,
+    readImageTarget, setupEditorPanel, openImageCommand,
   },
 };
 

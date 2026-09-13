@@ -738,6 +738,39 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     { line: 0, character: 0 });
   ok(hoverErr && /Failed to parse WaveJSON/.test(hoverErr.contents[0].value), 'hover：坏 JSON 显示解析错误而不是抛异常');
 
+  /* ---- 8f. 资源管理器右键「使用 WaveDrom-Gui 编辑器打开」：PNG/SVG 打开前探测内嵌 WaveJSON ---- */
+  const { openImageCommand, readImageTarget } = ext.__test;
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const ctxMenu = pkgJson.contributes.menus['explorer/context'];
+  const openImageDecl = ctxMenu && ctxMenu.find(mi => mi.command === 'wavedrom-gui.openImage');
+  ok(openImageDecl && openImageDecl.when === 'resourceExtname == .png || resourceExtname == .svg', 'package.json：右键菜单挂在 PNG/SVG 上');
+  ok((pkgJson.contributes.menus.commandPalette || []).some(mi => mi.command === 'wavedrom-gui.openImage' && mi.when === 'false'), 'openImage 不出现在命令面板（依赖 uri 参数）');
+  ok(!pkgJson.contributes.customEditors, 'package.json：不再注册自定义编辑器（改走右键菜单 + 临时面板）');
+  ok(fakeRegisteredCommands['wavedrom-gui.openImage'], 'openImage 命令已注册');
+  // 有内嵌 WaveJSON 的 PNG：走 openEditor 临时面板（与 md 预览同一路径）
+  const withData = path.join(tmp, 'open-with.png');
+  fs.writeFileSync(withData, png2);
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await openImageCommand({ fsPath: withData });
+  ok(fakePanels.length === 1 && fakePanels[0].viewType === 'wavedromGuiEditor' && /wdgui-doc-v1:/.test(fakePanels[0].webview.html), 'openImage：含 WaveJSON 的图片进入编辑面板（md 预览同款路径）');
+  ok(fakeMessages.length === 0, 'openImage：正常打开时无警告');
+  // 无元数据的 PNG：一次性警告，不打开任何面板
+  const plainImg = path.join(tmp, 'open-with-plain.png');
+  fs.writeFileSync(plainImg, skeleton);
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await openImageCommand({ fsPath: plainImg });
+  ok(fakePanels.length === 0 && fakeMessages.length === 1 && fakeMessages[0][0] === 'warn' && /No WaveDrom waveform data/.test(fakeMessages[0][1]), 'openImage：无 WaveJSON 只警告，不开面板');
+  // 读不到的文件：同样只警告
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await openImageCommand({ fsPath: path.join(tmp, 'not-exist.png') });
+  ok(fakePanels.length === 0 && fakeMessages.length === 1 && fakeMessages[0][0] === 'warn', 'openImage：文件读不到也只警告');
+  // readImageTarget：SVG 与坏文件
+  const svgWith = meta.svgWithMeta('<svg xmlns="http://www.w3.org/2000/svg"></svg>', json1, 'editor');
+  const svgPathTmp = path.join(tmp, 'open-with.svg');
+  fs.writeFileSync(svgPathTmp, svgWith);
+  ok(readImageTarget(svgPathTmp).jsonText === json1 && readImageTarget(svgPathTmp).kind === 'editor', 'readImageTarget：SVG 提取元数据与导出来源');
+  ok(readImageTarget(plainImg) === null, 'readImageTarget：无元数据返回 null');
+
   /* ---- 8e. 宿主渲染与宽松解析 ---- */
   const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');
   ok(svg1.svg && svg1.svg.includes('<svg'), 'renderSvg：渲染出 SVG');

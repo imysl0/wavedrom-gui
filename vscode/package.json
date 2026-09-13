@@ -33,6 +33,10 @@
     ],
     "commands": [
       {
+        "command": "wavedrom-gui.openImage",
+        "title": "%command.openImage.title%"
+      },
+      {
         "command": "wavedrom-gui.editActive",
         "title": "%command.editActive.title%",
         "category": "WaveDrom"
@@ -44,6 +48,13 @@
       }
     ],
     "menus": {
+      "explorer/context": [
+        {
+          "command": "wavedrom-gui.openImage",
+          "when": "resourceExtname == .png || resourceExtname == .svg",
+          "group": "9_wavedrom@1"
+        }
+      ],
       "webview/context": [
         {
           "command": "wavedrom-gui.editFromPreview",
@@ -54,6 +65,10 @@
       "commandPalette": [
         {
           "command": "wavedrom-gui.editFromPreview",
+          "when": "false"
+        },
+        {
+          "command": "wavedrom-gui.openImage",
           "when": "false"
         }
       ]
