@@ -19,7 +19,7 @@
 ## 2. 内嵌 WaveJSON 的图片
 
 下面这张 PNG 的元数据里带着 WaveJSON（由 wavedrom-render skill 生成）——
-预览会识别它，图片右上角出现同样的铅笔按钮。
+预览会识别它，编辑入口与代码块一致（默认在波形上**右键 →「编辑波形」**；源码里这行引用上方同样有「编辑波形」CodeLens）。
 
 图片的编辑面板位置用设置 `wavedrom-gui.editorPanelPosition` 控制：`current`（默认，与预览同栏、标签切换）/ `beside`（右侧新开一栏）/ `below`（预览在上、编辑在下）/ `newWindow`（独立窗口）。
 

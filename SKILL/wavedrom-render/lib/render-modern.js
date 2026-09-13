@@ -280,6 +280,7 @@ function planLaneNodes(lane, gw, pos, scale, fs, inset, mode) {
  * laneSVG: the self-drawn mini waveform (faithful port of index.html laneSVG)
  * Returns { inner: <svg-body string>, width }. `color` is the trace color.
  * ========================================================================== */
+let xhatchSeq = 0; // x 交叉阴影 clipPath 的全局序号（见 laneSVG 内注释）
 function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode) {
   const W = gw * (lane.period || 1), len = laneLen(lane);
   const positions = laneCharPositions(lane, gw);
@@ -366,7 +367,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode) {
       for (let xx = x0 - 22; xx < x0 + w; xx += 7) {
         hatch += tag('path', { d: `M${xx + 22} 13L${xx} 35`, stroke: hexA(C.xbox, .35), 'stroke-width': 1 });
       }
-      const clipId = `xhatch_${x0 | 0}_${t}`;
+      const clipId = `xhatch_${++xhatchSeq}`; // 全局自增：laneSVG 每块独立输出，内联在同一 DOM 时 (x0,t) 会撞 id
       out += `<clipPath id="${clipId}"><rect x="${x0 + 2}" y="13" width="${Math.max(4, w - 4)}" height="22" rx="2.5"/></clipPath>`;
       out += `<g clip-path="url(#${clipId})">${hatch}</g>`;
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -817,7 +818,15 @@ function renderModern(source, opts = {}) {
   let fontStyle = '';
   try {
     const { buildFontStyle } = require('./font-embed.js');
-    const usedChars = (svgBody.match(/>([^<]*)<\/text>/g) || []).map(m => m.slice(1, -7)).join('');
+    const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+    const decodeEnt = m => m.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, e) => {
+      if (e[0] === '#') {
+        const cp = (e[1] === 'x' || e[1] === 'X') ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        return cp > 0 && cp < 0x110000 ? String.fromCodePoint(cp) : whole;
+      }
+      return ENT[e] !== undefined ? ENT[e] : whole;
+    });
+    const usedChars = (svgBody.match(/>([^<]*)<\/text>/g) || []).map(m => decodeEnt(m.slice(1, -7))).join('');
     fontStyle = buildFontStyle(usedChars);
   } catch (e) { /* embedding is best-effort; ignore and fall back to font names */ }
 

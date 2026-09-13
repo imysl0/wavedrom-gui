@@ -17,6 +17,8 @@
  *   --node-inset <0-9>            modern edge-anchored node inset in px (default 4)
  *   --node-mode <letter|bare|dot> modern node marker style (default bare)
  *   --no-meta                     skip embedding WaveJSON metadata into SVG/PNG
+ *   --strict                      strict JSON only (disable the lenient Function()
+ *                                 fallback — use when rendering untrusted input)
  *   -h, --help
  *
  * SVG/PNG outputs embed the source WaveJSON by default (SVG <metadata> / PNG
@@ -34,11 +36,12 @@ const { svgToPng } = require('./lib/svg-to-png.js');
 const { svgWithMeta, pngInsertITXt, WD_PNG_KEYWORD } = require('./lib/meta-embed.js');
 
 function parseArgs(argv) {
-  const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, nodeInset: 4, nodeMode: 'bare', noMeta: false };
+  const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, nodeInset: 4, nodeMode: 'bare', noMeta: false, strict: false };
   const pos = [];
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h' || a === '--help') { o.help = true; }
+    else if (a === '--strict') o.strict = true; // 只接受严格 JSON：渲染不可信输入时禁用宽松求值回退
     else if (a === '--mode') o.mode = argv[++i];
     else if (a === '--format') o.format = argv[++i];
     else if (a === '--out' || a === '-o') o.out = argv[++i];
@@ -61,7 +64,7 @@ Usage:
   node render.js <input.json> [--mode modern|traditional] [--format svg|png|both]
                  [--out PATH] [--scale N] [--skin default|narrow]
                  [--node-pos lm|c|...] [--node-scale N] [--node-inset 0-9]
-                 [--node-mode letter|bare|dot] [--no-meta]
+                 [--node-mode letter|bare|dot] [--no-meta] [--strict]
   node render.js -   (read WaveJSON from stdin)
 
 Modes:
@@ -73,12 +76,20 @@ Formats:
 `;
 
 /* Loose WaveJSON parse: try strict JSON first, then evaluate as a JS object
- * literal in a sandbox-ish Function (matches the app's eva() leniency). */
-function parseWaveJSON(text) {
+ * literal via Function (matches the app's eva() leniency). Function evaluation
+ * is NOT a sandbox: the input text can execute arbitrary code in this process.
+ * Only feed trusted input to the lenient path, or pass --strict to disable it
+ * when rendering untrusted files. */
+function parseWaveJSON(text, strict) {
+  if (strict) {
+    try { return JSON.parse(text); }
+    catch (e) { throw new Error('Could not parse WaveJSON input (strict mode): ' + e.message); }
+  }
   try { return JSON.parse(text); } catch (e) { /* fall through */ }
   try {
     // eslint-disable-next-line no-new-func
-    return Function('"use strict";return (' + text + ')')();
+    /* 首尾加换行：末行 // 注释否则会吞掉收尾的右括号（与编辑器的 eva 同一防坑） */
+    return Function('"use strict";return (\n' + text + '\n)')();
   } catch (e) {
     throw new Error('Could not parse WaveJSON input: ' + e.message);
   }
@@ -91,7 +102,7 @@ function main() {
   let text;
   if (o.input === '-') text = fs.readFileSync(0, 'utf8');
   else text = fs.readFileSync(o.input, 'utf8');
-  const source = parseWaveJSON(text);
+  const source = parseWaveJSON(text, o.strict);
   const jsonText = JSON.stringify(source, null, 2);
 
   if (!['modern', 'traditional'].includes(o.mode)) { console.error('unknown --mode: ' + o.mode); process.exit(1); }
@@ -108,7 +119,8 @@ function main() {
   if (o.out) {
     base = o.out.replace(/\.(svg|png)$/i, '');
   } else {
-    const title = String((source && source.head && source.head.text) || '').trim()
+    const rawTitle = source && source.head && source.head.text;
+    const title = (typeof rawTitle === 'string' ? rawTitle : '').trim()
       .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
       .replace(/\s+/g, ' ').slice(0, 40).trim().replace(/[. ]+$/, '');
     const d = new Date();
@@ -128,20 +140,30 @@ function main() {
     if (o.input && o.input !== '-') base = path.join(path.dirname(path.resolve(o.input)), base);
   }
 
-  const wrote = [];
+  /* 先在内存里备齐全部产物再落盘：--format both 时 PNG 失败不会留下只有 SVG 的残缺输出。
+     写入走临时文件 + rename（原子替换），写一半崩溃不会截断既有文件 */
+  const staging = [];
   if (o.format === 'svg' || o.format === 'both') {
-    const p = base + '.svg';
-    fs.writeFileSync(p, o.noMeta ? res.svg : svgWithMeta(res.svg, jsonText));
-    wrote.push(p);
+    staging.push({ p: base + '.svg', data: Buffer.from(o.noMeta ? res.svg : svgWithMeta(res.svg, jsonText), 'utf8') });
   }
+  let conv = null;
   if (o.format === 'png' || o.format === 'both') {
-    const p = base + '.png';
-    const conv = svgToPng(res.svg, p, { scale: o.scale });
-    if (!o.noMeta) {
-      const png = pngInsertITXt(fs.readFileSync(p), WD_PNG_KEYWORD, jsonText);
-      fs.writeFileSync(p, png);
+    const tmpPng = base + '.png.wdtmp';
+    try {
+      conv = svgToPng(res.svg, tmpPng, { scale: o.scale });
+      let png = fs.readFileSync(tmpPng);
+      if (!o.noMeta) png = pngInsertITXt(png, WD_PNG_KEYWORD, jsonText);
+      staging.push({ p: base + '.png', data: png });
+    } finally {
+      try { fs.unlinkSync(tmpPng); } catch (e) { /* 已 rename 时本就不存在 */ }
     }
-    wrote.push(p + `  (${conv.tool}, ${o.scale}x)`);
+  }
+  const wrote = [];
+  for (const it of staging) {
+    const tmp = it.p + '.part-' + process.pid;
+    fs.writeFileSync(tmp, it.data);
+    fs.renameSync(tmp, it.p);
+    wrote.push(it.p + (conv && it.p.endsWith('.png') ? `  (${conv.tool}, ${o.scale}x)` : ''));
   }
 
   const dim = res.width && res.height ? ` ${res.width}x${res.height}` : '';

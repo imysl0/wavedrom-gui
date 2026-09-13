@@ -40,7 +40,9 @@ function pythonCmd() {
  */
 function svgToPng(svg, outPng, opts = {}) {
   const scale = opts.scale || 2;
-  const tmp = path.join(os.tmpdir(), `wdr_${process.pid}_${Date.now()}.svg`);
+  /* 临时输入放进 mkdtemp 目录：固定模式文件名在多用户主机上可被符号链接抢占 */
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wdr-'));
+  const tmp = path.join(tmpDir, 'in.svg');
   fs.writeFileSync(tmp, svg);
   try {
     // 1) cairosvg
@@ -64,11 +66,14 @@ function svgToPng(svg, outPng, opts = {}) {
       const r = spawnSync('rsvg-convert', args, { encoding: 'utf8' });
       if (r.status === 0 && fs.existsSync(outPng)) return { tool: 'rsvg-convert' };
     }
-    // 3) ImageMagick
-    const im = which('magick') ? 'magick' : (which('convert') ? 'convert' : null);
+    // 3) ImageMagick。Windows 上的 convert.exe 是系统自带的 NTFS 转换工具，不是
+    //    ImageMagick——为免误拉起它，convert 只在非 Windows 平台参与兜底
+    const im = which('magick')
+      ? 'magick'
+      : (process.platform !== 'win32' && which('convert') ? 'convert' : null);
     if (im) {
       const density = Math.round(96 * scale);
-      const args = im === 'magick' ? ['-density', String(density), tmp, outPng] : ['-density', String(density), tmp, outPng];
+      const args = ['-density', String(density), tmp, outPng];
       const r = spawnSync(im, args, { encoding: 'utf8' });
       if (r.status === 0 && fs.existsSync(outPng)) return { tool: im };
     }
@@ -81,6 +86,7 @@ function svgToPng(svg, outPng, opts = {}) {
     );
   } finally {
     try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
+    try { fs.rmdirSync(tmpDir); } catch (e) { /* ignore */ }
   }
 }
 

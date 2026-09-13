@@ -10,6 +10,7 @@
   "WaveDrom: Cannot find this code block (has the document changed?)": "WaveDrom: 找不到这个代码块（文档已改动？）",
   "WaveDrom: Code block updated (press Ctrl+S to save the file)": "WaveDrom: 已写回代码块（Ctrl+S 保存文件）",
   "WaveDrom: Embedded WaveJSON in the image updated": "WaveDrom: 已更新图片内嵌 WaveJSON",
+  "WaveDrom: Image re-rendered and saved": "WaveDrom: 图片已重绘并保存",
   "WaveDrom: Failed to load the editor UI — {0}": "WaveDrom: 编辑器界面加载失败 — {0}",
   "WaveDrom: Failed to open the editor — {0}": "WaveDrom: 打开编辑器失败 — {0}",
   "WaveDrom: Failed to read the diagram — {0}": "WaveDrom: 读取图表失败 — {0}",
@@ -22,5 +23,6 @@
   "``` code block": "``` 代码块",
   "``` code block {0}": "``` 代码块 {0}",
   "🖼 Image": "🖼 图片",
-  "Waveform renderer not loaded — reopen the preview": "波形渲染库未加载，请重新打开预览"
+  "Waveform renderer not loaded — reopen the preview": "波形渲染库未加载，请重新打开预览",
+  "WaveDrom: Cannot read this image (has it moved, or lost its embedded WaveJSON?)": "WaveDrom: 读取这张图片失败（文件被移动或已无内嵌 WaveJSON？）"
 }

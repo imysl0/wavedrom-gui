@@ -57,7 +57,9 @@ function buildFontStyle(usedChars) {
   const dir = path.isAbsolute(cfg.dir) ? cfg.dir : path.join(ROOT, cfg.dir || 'vendor/fonts');
   const fonts = Array.isArray(cfg.fonts) ? cfg.fonts : [];
 
-  const charsFile = path.join(os.tmpdir(), `wdr_chars_${process.pid}_${Date.now()}.txt`);
+  /* mkdtemp 目录存放中间产物：可预测的临时文件名在多用户主机上可被符号链接抢占 */
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wdr-'));
+  const charsFile = path.join(tmpDir, 'chars.txt');
   fs.writeFileSync(charsFile, usedChars || '', 'utf8');
 
   const faces = [];
@@ -66,7 +68,7 @@ function buildFontStyle(usedChars) {
       const ttf = path.join(dir, f.file);
       if (!fs.existsSync(ttf) || fs.statSync(ttf).size < 10000) continue; // not downloaded
 
-      const outTtf = path.join(os.tmpdir(), `wdr_sub_${process.pid}_${Date.now()}_${f.file}`);
+      const outTtf = path.join(tmpDir, 'sub-' + path.basename(f.file));
       const r = spawnSync(py, [path.join(ROOT, 'scripts', 'subset_font.py'), ttf, outTtf, charsFile], { encoding: 'utf8' });
       if (r.status === 0 && fs.existsSync(outTtf)) {
         const data = fs.readFileSync(outTtf);
@@ -79,7 +81,7 @@ function buildFontStyle(usedChars) {
       // subset failed for this font -> skip it silently
     }
   } finally {
-    try { fs.unlinkSync(charsFile); } catch (e) {}
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (e) {}
   }
 
   if (!faces.length) return '';

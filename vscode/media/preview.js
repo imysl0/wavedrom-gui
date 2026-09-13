@@ -6,8 +6,17 @@
      真实点击的锚点交给扩展的 URI 处理器。不发任何 http 请求，不产生 CSP 违规。 */
 
   const B64 = {
-    enc: function (s) { return btoa(unescape(encodeURIComponent(s))); },
-    dec: function (b) { return decodeURIComponent(escape(atob(b))); },
+    /* btoa/atob 只认 Latin-1：UTF-8 先过 encodeURIComponent 变成纯 ASCII 百分号编码，
+       再把 %XX 序列还原成字节。与旧写法（已废弃的 unescape/escape）行为等价 */
+    enc: function (s) {
+      const bytes = encodeURIComponent(s).replace(/%([0-9A-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
+      return btoa(bytes);
+    },
+    dec: function (b) {
+      const bytes = atob(b);
+      const comp = bytes.replace(/[\x80-\xff]/g, ch => '%' + ch.charCodeAt(0).toString(16).padStart(2, '0'));
+      return decodeURIComponent(comp);
+    },
   };
 
   function stripXml(s) { return s.replace(/^<\?xml[^>]*\?>\s*/, '').replace(/<!DOCTYPE[^>]*>\s*/i, ''); }
@@ -29,9 +38,74 @@
     setTimeout(run, 3000);
   }
 
+  /* 宽松 WaveJSON 解析（无求值）：CLI 与编辑器都接受宽松写法（// 与块注释、免引号键、
+     单引号串、尾逗号），预览必须同一覆盖面，否则同一代码块在命令行能渲染、在预览里报错。
+     这里不做字符串感知扫描之外的任何求值——预览跑的是文档内容，不能给恶意构造的
+     代码执行机会（编辑器/CLI 的求值回退不适用于这个场景） */
+  function parseLoose(text) {
+    let out = '';
+    let expectKey = false; // 刚出现 { 或 ,（且非尾逗号）：接下来允许隔着空白/注释出现对象键
+    let i = 0;
+    const n = text.length;
+    while (i < n) {
+      const c = text[i];
+      if (c === '/' && text[i + 1] === '/') { while (i < n && text[i] !== '\n') i++; continue; }
+      if (c === '/' && text[i + 1] === '*') {
+        i += 2;
+        while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i++;
+        i += 2;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        /* 字符串整体消费：单引号转双引号，内部未转义的双引号补转义 */
+        out += '"';
+        i++;
+        while (i < n && text[i] !== c) {
+          if (text[i] === '\\') { out += text[i] + (text[i + 1] || ''); i += 2; continue; }
+          out += text[i] === '"' ? '\\"' : text[i];
+          i++;
+        }
+        out += '"';
+        i++;
+        expectKey = false;
+        continue;
+      }
+      if (c === ',') {
+        /* 尾逗号：向后只跳空白，直接跟 } / ] 即丢弃（不跨字符串，无误伤） */
+        let j = i + 1;
+        while (j < n && /\s/.test(text[j])) j++;
+        if (text[j] === '}' || text[j] === ']') { i++; continue; }
+        out += c;
+        i++;
+        expectKey = true;
+        continue;
+      }
+      if (c === '{' || c === '[') {
+        out += c;
+        i++;
+        if (c === '{') expectKey = true; // [ 之后是元素不是键
+        continue;
+      }
+      if (expectKey && /[A-Za-z_$]/.test(c)) {
+        const m = /^[A-Za-z_$][\w$]*\s*:/.exec(text.slice(i, i + 128));
+        if (m) {
+          out += '"' + m[0].replace(/\s*:/, '') + '":';
+          i += m[0].length;
+          expectKey = false;
+          continue;
+        }
+      }
+      /* 空白不驱散键期待（{ 换行 key 的写法）；其它字符视为值的一部分 */
+      expectKey = expectKey && /\s/.test(c);
+      out += c;
+      i++;
+    }
+    return JSON.parse(out);
+  }
+
   function renderModern(jsonText) {
-    if (!rendererReady()) throw new Error(i18n.noRenderer);
-    const src = JSON.parse(jsonText);
+    if (!rendererReady()) throw new Error(i18nText('noRenderer', 'Waveform renderer not loaded (reopen the preview)'));
+    const src = parseLoose(jsonText);
     const r = window.WaveDromModern.renderModern(src, {});
     return { svg: stripXml(r.svg) };
   }
@@ -51,16 +125,13 @@
   }
 
   /* 界面文案由扩展按 VS Code 的显示语言渲染进 #wd-i18n（这个 webview 里拿不到
-     vscode.l10n），缺了就用英文兜底 */
-  const i18n = (() => {
+     vscode.l10n），缺了就用英文兜底。每次读取现查：i18n 节点由扩展在文档渲染期插入，
+     首屏可能还没有——此前只在脚本加载时捕获一次，之后插入的节点永远不生效 */
+  function i18nText(key, fallback) {
     const node = document.getElementById('wd-i18n');
-    const d = (node && node.dataset) || {};
-    return {
-      edit: d.editLabel || 'Edit',
-      editTitle: d.editTitle || 'Edit (opens in the visual editor)',
-      noRenderer: d.noRenderer || 'Waveform renderer not loaded (reopen the preview)',
-    };
-  })();
+    const d = node && node.dataset;
+    return (d && d[key]) || fallback;
+  }
 
   /* 铅笔图标与编辑器界面同风格（16 视框 / 1.4 描边 / 圆头），不依赖 emoji 字体：
      「✏」在 Windows、macOS 上会被渲染成彩色字形，与 VS Code 的单色图标不同调 */
@@ -107,8 +178,8 @@
       /* 必须是真锚点：深链接要被浏览器当成用户手势下的链接点击，才能交给扩展的 URI 处理器 */
       const edit = el('a', 'wd-edit');
       edit.setAttribute('href', editUri);
-      edit.title = i18n.editTitle;
-      edit.setAttribute('aria-label', i18n.edit);
+      edit.title = i18nText('editTitle', 'Edit (opens in the visual editor)');
+      edit.setAttribute('aria-label', i18nText('editLabel', 'Edit'));
       edit.innerHTML = EDIT_ICON;
       actions.appendChild(edit);
       figure.appendChild(actions);
@@ -131,8 +202,8 @@
       /* 没有按钮，整块就是入口：锚点原生可聚焦、Enter 可激活，不必再手写键盘处理 */
       const link = el('a', 'wd-blocklink');
       link.setAttribute('href', editUri);
-      link.title = i18n.editTitle;
-      link.setAttribute('aria-label', i18n.edit);
+      link.title = i18nText('editTitle', 'Edit (opens in the visual editor)');
+      link.setAttribute('aria-label', i18nText('editLabel', 'Edit'));
       link.appendChild(figure);
       div.appendChild(link);
       return;

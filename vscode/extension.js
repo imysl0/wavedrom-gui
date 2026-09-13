@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const {
   svgWithMeta, svgExtractWaveJSON,
-  pngReplaceITXt, pngExtractWaveJSON,
+  pngReplaceITXt, pngExtractWaveJSON, pngGetSize,
 } = require('./lib/meta-embed.js');
 
 /* 界面文案：源语言英文，中文表自带一份（l10n/bundle.l10n.zh-cn.json）。
@@ -67,6 +67,9 @@ function t(message, ...args) {
    整行只有反引号（可带尾随空白），否则下一个块的开头围栏会被当成闭合围栏，一次匹配
    横跨两块。大小写与预览侧 isWaveFence 一致（i），避免预览认、写回不认。 */
 const FENCE_RE = /^(?: {0,3})```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}```[ \t]*(?:\r?\n|$)/gmi;
+/* 正文图片引用：![alt](path.png|svg)，允许尾随 "title"。路径取到空白或右括号为止；
+   预览侧由 markdown-it 的 image token 解析（带 title 也命中），这里保持同一覆盖面 */
+const IMG_RE = /!\[[^\]]*\]\(\s*([^)\s]+\.(?:png|svg))(?:[ \t]+[^)]*)?\)/gi;
 const editTargets = new Map(); // k -> { kind:'fence'|'image', docPath, fenceRaw, line, imgPath }
 
 function registerKey(info) {
@@ -196,7 +199,10 @@ function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/* 解析图片相对路径并读取内嵌 WaveJSON；无内嵌或读不到时返回 null */
+/* 图片探测结果按 mtime+size 缓存：CodeLens 在每次击键后都会重跑，逐图同步读文件
+   在图多的文档里会拖慢输入。文件没变（mtime+size 相同）就不重复读盘；
+   负结果（无元数据）同样缓存——文件没变就不会突然有元数据 */
+const probeCache = new Map(); // absPath -> { key: mtimeMs:size, text }
 function probeImagePath(docFs, src) {
   if (!src) return null;
   const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(src);
@@ -207,10 +213,16 @@ function probeImagePath(docFs, src) {
   const abs = path.isAbsolute(p) ? p : path.join(path.dirname(docFs), p);
   if (!/\.(png|svg)$/i.test(abs)) return null;
   try {
+    const st = fs.statSync(abs);
+    const key = st.mtimeMs + ':' + st.size;
+    const hit = probeCache.get(abs);
+    if (hit && hit.key === key) return hit.text ? { absPath: abs, relSrc: src, text: hit.text } : null;
     const bytes = fs.readFileSync(abs);
     const text = /\.svg$/i.test(abs)
       ? svgExtractWaveJSON(bytes.toString('utf8'))
       : pngExtractWaveJSON(bytes);
+    if (probeCache.size > 400) probeCache.clear();
+    probeCache.set(abs, { key, text });
     return text ? { absPath: abs, relSrc: src, text } : null;
   } catch (e) { return null; }
 }
@@ -241,21 +253,29 @@ async function placePanel(panel, cmd) {
 }
 
 function openEditor(target) {
-  let jsonText;
+  let jsonText, imgPxW = null;
   try {
     if (target.kind === 'fence') jsonText = target.fenceRaw;
     else {
       const bytes = fs.readFileSync(target.imgPath);
-      jsonText = /\.svg$/i.test(target.imgPath)
+      const isSvg = /\.svg$/i.test(target.imgPath);
+      jsonText = isSvg
         ? svgExtractWaveJSON(bytes.toString('utf8'))
         : pngExtractWaveJSON(bytes);
+      /* 原图像素宽：像素写回时按它定栅格化比例，避免重绘后 Markdown 里的布局跳动 */
+      if (!isSvg) { const dim = pngGetSize(bytes); imgPxW = dim ? dim.width : null; }
     }
   } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to read the diagram — {0}', e.message)); return; }
   if (!jsonText) { vscode.window.showErrorMessage(t('WaveDrom: No editable WaveJSON in this target')); return; }
 
   /* 先备好 HTML 再建面板：界面读不到时直接报错返回，不留下一个空白面板 */
   let html;
-  try { html = buildEditorHtml(jsonText, panelDocKey(target)); }
+  try {
+    html = buildEditorHtml(jsonText, panelDocKey(target), target.kind === 'image' && {
+      ext: /\.svg$/i.test(target.imgPath) ? 'svg' : 'png',
+      pxW: imgPxW,
+    });
+  }
   catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to load the editor UI — {0}', e.message)); return; }
 
   const pos = editorPanelPosition();
@@ -272,9 +292,55 @@ function openEditor(target) {
   else if (pos === 'newWindow') placePanel(panel, 'workbench.action.moveEditorToNewWindow');
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
+  const isImage = saveTarget.kind === 'image';
+  /* 图片目标的像素写回：webview 在轮询里把当前画面光栅化后随 pixels 消息上报，这里
+     暂存内存，停手 5s 或面板关闭/切走时落盘。webview 销毁后就渲染不出新图了，所以
+     「关闭即写回」依赖宿主手里始终有最新一份像素——这正是渲染提前到轮询里的原因。 */
+  let pendingPx = null;   // { png?: Buffer, svg?: string, json } —— 与像素同源的文档 JSON
+  let flushTimer = null;
+
+  const flushPixels = () => {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    /* 只写与当前元数据同源的像素；渲染没跟上时宁可维持「元数据新、像素旧」的现状语义，
+       也不能把旧画面连同旧 JSON 一起盖掉刚写回的元数据 */
+    if (!pendingPx || pendingPx.json !== saveTarget.lastSaved) { pendingPx = null; return; }
+    const px = pendingPx; pendingPx = null;
+    try {
+      const out = px.svg != null
+        ? Buffer.from(svgWithMeta(px.svg, saveTarget.lastSaved), 'utf8')
+        : pngReplaceITXt(px.png, 'WaveJSON', saveTarget.lastSaved);
+      /* 写临时文件再改名：整文件重写像素后，半途崩溃不能再留下坏图 */
+      const tmp = saveTarget.imgPath + '.wdtmp';
+      try { fs.writeFileSync(tmp, out); fs.renameSync(tmp, saveTarget.imgPath); }
+      finally { try { fs.unlinkSync(tmp); } catch (e) { /* 改名成功后本就不存在 */ } }
+      vscode.window.setStatusBarMessage(t('WaveDrom: Image re-rendered and saved'), 3000);
+      try { Promise.resolve(vscode.commands.executeCommand('markdown.preview.refresh')).catch(() => {}); }
+      catch (e) { /* 预览没开或命令不可用：重开预览即可 */ }
+    } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Image write-back failed — {0}', e.message)); }
+  };
+  const armFlush = () => {
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => { flushTimer = null; flushPixels(); }, 5000);
+  };
+
   panel.webview.onDidReceiveMessage(msg => {
-    if (msg.type === 'save' && msg.json) saveBack(saveTarget, msg.json, msg.text);
+    if (msg.type === 'save' && msg.json) {
+      saveBack(saveTarget, msg.json, msg.text);
+      if (isImage) armFlush();
+    } else if (msg.type === 'pixels' && isImage && msg.json) {
+      pendingPx = {
+        json: msg.json,
+        svg: typeof msg.svg === 'string' ? msg.svg : null,
+        png: typeof msg.png === 'string' ? Buffer.from(msg.png, 'base64') : null,
+      };
+      armFlush();
+    }
   });
+  /* 切走面板标签：先把画面落盘，回来时预览就是新的（placePanel 搬动面板也会触发，
+     此时 pendingPx 多半为空，自然跳过） */
+  panel.onDidChangeViewState(ev => { if (!ev.webviewPanel.visible) flushPixels(); });
+  /* 关闭面板：onDidDispose 时 webview 已销毁，落盘宿主手里的最后一份像素 */
+  panel.onDidDispose(() => flushPixels());
 }
 
 /* 每个编辑目标一份独立的自动保存键：webview 之间共享 localStorage，若都用 wdgui-doc-v1，
@@ -317,7 +383,7 @@ function editorShellPath() {
   return path.join(_ctx.extensionUri.fsPath, 'media', 'editor.html');
 }
 
-function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
+function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = null) {
   let html = fs.readFileSync(editorShellPath(), 'utf8');
   html = html.replace(/'wdgui-doc-v1'/g, `'${docKey}'`);
   /* img-src 必须含 blob:——编辑器导出 PNG 时把 SVG 包成 blob URL 再交给 new Image()，
@@ -343,6 +409,8 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
 (function () {
   var vs = acquireVsCodeApi();
   var KEY = ${JSON.stringify(docKey)};
+  /* 图片目标才上报画面：{ext:'png',pxW:原图像素宽} / {ext:'svg'} / null（代码块目标） */
+  var IMG = ${JSON.stringify(imageTarget || null)};
   var last = null, armed = false;
   /* 写回风格跟随代码页当前的显示模式（紧凑/舒缓）：界面里的格式化器认得该模式，
      这里只取它的结果；取不到时扩展侧退回默认缩进，不影响写回内容 */
@@ -351,6 +419,68 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
       if (typeof window.wdFormatDoc === 'function') return window.wdFormatDoc(v);
     } catch (e) {}
     return null;
+  }
+  /* ---- 图片目标：把当前画面交给扩展（宿主拿到字节后自行决定何时落盘） ----
+     渲染提前到轮询里、落盘交给宿主去抖，是因为面板关闭时 webview 先被销毁，
+     之后没人能再渲染出画面；扩展手里必须始终有最新一份像素才能做到「关闭即写回」 */
+  var busy = false, dirty = false;
+  function postPixels(extra) {
+    /* 渲染完成后回读 KEY：localStorage 与画面由同一次 update() 同步写出，
+       上报的 json 因此一定与像素对应，宿主据此判断像素能不能落盘 */
+    var v = null;
+    try { v = localStorage.getItem(KEY); } catch (e) {}
+    if (v) vs.postMessage(Object.assign({ type: 'pixels', json: v }, extra));
+  }
+  function rasterDone() {
+    busy = false;
+    if (dirty) { dirty = false; sendPixels(); }
+  }
+  function sendPixels() {
+    if (!IMG || busy) { if (IMG) dirty = true; return; }
+    busy = true;
+    setTimeout(function () { /* 让出本轮：先把已到手的编辑渲染完，再取画面 */
+      try {
+        if (!document.querySelector('#wv0 svg')) { rasterDone(); return; } /* 空文档无预览，直接跳过（getExportSvg 会弹提示） */
+        var ex = getExportSvg();
+        if (!ex) { rasterDone(); return; }
+        if (IMG.ext === 'svg') { postPixels({ svg: ex.str }); rasterDone(); return; }
+        /* PNG 尺寸对齐原图宽度：比例 = 原图宽 ÷ 当前自然宽，夹在 1–4 之间。
+           原图读不到就退回 2×（与导出按钮一致） */
+        var scale = IMG.pxW ? IMG.pxW / ex.w : 2;
+        if (!(scale > 0)) scale = 2;
+        scale = Math.min(4, Math.max(1, scale));
+        var url = URL.createObjectURL(new Blob([ex.str], { type: 'image/svg+xml' }));
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(ex.w * scale));
+            cv.height = Math.max(1, Math.round(ex.h * scale));
+            var ctx = cv.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+            ctx.drawImage(img, 0, 0, cv.width, cv.height);
+            cv.toBlob(function (b) {
+              try {
+                URL.revokeObjectURL(url);
+                if (!b) { rasterDone(); return; }
+                var fr = new FileReader();
+                fr.onload = function () {
+                  try {
+                    var s = String(fr.result || '');
+                    if (s.indexOf(',') > 0) postPixels({ png: s.slice(s.indexOf(',') + 1) });
+                  } catch (e) { /* 读不出就放弃这一帧，等下一次改动 */ }
+                  rasterDone();
+                };
+                fr.onerror = function () { rasterDone(); };
+                fr.readAsDataURL(b);
+              } catch (e) { rasterDone(); }
+            }, 'image/png');
+          } catch (e) { try { URL.revokeObjectURL(url); } catch (e2) {} rasterDone(); }
+        };
+        img.onerror = function () { try { URL.revokeObjectURL(url); } catch (e) {} rasterDone(); };
+        img.src = url;
+      } catch (e) { rasterDone(); }
+    }, 0);
   }
   setTimeout(function () {
     try { last = localStorage.getItem(KEY); } catch (e) {}
@@ -368,6 +498,7 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1') {
       last = v;
       try { JSON.parse(v); } catch (e) { return; }
       vs.postMessage({ type: 'save', json: v, text: displayText(v) });
+      if (IMG) sendPixels();
     }
   }, 500);
 })();
@@ -495,7 +626,8 @@ async function editActiveCommand() {
       target: { kind: 'fence', docPath: docFs, fenceRaw: m[1], line: lineOfIndex(text, m.index) },
     });
   }
-  const imgRe = /!\[[^\]]*\]\(([^)]+\.png|[^)]+\.svg)\)/gi;
+  const imgRe = IMG_RE;
+  imgRe.lastIndex = 0;
   while ((m = imgRe.exec(text))) {
     const probe = probeImagePath(docFs, m[1]);
     if (probe) picks.push({ label: t('🖼 Image'), description: path.basename(probe.absPath), target: { kind: 'image', docPath: docFs, imgPath: probe.absPath } });
@@ -527,6 +659,18 @@ async function editFenceCommand(target) {
   } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to open the editor — {0}', e.message)); }
 }
 
+/* 图片 CodeLens 的落点：参数带文档路径 + 原始引用路径（同 editFence，不依赖内存注册表，
+   扩展重启后仍可用）。打开前重新探测一次：文件可能被移动、元数据可能已被去掉 */
+async function editImageCommand(target) {
+  if (!target || target.kind !== 'image') return;
+  const probe = probeImagePath(target.docPath, target.src);
+  if (!probe) {
+    vscode.window.showErrorMessage(t('WaveDrom: Cannot read this image (has it moved, or lost its embedded WaveJSON?)'));
+    return;
+  }
+  openEditor({ kind: 'image', docPath: target.docPath, imgPath: probe.absPath });
+}
+
 function makeCodeLensProvider() {
   return {
     provideCodeLenses(doc) {
@@ -543,6 +687,44 @@ function makeCodeLensProvider() {
           arguments: [{ kind: 'fence', docPath: doc.uri.fsPath, fenceRaw: m[1], line }],
         }));
       }
+      /* 图片引用同样给入口：行内 ![a](x.png) 与引用式 ![a][def]。逐行扫描并跳过
+         代码围栏内的行——围栏里的示例文本不是真的图（预览侧 markdown-it 也不渲染）；
+         引用式需要先收集全部定义，定义可以出现在使用之后 */
+      const lines = text.split(/\r?\n/);
+      const fenceLines = new Array(lines.length).fill(false);
+      let fencing = false;
+      for (let i = 0; i < lines.length; i++) {
+        fenceLines[i] = fencing;
+        if (/^ {0,3}(```|~~~)/.test(lines[i])) { fencing = !fencing; fenceLines[i] = true; }
+      }
+      const defs = new Map(); // label（小写、空白折叠）-> 路径，markdown 引用定义不区分大小写
+      lines.forEach((line, i) => {
+        if (fenceLines[i]) return;
+        const dm = /^ {0,3}\[([^\]]+)\]:[ \t]*(?:<([^>\s]*)>|([^\s]+))/.exec(line);
+        if (dm) defs.set(dm[1].trim().replace(/\s+/g, ' ').toLowerCase(), (dm[2] || dm[3] || '').trim());
+      });
+      const pushImageLens = (i, src) => {
+        const probe = probeImagePath(doc.uri.fsPath, src);
+        if (!probe) return;
+        lenses.push(new vscode.CodeLens(new vscode.Range(i, 0, i, 0), {
+          title: t('Edit waveform'),
+          command: 'wavedrom-gui.editImage',
+          arguments: [{ kind: 'image', docPath: doc.uri.fsPath, src }],
+        }));
+      };
+      lines.forEach((line, i) => {
+        if (fenceLines[i]) return;
+        IMG_RE.lastIndex = 0;
+        let im;
+        while ((im = IMG_RE.exec(line))) pushImageLens(i, im[1]);
+        const refRe = /!\[([^\]]*)\]\s?\[([^\]]*)\]/g;
+        let rm;
+        while ((rm = refRe.exec(line))) {
+          const label = (rm[2].trim() || rm[1].trim()).replace(/\s+/g, ' ').toLowerCase();
+          const target = label && defs.get(label);
+          if (target) pushImageLens(i, target);
+        }
+      });
       return lenses;
     },
   };
@@ -562,6 +744,7 @@ async function activate(ctx) {
   } catch (e) { /* 日志失败无所谓 */ }
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editActive', editActiveCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFence', editFenceCommand));
+  ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editImage', editImageCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFromPreview', editFromPreviewCommand));
   ctx.subscriptions.push(vscode.window.registerUriHandler({ handleUri }));
   ctx.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'markdown' }, makeCodeLensProvider()));
@@ -588,7 +771,7 @@ module.exports = {
   __test: {
     FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel,
     languageSetting, uiLang, zhStrings, t, editLink, handleUri,
-    editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editTargets, registerKey,
+    editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
     findFence, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
   },
 };

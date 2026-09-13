@@ -107,6 +107,15 @@ function pngReplaceITXt(buf, keyword, text) {
   throw new Error('malformed PNG (no IEND chunk)');
 }
 
+/* 读 IHDR 里的像素尺寸（写回像素时按原图宽度定栅格化比例，避免文档布局跳动）。
+   布局：签名(8) + 块长(4) + "IHDR"(4) + 宽(4) + 高(4) */
+function pngGetSize(buf) {
+  if (buf.length < 24 || !buf.subarray(0, 8).equals(PNG_SIG)) return null;
+  if (buf.toString('latin1', 12, 16) !== 'IHDR') return null;
+  const width = buf.readUInt32BE(16), height = buf.readUInt32BE(20);
+  return (width > 0 && height > 0) ? { width, height } : null;
+}
+
 function pngExtractWaveJSON(buf) {
   if (buf.length < 8 || !buf.subarray(0, 8).equals(PNG_SIG)) return null;
   let off = 8;
@@ -147,7 +156,7 @@ function pngExtractWaveJSON(buf) {
 
 module.exports = {
   svgWithMeta, svgExtractWaveJSON,
-  pngInsertITXt, pngReplaceITXt, pngExtractWaveJSON,
+  pngInsertITXt, pngReplaceITXt, pngExtractWaveJSON, pngGetSize,
   pngMakeFenceSkeleton,
   WD_PNG_KEYWORD, crc32,
 };

@@ -1609,8 +1609,27 @@ const I18N_EN = {
   '左上': 'Top left', '上中': 'Top mid', '右上': 'Top right', '左中': 'Left mid', '右中': 'Right mid',
   '左下': 'Bottom left', '下中': 'Bottom mid', '右下': 'Bottom right',
   '自动：同左中，但会躲开数据框标签': 'Auto: like left mid, but dodges data labels',
+  /* 撤销/重做与结构操作 toast（原先硬编码未包 i18n） */
+  '没有可撤销的操作': 'Nothing to undo', '已撤销': 'Undone',
+  '没有可重做的操作': 'Nothing to redo', '已重做': 'Redone',
+  '节点字母（a–Z 共 52 个）已用完': 'Node letters (a–Z, 52 total) are used up',
+  '只有点选单元格才会启动自动连续模式': 'Click a cell to start auto-chain mode',
+  '上方没有分组': 'No group above', '这条通道不在任何分组里': 'This lane is not inside any group',
+  '分组已删除，组内成员上移保留': 'Group deleted — members moved up and kept',
+  '不能把分组移进它自己或它的子组': 'Cannot move a group into itself or its subgroup',
+  '已导入 ': 'Imported ', '文件解析失败：': 'Failed to parse file: ', '文件读取失败：': 'Failed to read file: ',
+  '一次只能导入一个文件，已取第一个': 'Only one file can be imported at a time — took the first',
+  '预览还没有内容': 'Preview is still empty', '编辑区还没有内容': 'Editor grid is still empty',
+  '复制失败，请手动复制': 'Copy failed — please copy manually', 'PNG 生成失败': 'PNG generation failed',
+  '钉住笔刷弹层': 'Pin brush flyout', '标签': 'Label', '数据标签': 'Data label', '子组': 'Subgroup',
+  '图表较大（链接 ': 'Large diagram (link of ', ' 字符），可能超出部分应用的粘贴上限，建议改用压缩分享链接': ' chars) — may exceed paste limits in some apps; prefer the compressed share link',
 };
-let uiLang = localStorage.getItem('wdgui-lang') || 'auto';
+/* localStorage 安全读写：隐私模式/禁用存储时 setItem 会抛异常、个别环境连访问都抛，
+   裸调用会打断主题/语言切换等后续渲染，顶层读取直接崩掉整个脚本。
+   全部经由这两个助手（除个别已自带 try/catch 的调用点） */
+function tryGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+function storeSet(key, val) { try { localStorage.setItem(key, val); } catch (e) { /* 隐私模式等场景忽略 */ } }
+let uiLang = tryGet('wdgui-lang') || 'auto';
 const sysLang = () => (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
 const effLang = () => uiLang === 'auto' ? sysLang() : uiLang;
 function i18n(s) { return effLang() === 'zh' ? s : (I18N_EN[s] ?? s); }
@@ -1638,18 +1657,18 @@ function syncAppVersion() {
 syncAppVersion();
 
 /* ---------- 主题 ---------- */
-document.documentElement.dataset.theme = localStorage.getItem('wdgui-theme') === 'dark' ? 'dark' : 'light';
-document.documentElement.dataset.view = localStorage.getItem('wdgui-view') === 'side' ? 'side' : 'below';
-document.documentElement.dataset.showPreview = localStorage.getItem('wdgui-show-preview') === '0' ? '0' : '1';
-document.documentElement.dataset.showCode = localStorage.getItem('wdgui-show-code') === '0' ? '0' : '1';
-document.documentElement.dataset.trace = localStorage.getItem('wdgui-trace') === 'glow' ? 'glow' : 'slim';
+document.documentElement.dataset.theme = tryGet('wdgui-theme') === 'dark' ? 'dark' : 'light';
+document.documentElement.dataset.view = tryGet('wdgui-view') === 'side' ? 'side' : 'below';
+document.documentElement.dataset.showPreview = tryGet('wdgui-show-preview') === '0' ? '0' : '1';
+document.documentElement.dataset.showCode = tryGet('wdgui-show-code') === '0' ? '0' : '1';
+document.documentElement.dataset.trace = tryGet('wdgui-trace') === 'glow' ? 'glow' : 'slim';
 /* 波形背景配色组（设置 → 外观）；信号名底色默认与波形同色，显式选过「独立底色」（存 '0'）才恢复独立 */
-document.documentElement.dataset.wavebg = localStorage.getItem('wdgui-wavebg') || 'default';
-if (localStorage.getItem('wdgui-head-same') !== '0') document.documentElement.dataset.headSame = '1';
-document.documentElement.dataset.zebra = localStorage.getItem('wdgui-zebra') === '0' ? '0' : '1';
+document.documentElement.dataset.wavebg = tryGet('wdgui-wavebg') || 'default';
+if (tryGet('wdgui-head-same') !== '0') document.documentElement.dataset.headSame = '1';
+document.documentElement.dataset.zebra = tryGet('wdgui-zebra') === '0' ? '0' : '1';
 /* ---------- 视图模式：auto=按屏宽判断桌面/手机；simple=强制手机（简约）布局 ---------- */
 const VIEWMODE_MQ = window.matchMedia('(max-width: 800px)');
-function viewMode() { return localStorage.getItem('wdgui-viewmode') === 'simple' ? 'simple' : 'auto'; }
+function viewMode() { return tryGet('wdgui-viewmode') === 'simple' ? 'simple' : 'auto'; }
 /* 是否走手机布局：简约模式恒为真；自动模式看视口是否 ≤800px */
 function isMobile() { return viewMode() === 'simple' || VIEWMODE_MQ.matches; }
 /* 把有效手机态写到 html[data-mobile]，驱动手机 CSS 作用域 */
@@ -1659,7 +1678,7 @@ function applyViewMode() {
 }
 applyViewMode();
 /* ---------- 侧栏固定（手机模式）：固定后「通道与分组」以编辑区左栏形式常驻，取消则恢复悬浮抽屉 ---------- */
-function sideDock() { return localStorage.getItem('wdgui-side-dock') === '1'; }
+function sideDock() { return tryGet('wdgui-side-dock') === '1'; }
 /* 固定态：把笔刷栏移到 .workspace 直属层，作为「固定栏+编辑区」共同下方的全宽底栏；取消则移回编辑区内 */
 function relocatePalette(dock) {
   const ws = document.querySelector('.workspace');
@@ -1680,7 +1699,7 @@ function applySideDock() {
 }
 /* 切换视图模式偏好（auto/simple）并即时生效 */
 function setViewModePref(mode) {
-  localStorage.setItem('wdgui-viewmode', mode === 'simple' ? 'simple' : 'auto');
+  storeSet('wdgui-viewmode', mode === 'simple' ? 'simple' : 'auto');
   applyViewMode();
   applySideDock();          // 有效手机态变了→修正面板显隐与笔刷栏归属（避免离开手机态后 palette 仍挂在 workspace）
   renderBrushUI();          // 笔刷分组/形态随手机态切换
@@ -1707,12 +1726,12 @@ const FONT_STACKS = {
   },
 };
 const state_font = {
-  ui: localStorage.getItem('wdgui-uifont') || 'lxgw-mono',
-  data: localStorage.getItem('wdgui-dfont') || 'lxgw-mono',
+  ui: tryGet('wdgui-uifont') || 'lxgw-mono',
+  data: tryGet('wdgui-dfont') || 'lxgw-mono',
 };
 // 旧单键迁移
-const legacyFont = localStorage.getItem('wdgui-font');
-if (legacyFont && !localStorage.getItem('wdgui-uifont')) {
+const legacyFont = tryGet('wdgui-font');
+if (legacyFont && !tryGet('wdgui-uifont')) {
   const m = { lxgw: ['lxgw-mono', 'lxgw-mono'], plex: ['plex', 'plex'], system: ['system', 'system'], default: ['plex', 'plex'] }[legacyFont];
   if (m) { state_font.ui = m[0]; state_font.data = m[1]; }
 }
@@ -1736,8 +1755,8 @@ const FONT_CHOICES_DATA = [
 /* 笔刷栏默认样式（设置里 3 选）；运行时另有两档折叠态：compact 横向弹窗条、panel 右侧完整面板 */
 const BRUSH_DEFAULTS = [['bar', '下横条'], ['vgroup', '右纵条'], ['fab', '右下角']];
 const _brushDefMig = { bar: 'bar', groups: 'bar', edge: 'vgroup', fan: 'fab' };
-let _brushDef = localStorage.getItem('wdgui-brush-default');
-if (!_brushDef) _brushDef = _brushDefMig[localStorage.getItem('wdgui-brush-mode')] || 'bar';
+let _brushDef = tryGet('wdgui-brush-default');
+if (!_brushDef) _brushDef = _brushDefMig[tryGet('wdgui-brush-mode')] || 'bar';
 if (!BRUSH_DEFAULTS.some(m => m[0] === _brushDef)) _brushDef = 'bar';
 const state_brush = { def: _brushDef, mode: _brushDef };
 if (isMobile()) state_brush.mode = 'compact'; // 手机默认分组模式（紧凑条双行 + 分组弹层）
@@ -1772,25 +1791,25 @@ const NODE_POS_KEYS = {
 /* 仅「自动」参与数据框标签避让 */
 const nodeAutoAvoid = () => state_node.pos === 'auto';
 const state_node = {
-  pos: localStorage.getItem('wdgui-node-pos') || 'lm',
-  scale: Math.max(0.4, Math.min(2, parseFloat(localStorage.getItem('wdgui-node-scale')) || 1)),
-  mode: localStorage.getItem('wdgui-node-mode') || 'bare', // bare=仅字母（微透明底衬，默认）；letter=圆圈+字母；dot=只画小圆点
+  pos: tryGet('wdgui-node-pos') || 'lm',
+  scale: Math.max(0.4, Math.min(2, parseFloat(tryGet('wdgui-node-scale')) || 1)),
+  mode: tryGet('wdgui-node-mode') || 'bare', // bare=仅字母（微透明底衬，默认）；letter=圆圈+字母；dot=只画小圆点
   /* 靠边位置（左/右三列）的横向内缩量，单位 px，0–9 可调。
      小内缩让圆标贴近垂直沿（h/l/H/L、时钟），大内缩让它留在格内、不压数据框边框与沿上箭头。 */
   inset: NODE_INSET_DEF,
 };
 {
-  const raw = parseInt(localStorage.getItem('wdgui-node-inset'), 10);
+  const raw = parseInt(tryGet('wdgui-node-inset'), 10);
   if (Number.isFinite(raw)) state_node.inset = Math.max(0, Math.min(9, raw));
 }
 /* 旧偏好 'c'（正中）已被「自动」取代：两者都占九宫格中心格，迁过去最贴近原选择 */
-if (state_node.pos === 'c') { state_node.pos = 'auto'; localStorage.setItem('wdgui-node-pos', 'auto'); }
+if (state_node.pos === 'c') { state_node.pos = 'auto'; storeSet('wdgui-node-pos', 'auto'); }
 if (!NODE_POS_KEYS[state_node.pos]) state_node.pos = 'lm';
 const NODE_MODES = ['letter', 'bare', 'dot'];
 if (!NODE_MODES.includes(state_node.mode)) state_node.mode = 'bare';
 /* 标签保持：在数据字符（= 2-9）间换色不清除数据标签；途经 x/z 时把标签暂存，
    切回数据字符即恢复，暂存随该格脱离选中而失效。关闭则沿用旧行为（换字符即清标签）。 */
-let keepLabel = localStorage.getItem('wdgui-keep-label') !== 'off';
+let keepLabel = tryGet('wdgui-keep-label') !== 'off';
 let labelStash = null; // { laneId, t, label }
 const nodeR = () => 6.5 * state_node.scale;
 /* 在 svg 上画一个节点标记：
@@ -2139,23 +2158,23 @@ function restoreSnapshot(json) {
   persist();
 }
 function doUndo() {
-  if (!undoStack.length) { toast('没有可撤销的操作'); return; }
+  if (!undoStack.length) { toast(i18n('没有可撤销的操作')); return; }
   redoStack.push(JSON.stringify(buildJSON()));
   restoreSnapshot(undoStack.pop());
   updateUndoButtons();
-  toast('已撤销');
+  toast(i18n('已撤销'));
 }
 function doRedo() {
-  if (!redoStack.length) { toast('没有可重做的操作'); return; }
+  if (!redoStack.length) { toast(i18n('没有可重做的操作')); return; }
   undoStack.push(JSON.stringify(buildJSON()));
   restoreSnapshot(redoStack.pop());
   updateUndoButtons();
-  toast('已重做');
+  toast(i18n('已重做'));
 }
 function newLane(name, slots) {
   return { kind: 'lane', id: nextId(), name: name || '', slots: slots || [], period: null, phase: null, nodeByT: {}, extras: {} };
 }
-function newGroup(name) { return { kind: 'group', id: nextId(), name: name || '分组', children: [] }; }
+function newGroup(name) { return { kind: 'group', id: nextId(), name: name || i18n('分组'), children: [] }; }
 
 /* ---------- 树工具 ---------- */
 function walkTree(list, fn, depth = 0, parent = null) {
@@ -2178,7 +2197,7 @@ function isUnknown(g) { return g === 'x' || g === 'z'; }
    时钟：上=大小写互切（相位不变 p↔P n↔N）；下=正负相切换（大小写不变 p↔n P↔N）。
    总线：上=数值+1（'=' 视为 1 只作起点，2..9 环形，9→2）；下=一律 x。
    信号：0↔1（上1下0）、h/l、H/L、u/d 成对（上取高/前者，下取低/后者）。
-   x：上→2 下→0；z：上→1 下→0。未识别字符原样返回。 */
+   x：上→2 下→不变（x 已是不确定态的最低点，下变换保持原样）；z：上→1 下→0。未识别字符原样返回。 */
 const BUS_UP_RING = '23456789'; // '=' 起点上变换进入 2，之后环形回绕到 2
 function cellUp(g) {
   switch (g) {
@@ -2279,9 +2298,18 @@ function buildLaneObj(lane) {
 function buildHeadFoot(hf) {
   const o = {};
   if (hf.text) o.text = hf.text;
-  if (hf.tick !== null && hf.tick !== '') o.tick = +hf.tick;
-  if (hf.tock !== null && hf.tock !== '') o.tock = +hf.tock;
-  if (hf.every !== null && hf.every !== '') o.every = +hf.every;
+  /* tick/tock/every 类型保真：tickVal 允许官方的数组形式（[起始, 步长]）与任意显示文本，
+     强转数值会把数组/非数字字符串打成 NaN → 序列化成 null，保存后刻度丢失 */
+  const hfVal = v => {
+    if (v === null || v === undefined || v === '') return undefined;
+    if (Array.isArray(v)) return v.length ? v.map(x => (Number.isFinite(+x) && String(x).trim() !== '' ? +x : x)) : undefined;
+    const n = +v;
+    return Number.isFinite(n) ? n : v;
+  };
+  const tick = hfVal(hf.tick), tock = hfVal(hf.tock), every = hfVal(hf.every);
+  if (tick !== undefined) o.tick = tick;
+  if (tock !== undefined) o.tock = tock;
+  if (every !== undefined) o.every = every;
   return Object.keys(o).length ? o : null;
 }
 function buildJSON() {
@@ -2309,10 +2337,76 @@ function buildJSON() {
 
 /* ---------- 解析 ---------- */
 /* 宽松解析（对照官方编辑器 eva() 的 eval 行为）：先按严格 JSON；失败则按 JS 对象字面量
-   求值，支持 // 与块注释、免引号键、单引号、尾逗号。首尾加换行防止末行 // 注释吞掉右括号。 */
+   求值，支持 // 与块注释、免引号键、单引号、尾逗号。首尾加换行防止末行 // 注释吞掉右括号。
+   ⚠ 求值不是沙箱：这份能力只准用于**用户亲手输入**的路径（代码框、粘贴框）——
+   hash 分享链接与导入文件是外部内容，必须走下面的 parseLoose（无求值），见各自注释。 */
 function parseWaveJSON(text) {
   try { return JSON.parse(text); } catch (e) { /* fall through */ }
   return Function('"use strict";return (\n' + text + '\n)')();
+}
+/* 无求值的宽松解析：字符串感知扫描——剥 // 与块注释、补免引号键、单引号串转双引号、
+   丢尾逗号——最后交回 JSON.parse。宽松覆盖面与 parseWaveJSON 一致，但不执行任何代码：
+   hash 分享链接（别人构造的）与导入文件（来源不明）这类**不可信输入**专用。
+   与 vscode/media/preview.js 里的同名函数保持逐字一致（test/run.js 有同步校验）。 */
+function parseLoose(text) {
+  let out = '';
+  let expectKey = false; // 刚出现 { 或 ,（且非尾逗号）：接下来允许隔着空白/注释出现对象键
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '/' && text[i + 1] === '/') { while (i < n && text[i] !== '\n') i++; continue; }
+    if (c === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      /* 字符串整体消费：单引号转双引号，内部未转义的双引号补转义 */
+      out += '"';
+      i++;
+      while (i < n && text[i] !== c) {
+        if (text[i] === '\\') { out += text[i] + (text[i + 1] || ''); i += 2; continue; }
+        out += text[i] === '"' ? '\\"' : text[i];
+        i++;
+      }
+      out += '"';
+      i++;
+      expectKey = false;
+      continue;
+    }
+    if (c === ',') {
+      /* 尾逗号：向后只跳空白，直接跟 } / ] 即丢弃（不跨字符串，无误伤） */
+      let j = i + 1;
+      while (j < n && /\s/.test(text[j])) j++;
+      if (text[j] === '}' || text[j] === ']') { i++; continue; }
+      out += c;
+      i++;
+      expectKey = true;
+      continue;
+    }
+    if (c === '{' || c === '[') {
+      out += c;
+      i++;
+      if (c === '{') expectKey = true; // [ 之后是元素不是键
+      continue;
+    }
+    if (expectKey && /[A-Za-z_$]/.test(c)) {
+      const m = /^[A-Za-z_$][\w$]*\s*:/.exec(text.slice(i, i + 128));
+      if (m) {
+        out += '"' + m[0].replace(/\s*:/, '') + '":';
+        i += m[0].length;
+        expectKey = false;
+        continue;
+      }
+    }
+    /* 空白不驱散键期待（{ 换行 key 的写法）；其它字符视为值的一部分 */
+    expectKey = expectKey && /\s/.test(c);
+    out += c;
+    i++;
+  }
+  return JSON.parse(out);
 }
 function parseEdge(str) {
   const m = /^\s*([a-zA-Z])([~|\-+<>]+?)\s*([a-zA-Z])(?:\s+(.*))?$/.exec(str);
@@ -2762,7 +2856,7 @@ function laneUnits(lane) {
 function computeCols() {
   let max = 0;
   eachLane(l => { max = Math.max(max, laneUnits(l)); });
-  const min = +localStorage.getItem('wdgui-cols-min') || 0;
+  const min = +tryGet('wdgui-cols-min') || 0;
   if (max === 0) return Math.max(8, min);
   return Math.max(max, min);
 }
@@ -2846,8 +2940,8 @@ function renderGrid() {
         b.appendChild(icon('<path d="M3 5.5h10M3 10.5h10"/><circle cx="6" cy="5.5" r="1.7"/><circle cx="10" cy="10.5" r="1.7"/>', 13));
         b.addEventListener('click', ev => {
           ev.stopPropagation();
-          const on = localStorage.getItem('wdgui-head-actions') === '1';
-          localStorage.setItem('wdgui-head-actions', on ? '0' : '1');
+          const on = tryGet('wdgui-head-actions') === '1';
+          storeSet('wdgui-head-actions', on ? '0' : '1');
           applyHeadActions();
         });
         return b;
@@ -3154,7 +3248,7 @@ function openMoreMenu(node, kind, anchor) {
     pop.appendChild(mkItem(IC.gear, i18n('通道属性（period / phase）'), btn => openLanePropPop(node, btn)));
   } else if (kind === 'group') {
     pop.appendChild(mkItem(IC.plus, i18n('在组内添加通道'), () => { node.children.push(newLane('signal_' + allLanes().length)); update(true); }));
-    pop.appendChild(mkItem(IC.subgroup, i18n('添加子分组'), () => { node.children.push(newGroup('子组 ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
+    pop.appendChild(mkItem(IC.subgroup, i18n('添加子分组'), () => { node.children.push(newGroup(i18n('子组') + ' ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
   }
   pop.classList.add('open');
   const r = anchor.getBoundingClientRect();
@@ -3224,7 +3318,7 @@ function buildGroupRow(group, depth) {
   const row = h('div', { class: 'lane-row group-row' + (collapsed ? ' collapsed' : ''), 'data-group': group.id });
   row.dataset.nodeId = group.id;
   const inp = h('input', { class: 'gname', value: group.name, 'aria-label': i18n('分组名称'), title: group.name || i18n('分组') });
-  inp.addEventListener('change', () => { group.name = inp.value.trim() || '分组'; update(true); });
+  inp.addEventListener('change', () => { group.name = inp.value.trim() || i18n('分组'); update(true); });
   inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') inp.blur(); });
   const caret = h('button', { class: 'g-caret', title: collapsed ? i18n('展开分组') : i18n('折叠分组'), 'aria-label': (collapsed ? i18n('展开分组：') : i18n('折叠分组：')) + (group.name || i18n('分组')) });
   caret.appendChild(icon('<path d="M6 4l4 4-4 4"/>', 12));
@@ -3319,7 +3413,9 @@ function renderEdges() {
     });
     const del = h('button', { class: 'icon-btn danger-hover del', title: i18n('删除箭头'), 'aria-label': i18n('删除箭头') });
     del.appendChild(icon(IC.trash, 13));
-    del.addEventListener('click', () => { state.edges.splice(idx, 1); update(); });
+    /* structureChanged 必传：不重建 #edgeList 的话，剩余行的闭包里还是旧下标，
+       连续删除会按过期 idx splice——删错边或对短数组静默无效 */
+    del.addEventListener('click', () => { state.edges.splice(idx, 1); update(true); });
     list.appendChild(h('div', { class: 'edge-row' },
       h('div', { class: 'edge-pick' }, fromSel, icon('<path d="M10 3h3v3M13 3l-3.5 3.5M6 13H3v-3M3 13l3.5-3.5"/>', 12), toSel),
       h('div', { class: 'edge-style-pick' }, prevWrap, styleSel),
@@ -3335,7 +3431,14 @@ function renderSettings() {
   $('#footText').value = state.foot.text; $('#footTick').value = fmtTick(state.foot.tick);
   $('#footTock').value = fmtTick(state.foot.tock);
   $('#hscale').value = state.hscale; $('#hscaleVal').textContent = state.hscale;
-  $('#skin').value = state.skin;
+  const skinSel = $('#skin');
+  skinSel.value = state.skin;
+  if (skinSel.value !== state.skin) { // 无匹配 option（导入的自定义皮肤）：动态补一个，让控件如实反映 state
+    const o = document.createElement('option');
+    o.value = state.skin; o.textContent = state.skin;
+    skinSel.appendChild(o);
+    skinSel.value = state.skin;
+  }
   $('#hbMin').value = state.hb ? state.hb[0] : '';
   $('#hbMax').value = state.hb ? state.hb[1] : '';
 }
@@ -3371,7 +3474,7 @@ function fmtTick(v) {
 
 /* 智能格式化：短数组和全基本类型的短对象保持单行（预算 128 列），其余展开；
    compact：根对象与含容器的数组（signal/分组）保持逐行骨架，其余对象（通道/head 等）连同内部数组拍平成单行 */
-let codeCompact = localStorage.getItem('wdgui-code-compact') === '1';
+let codeCompact = tryGet('wdgui-code-compact') === '1';
 function fmtJSON(v, ind = 0, compact = false, depth = 0) {
   const pad = '  '.repeat(ind), pad2 = '  '.repeat(ind + 1);
   const budget = 128 - pad.length;
@@ -3412,7 +3515,13 @@ function renderPreview() {
     if (!window.WaveDrom || !window.WaveSkin) throw new Error(i18n('渲染库未加载'));
     if (state.skin !== 'default' && !window.WaveSkin[state.skin]) throw new Error(i18n('皮肤 "') + state.skin + i18n('" 不可用'));
     const rwf = window.WaveDrom.renderWaveForm || window.WaveDrom.RenderWaveForm;
-    if (typeof rwf !== 'function') throw new Error('渲染 API 缺失');
+    if (typeof rwf !== 'function') throw new Error(i18n('渲染 API 缺失'));
+    /* rawEdges 里的非字符串 edge 项只为导入往返保真而保留，官方渲染器不认（会整个报
+       「渲染失败」）——渲染前滤掉；导出/持久化走的 buildJSON 原样保留它们 */
+    if (json.edge && json.edge.some(x => typeof x !== 'string')) {
+      json.edge = json.edge.filter(x => typeof x === 'string');
+      if (!json.edge.length) delete json.edge;
+    }
     rwf.call(window.WaveDrom, 0, json, 'wv');
     /* 自愈：皮肤 <style> 偶发整体失效（disabled 残留 / CSSOM 未解析）会让波形全糊成黑色填充，这里每次渲染强制恢复 */
     host.querySelectorAll('svg style').forEach(st => {
@@ -3432,7 +3541,7 @@ function renderPreview() {
     }
   } catch (e) {
     host.textContent = '';
-    host.appendChild(h('div', { style: 'color:var(--danger);font-size:12px;padding:12px' }, '渲染失败：' + e.message));
+    host.appendChild(h('div', { style: 'color:var(--danger);font-size:12px;padding:12px' }, i18n('渲染失败：') + e.message));
   }
 }
 
@@ -3455,7 +3564,7 @@ function update(structureChanged) {
 window.addEventListener('beforeunload', persist);
 function persist() {
   try {
-    localStorage.setItem('wdgui-doc-v1', JSON.stringify(buildJSON()));
+    storeSet('wdgui-doc-v1', JSON.stringify(buildJSON()));
     /* 地址栏不承载波形代码：编辑时不写 hash；从链接打开后残留的 hash 一并清掉 */
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   } catch (e) { /* 隐私模式等场景忽略 */ }
@@ -3628,8 +3737,8 @@ function scheduleHideBrushFly() {
   }, 180);
 }
 /* 分组弹层钉住：开启后选择笔刷不自动收起，再次点击分组按钮才收起（偏好持久化） */
-function brushFlyKeep() { return localStorage.getItem('wdgui-brush-fly-keep') === '1'; }
-function setBrushFlyKeep(v) { try { localStorage.setItem('wdgui-brush-fly-keep', v ? '1' : '0'); } catch (e) {} }
+function brushFlyKeep() { return tryGet('wdgui-brush-fly-keep') === '1'; }
+function setBrushFlyKeep(v) { try { storeSet('wdgui-brush-fly-keep', v ? '1' : '0'); } catch (e) {} }
 function refreshBrushFlyActive() {
   document.querySelectorAll('#brushFly .tool').forEach(b => b.classList.toggle('active', brushActive(b.dataset.brush)));
 }
@@ -3649,14 +3758,14 @@ function openBrushFly(chip, g, byHover) {
   const pin = h('button', {
     class: 'fly-pin' + (brushFlyKeep() ? ' on' : ''),
     title: brushFlyKeep() ? i18n('已钉住：选择笔刷后弹层保持（点击改回自动收起）') : i18n('选择笔刷后自动收起（点击钉住弹层）'),
-    'aria-label': '钉住笔刷弹层', 'aria-pressed': String(brushFlyKeep()),
+    'aria-label': i18n('钉住笔刷弹层'), 'aria-pressed': String(brushFlyKeep()),
   });
   pin.appendChild(icon('<circle cx="8" cy="5.5" r="3.2"/><path d="M8 8.7V14"/>', 13));
   pin.addEventListener('click', ev => {
     ev.stopPropagation();
     setBrushFlyKeep(!brushFlyKeep());
     pin.classList.toggle('on', brushFlyKeep());
-    pin.title = brushFlyKeep() ? '已钉住：选择笔刷后弹层保持（点击改回自动收起）' : '选择笔刷后自动收起（点击钉住弹层）';
+    pin.title = brushFlyKeep() ? i18n('已钉住：选择笔刷后弹层保持（点击改回自动收起）') : i18n('选择笔刷后自动收起（点击钉住弹层）');
     pin.setAttribute('aria-pressed', String(brushFlyKeep()));
   });
   fly.appendChild(pin); // 钉住开关置于弹层最左
@@ -3703,7 +3812,7 @@ function buildFabCluster() {
   const root = $('#brushFan');
   const box = h('div', { class: 'fan-box' });
   box.appendChild(foldBtn(i18n('恢复横向弹窗条'), 'left', () => setBrushMode('compact')));
-  box.appendChild(foldBtn('恢复右纵条', 'up', () => setBrushMode('vgroup')));
+  box.appendChild(foldBtn(i18n('恢复右纵条'), 'up', () => setBrushMode('vgroup')));
   const main = h('button', { class: 'fan-main', title: i18n('笔刷（悬停或点击展示面板）'), 'aria-label': i18n('笔刷面板') }, i18n('笔刷'));
   main.addEventListener('click', ev => {
     ev.stopPropagation();
@@ -3718,7 +3827,7 @@ function buildFabCluster() {
 /* E 右侧完整面板：列数自适应（1–5 列），先纵向排满再换列，宽度按列数收紧 */
 function buildPanelCol() {
   const root = $('#brushCol');
-  root.appendChild(h('div', { class: 'be-top' }, foldBtn('折叠为右纵条', 'right', () => setBrushMode('vgroup'))));
+  root.appendChild(h('div', { class: 'be-top' }, foldBtn(i18n('折叠为右纵条'), 'right', () => setBrushMode('vgroup'))));
   const grid = h('div', { class: 'brush-grid' });
   ['select', 'erase', '.'].forEach(id => grid.appendChild(brushBtn(id, 'panel')));
   GLYPHS.forEach(g => grid.appendChild(brushBtn(g.c, 'panel')));
@@ -3782,7 +3891,9 @@ function paintCell(lane, t, glyph) {
   lane.slots[t] = slot;
   lane.len = Math.max(lane.len || 0, t + 1);
   paintedSinceDown = true;
-  update();
+  /* 拖涂每跨一格都会进来：直接 update() 会每格全量重建网格 + 全文序列化，
+     大文档拖动必掉帧。rAF 合帧后状态照常累改，一帧只渲染一次 */
+  scheduleUpdate();
 }
 /* 该格是否处于选中态（状态面板打开的格，或自动连续模式的锁定格）——决定标签暂存是否存活 */
 function isSelectedCell(laneId, t) {
@@ -3833,7 +3944,7 @@ function clearCell(lane, t) {
   } else if (wasReal && laneLen(lane) === len0) {
     // 删的是真实字符且它不是最后一拍：该格变成延续格，前一个状态顺延流过来
     const src = extendSource(lane, t);
-    cellTip('已清除第 ' + t + ' 拍 · ' + (src >= 0 ? '该拍现延续第 ' + src + ' 拍' : '该拍变为延续'), lane, t);
+    cellTip(i18n('已清除第 ') + t + i18n(' 拍') + ' · ' + (src >= 0 ? i18n('该拍现延续第 ') + src + i18n(' 拍') : i18n('该拍变为延续')), lane, t);
   }
 }
 function nextNodeLetter() {
@@ -4069,7 +4180,7 @@ function openPop(lane, t, anchor) {
     /* 简约模式：只保留 标题 + 一行「标签(数据格) · 放置/移除节点 · 清除本格」；状态字符与填充色改由底部笔刷栏/滚轮 */
     const row = h('div', { class: 'pop-mini' });
     if (slot && isData(slot.glyph)) {
-      const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: '标签', 'aria-label': '数据标签' });
+      const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: i18n('标签'), 'aria-label': i18n('数据标签') });
       inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
       inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
       row.appendChild(inp);
@@ -4120,7 +4231,7 @@ function openPop(lane, t, anchor) {
     };
     row.appendChild(mkSw('=', i18n('自动·跟随通道'), laneColor(lane)));
     Object.keys(DIGIT_FILLS).forEach(k => row.appendChild(mkSw(k, i18n('数据') + k + i18n('（官方填充）'), DIGIT_FILLS[k])));
-    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, '官方填充色（写入 wave 数字槽位，官方完全识别）'), row));
+    pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('官方填充色（写入 wave 数字槽位，官方完全识别）')), row));
     setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
   }
   const nodeRow = h('div', { class: 'pop-node' });
@@ -4128,14 +4239,14 @@ function openPop(lane, t, anchor) {
   if (letter) {
     nodeRow.appendChild(h('span', { class: 'badge' }, letter));
     nodeRow.appendChild(h('span', null, i18n('节点标记')));
-    const rm = h('button', { class: 'btn ghost', style: 'margin-left:auto;height:26px' }, '移除');
+    const rm = h('button', { class: 'btn ghost', style: 'margin-left:auto;height:26px' }, i18n('移除'));
     rm.addEventListener('click', () => { delete lane.nodeByT[t]; update(); openPop(lane, t, anchor); });
     nodeRow.appendChild(rm);
   } else {
     const add = h('button', { class: 'btn ghost', style: 'height:26px' }, i18n('⊕ 放置节点'));
     add.addEventListener('click', () => {
       const L = nextNodeLetter();
-      if (!L) { toast('节点字母（a–Z 共 52 个）已用完', true); return; }
+      if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; }
       lane.nodeByT[t] = L;
       update(true);
       openPop(lane, t, anchor);
@@ -4186,7 +4297,14 @@ function openLanePropPop(lane, anchor) {
   const pInp = h('input', { type: 'number', min: '1', step: '1', value: lane.period || '', placeholder: '1', 'aria-label': 'period 周期' });
   const phInp = h('input', { type: 'number', step: '0.1', value: lane.phase ?? '', placeholder: '0', 'aria-label': i18n('phase 相位') });
   pInp.addEventListener('input', () => { lane.period = pInp.value === '' ? null : Math.max(1, +pInp.value); scheduleUpdate(); });
-  phInp.addEventListener('input', () => { lane.phase = phInp.value === '' ? null : +phInp.value; scheduleUpdate(); });
+  /* phase 与 period 同样防非法输入：NaN 会写进 JSON（存盘变 null 静默丢失），渲染期间异常；
+     注释口径是 0～1 拍，越界值夹回这个区间 */
+  phInp.addEventListener('input', () => {
+    if (phInp.value === '') { lane.phase = null; scheduleUpdate(); return; }
+    const v = +phInp.value;
+    lane.phase = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : lane.phase;
+    scheduleUpdate();
+  });
   pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('period 周期 —— 每拍占 N 个时间单位')), pInp));
   pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('phase 相位 —— 左移 0～1 拍（0.5 = 半拍）')), phInp));
   pop.appendChild(h('div', { style: 'font-size:11px;color:var(--faint);margin-top:8px' }, i18n('典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。')));
@@ -4245,7 +4363,7 @@ function bindGrid() {
         const lane = getLaneById(+cell.dataset.lane);
         if (lane) { if (!autoChain) enterAutoChain(true); setChainSel(lane, +cell.dataset.t); }
       } else {
-        toast('只有点选单元格才会启动自动连续模式');
+        toast(i18n('只有点选单元格才会启动自动连续模式'));
       }
       return;
     }
@@ -4268,13 +4386,19 @@ function bindGrid() {
       }
     }
   });
+  let hlCol = null; // 当前点亮列：同一列内垂直移动不重扫 DOM（原来每格 mouseover 两次全树查询）
   inner.addEventListener('mouseover', ev => {
     if (rowDnd.active) return; // 行拖拽中不点亮列高亮
     const cell = ev.target.closest('.cell');
-    document.querySelectorAll('.col-hl').forEach(x => x.classList.remove('col-hl'));
+    const col = cell ? cell.dataset.t : null;
+    /* 同列快速跳过；网格重建会清掉 col-hl 类，此时仍需补点亮 */
+    if (col !== hlCol || (cell && !cell.classList.contains('col-hl'))) {
+      if (hlCol !== null) document.querySelectorAll('.col-hl').forEach(x => x.classList.remove('col-hl'));
+      hlCol = col;
+      if (col !== null) document.querySelectorAll(`.cell[data-t="${col}"],.time-cell[data-t="${col}"]`).forEach(x => x.classList.add('col-hl'));
+    }
     if (cell) {
       const t = cell.dataset.t;
-      document.querySelectorAll(`.cell[data-t="${t}"],.time-cell[data-t="${t}"]`).forEach(x => x.classList.add('col-hl'));
       if (painting && cell.dataset.lane == paintLane && (ev.buttons & 1)) {
         const lane = getLaneById(+cell.dataset.lane);
         const t = +cell.dataset.t;
@@ -4504,18 +4628,31 @@ function bindGrid() {
     if (bp && !ev.target.closest('.fan-box') && !bp.contains(ev.target)) bp.remove();
     if (setPopEl && !setPopEl.contains(ev.target) && !(ev.target.closest && ev.target.closest('.set-row'))) closeSetPop();
   });
-  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { closeSetPop(); closePop(); closeMenus(); closeBrushFly(); closeBrushPanel(); $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open'); $('#edgeMask').classList.remove('open'); $('#cfgMask').classList.remove('open'); $('#hintBox').classList.remove('pinned'); } });
+  /* Esc 的统一出口（原先散在两个 keydown 处理器里，先后关系靠注册顺序巧合）：
+     捕获阶段 4214 的 autoChain 分级退出已 stopImmediatePropagation，走不到这里；
+     行拖拽的 Esc 由拖拽期间临时挂的 window 捕获监听（rowDndKey）拦下。
+     优先级：autoChain 复位笔刷 → 收起全部浮层/弹窗/遮罩；输入框内不复位笔刷
+     （与旧行为一致：关浮层照旧，笔刷保持不动） */
+  document.addEventListener('keydown', ev => {
+    if (ev.key !== 'Escape' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    const t = ev.target;
+    const inInput = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    if (!autoChain && !inInput) setBrush('select');
+    closeSetPop(); closePop(); closeMenus(); closeBrushFly(); closeBrushPanel();
+    $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open');
+    $('#edgeMask').classList.remove('open'); $('#cfgMask').classList.remove('open');
+    $('#hintBox').classList.remove('pinned');
+  });
   const hintBox = $('#hintBox');
   hintBox.addEventListener('click', () => hintBox.classList.toggle('pinned'));
   hintBox.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hintBox.classList.toggle('pinned'); } });
 
-  /* 笔刷键盘快捷键：字符直切，Esc 回选择（输入框内不生效） */
+  /* 笔刷键盘快捷键：字符直切（Esc 已并入上面的统一出口，这里只管字符键） */
   const BRUSH_KEYS = '0123456789pnPNudxzhlHL=|.';
   document.addEventListener('keydown', ev => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const t = ev.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    if (ev.key === 'Escape') { if (!autoChain) setBrush('select'); return; } // autoChain 的 Esc 由捕获阶段分级处理
     // autoChain 的方向键由捕获阶段处理（不受面板输入框焦点影响）
     if (ev.key === '+' || ev.key === 'Add') {
       // 全局：+ 加 1 拍（不论自动连续模式是否启动；= 键仍作数据笔刷）
@@ -4556,14 +4693,14 @@ function intoGroup(node) {
   for (let i = loc.index - 1; i >= 0; i--) {
     if (loc.list[i].kind === 'group') { target = loc.list[i]; break; }
   }
-  if (!target) { toast('上方没有分组'); return; }
+  if (!target) { toast(i18n('上方没有分组')); return; }
   loc.list.splice(loc.index, 1);
   target.children.push(node);
   update(true);
 }
 function outOfGroup(node) {
   const loc = findLoc(node.id);
-  if (!loc.parent) { toast('这条通道不在任何分组里'); return; }
+  if (!loc.parent) { toast(i18n('这条通道不在任何分组里')); return; }
   loc.parent.children.splice(loc.index, 1);
   const gpLoc = findLoc(loc.parent.id);
   gpLoc.list.splice(gpLoc.index + 1, 0, node);
@@ -4575,7 +4712,7 @@ function delNode(node) {
   if (node.kind === 'group') {
     if (node.children.length) {
       node.children.forEach((c, i) => loc.list.splice(loc.index + i, 0, c));
-      toast('分组已删除，组内成员上移保留');
+      toast(i18n('分组已删除，组内成员上移保留'));
     }
     loc.list.splice(loc.list.indexOf(node), 1);
   } else {
@@ -4727,7 +4864,7 @@ function dropNode(srcId, tgtId, pos) {
   const src = findLoc(srcId), tgt = findLoc(tgtId);
   if (!src || !tgt) return;
   if (pos === 'into' && tgt.node.kind !== 'group') return;
-  if (src.node.kind === 'group' && nodeInSubtree(src.node, tgtId)) { toast('不能把分组移进它自己或它的子组'); return; }
+  if (src.node.kind === 'group' && nodeInSubtree(src.node, tgtId)) { toast(i18n('不能把分组移进它自己或它的子组')); return; }
   const node = src.node;
   let list, index;
   if (pos === 'into') {
@@ -4784,7 +4921,7 @@ function menuOptGrid(menu, cols, items, isActive, onPick) {
 function setViewMode(view) {
   if (view !== 'side' && view !== 'below') return;
   document.documentElement.dataset.view = view;
-  localStorage.setItem('wdgui-view', view);
+  storeSet('wdgui-view', view);
   applySizes();
   state.autoFit = true;
   renderPreview();
@@ -4809,7 +4946,7 @@ function setPaneVisibility(pane, visible) {
   const key = pane === 'preview' ? 'showPreview' : 'showCode';
   const storageKey = pane === 'preview' ? 'wdgui-show-preview' : 'wdgui-show-code';
   document.documentElement.dataset[key] = visible === '0' ? '0' : '1';
-  localStorage.setItem(storageKey, document.documentElement.dataset[key]);
+  storeSet(storageKey, document.documentElement.dataset[key]);
   applyPanes();
   state.autoFit = true;
   if (document.documentElement.dataset.showPreview !== '0') renderPreview();
@@ -4892,7 +5029,7 @@ function buildLangMenu(menu) {
     if (on) { const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12); ck.setAttribute('class', 'check'); b.appendChild(ck); }
     b.addEventListener('click', ev => {
       ev.stopPropagation();
-      uiLang = v; localStorage.setItem('wdgui-lang', v);
+      uiLang = v; storeSet('wdgui-lang', v);
       closeMenus(); closeSetPop();
       applyLang();
       if (document.querySelector('#m-settings .menu').classList.contains('open')) buildSettingsMenu(document.querySelector('#m-settings .menu'));
@@ -4953,27 +5090,27 @@ function buildSettingsMenu(menu) {
   cat('look', i18n('外观'), () => labelOf(THEMES, root.dataset.theme, i18n('深色')) + ' · ' + labelOf(TRACES, curTrace(), i18n('纤细')), body => {
     row(body, i18n('主题'), THEMES, () => root.dataset.theme || 'dark', v => applyTheme(v));
     row(body, i18n('波形轨迹'), TRACES, curTrace, v => {
-      root.dataset.trace = v; localStorage.setItem('wdgui-trace', v); renderGrid();
+      root.dataset.trace = v; storeSet('wdgui-trace', v); renderGrid();
     });
     /* 波形背景配色组：默认透出主题底色；深浅主题各自映射到对应的优雅底色 */
     row(body, i18n('波形背景'), WBGS, () => root.dataset.wavebg || 'default', v => {
-      root.dataset.wavebg = v; localStorage.setItem('wdgui-wavebg', v);
+      root.dataset.wavebg = v; storeSet('wdgui-wavebg', v);
     });
     /* 信号名底色：默认与波形区同色（--wave-bg），可选独立（--panel） */
     row(body, i18n('信号名底色'), HEAD_BGS, () => root.dataset.headSame !== undefined ? 'same' : 'own', v => {
-      if (v === 'same') { root.dataset.headSame = '1'; localStorage.setItem('wdgui-head-same', '1'); }
-      else { delete root.dataset.headSame; localStorage.setItem('wdgui-head-same', '0'); }
+      if (v === 'same') { root.dataset.headSame = '1'; storeSet('wdgui-head-same', '1'); }
+      else { delete root.dataset.headSame; storeSet('wdgui-head-same', '0'); }
     });
     /* 斑马纹：奇数行淡底条纹，便于横向追踪行 */
     row(body, i18n('斑马纹'), ZEBRAS, () => root.dataset.zebra !== '0' ? 'on' : 'off', v => {
       root.dataset.zebra = v === 'on' ? '1' : '0';
-      localStorage.setItem('wdgui-zebra', v === 'on' ? '1' : '0');
+      storeSet('wdgui-zebra', v === 'on' ? '1' : '0');
     });
     row(body, i18n('界面字体'), FONT_CHOICES.map(x => [x[0], i18n(x[1])]), () => state_font.ui, v => {
-      state_font.ui = v; localStorage.setItem('wdgui-uifont', v); applyFonts();
+      state_font.ui = v; storeSet('wdgui-uifont', v); applyFonts();
     });
     row(body, i18n('数据·代码字体'), FONT_CHOICES_DATA.map(x => [x[0], i18n(x[1])]), () => state_font.data, v => {
-      state_font.data = v; localStorage.setItem('wdgui-dfont', v); applyFonts();
+      state_font.data = v; storeSet('wdgui-dfont', v); applyFonts();
     });
   });
 
@@ -5002,17 +5139,17 @@ function buildSettingsMenu(menu) {
       }, i18n(POS_GLYPH[k]));
       b.addEventListener('click', ev => {
         ev.stopPropagation();
-        state_node.pos = k; localStorage.setItem('wdgui-node-pos', k);
+        state_node.pos = k; storeSet('wdgui-node-pos', k);
         rebuild(); renderGrid();
       });
       grid.appendChild(b);
     });
     body.appendChild(grid);
     row(body, i18n('显示模式'), NMODES, () => state_node.mode, v => {
-      state_node.mode = v; localStorage.setItem('wdgui-node-mode', v); renderGrid();
+      state_node.mode = v; storeSet('wdgui-node-mode', v); renderGrid();
     });
     row(body, i18n('数据标签'), LABELS, () => keepLabel ? 'on' : 'off', v => {
-      keepLabel = v === 'on'; localStorage.setItem('wdgui-keep-label', v);
+      keepLabel = v === 'on'; storeSet('wdgui-keep-label', v);
       if (!keepLabel) labelStash = null;
     });
     /* 比例/边距是连续值，保留并排滑块 */
@@ -5022,7 +5159,7 @@ function buildSettingsMenu(menu) {
     srow.appendChild(settingsSliderCell(i18n('比例'), {
       min: 50, max: 150, step: 5, value: Math.round(state_node.scale * 100),
       fmt: v => v + '%', aria: i18n('节点显示比例'), title: i18n('节点圆标的整体大小'),
-      onInput: v => { state_node.scale = v / 100; localStorage.setItem('wdgui-node-scale', String(v / 100)); },
+      onInput: v => { state_node.scale = v / 100; storeSet('wdgui-node-scale', String(v / 100)); },
     }));
     srow.appendChild(settingsSliderCell(i18n('边距'), {
       min: 0, max: 9, step: 1, value: state_node.inset, dim: !edgePos,
@@ -5030,14 +5167,14 @@ function buildSettingsMenu(menu) {
       title: edgePos
         ? i18n('小值让圆标贴近垂直沿，大值让它留在格内不压数据框边框与沿上箭头')
         : i18n('当前节点位置水平居中，边距不生效（选左/右类位置后可调）'),
-      onInput: v => { state_node.inset = v; localStorage.setItem('wdgui-node-inset', String(v)); },
+      onInput: v => { state_node.inset = v; storeSet('wdgui-node-inset', String(v)); },
     }));
     body.appendChild(srow);
   });
 
   cat('brush', i18n('笔刷'), () => i18n(labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条')), body => {
     row(body, i18n('笔刷栏默认样式'), BRUSH_DEFAULTS.map(x => [x[0], i18n(x[1])]), () => state_brush.def, v => {
-      state_brush.def = v; localStorage.setItem('wdgui-brush-default', v);
+      state_brush.def = v; storeSet('wdgui-brush-default', v);
       state_brush.mode = v; renderBrushUI();
     });
   });
@@ -5192,7 +5329,7 @@ function svgExtractWaveJSON(text) {
 }
 /* PNG：在 IEND 块前插入 iTXt(未压缩) 块；关键字 WaveJSON，文本为 UTF-8 JSON */
 function pngInsertITXt(bytes, keyword, text) {
-  if (bytes.length < 8 || !PNG_SIG.every((b, i) => bytes[i] === b)) throw new Error('不是 PNG 文件');
+  if (bytes.length < 8 || !PNG_SIG.every((b, i) => bytes[i] === b)) throw new Error(i18n('不是 PNG 文件'));
   const kw = new TextEncoder().encode(keyword);
   const tx = new TextEncoder().encode(text);
   const data = new Uint8Array(kw.length + 5 + tx.length);
@@ -5261,11 +5398,12 @@ function importFile(f) {
           if (!jsonText) throw new Error('SVG 里没有内嵌 WaveJSON');
         } else jsonText = text;
       }
-      applyDocJSON(parseWaveJSON(jsonText));
-      toast('已导入 ' + f.name);
-    } catch (e) { toast('文件解析失败：' + e.message, true); }
+      /* 导入的文件同样是外部内容：无求值解析（parseWaveJSON 只留给代码框/粘贴框） */
+      applyDocJSON(parseLoose(jsonText));
+      toast(i18n('已导入 ') + f.name);
+    } catch (e) { toast(i18n('文件解析失败：') + e.message, true); }
   };
-  rd.onerror = () => toast('文件读取失败：' + f.name, true);
+  rd.onerror = () => toast(i18n('文件读取失败：') + f.name, true);
   rd.readAsArrayBuffer(f);
 }
 function bindDropImport() {
@@ -5294,7 +5432,7 @@ function bindDropImport() {
     hide();
     const files = Array.from(ev.dataTransfer.files || []);
     if (!files.length) return;
-    if (files.length > 1) toast('一次只能导入一个文件，已取第一个', true);
+    if (files.length > 1) toast(i18n('一次只能导入一个文件，已取第一个'), true);
     importFile(files[0]);
   });
 }
@@ -5323,15 +5461,15 @@ function exportBaseName() {
   const d = new Date();
   const date = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
   let seq = { date: '', n: 0 };
-  try { seq = JSON.parse(localStorage.getItem('wdgui-export-seq')) || seq; } catch (e) {}
+  try { seq = JSON.parse(tryGet('wdgui-export-seq')) || seq; } catch (e) {}
   seq.n = seq.date === date ? seq.n + 1 : 1;
   seq.date = date;
-  try { localStorage.setItem('wdgui-export-seq', JSON.stringify(seq)); } catch (e) { /* 隐私模式等场景忽略 */ }
+  try { storeSet('wdgui-export-seq', JSON.stringify(seq)); } catch (e) { /* 隐私模式等场景忽略 */ }
   return 'wavdrom_gui_' + date + '_' + seq.n;
 }
 function getExportSvg() {
   const svg = $('#wv0 svg');
-  if (!svg) { toast('预览还没有内容', true); return null; }
+  if (!svg) { toast(i18n('预览还没有内容'), true); return null; }
   const clone = svg.cloneNode(true);
   clone.removeAttribute('style');
   const vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
@@ -5345,7 +5483,7 @@ function getExportSvg() {
 /* ---------- 编辑区导出：矢量重建网格（不含工具栏与空白行列） ---------- */
 function buildEditorSvg() {
   const inner = $('#gridInner');
-  if (!state.tree.length) { toast('编辑区还没有内容', true); return null; }
+  if (!state.tree.length) { toast(i18n('编辑区还没有内容'), true); return null; }
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; };
   const txt = (parent, x, y, str, attrs) => { const t = el('text', { x, y, ...attrs }, parent); t.textContent = str; return t; };
@@ -5374,7 +5512,7 @@ function buildEditorSvg() {
   /* 纵向范围：网格实际内容行（time-row / lane-row / strip），天然不含内边距。
      行 y 用行高累加而非 offsetTop——time-row 是 sticky 吸顶，offsetTop 会随滚动变成吸顶视觉位置 */
   const rows = [...inner.children].filter(c => c.classList.contains('lane-row') || c.classList.contains('time-row') || c.classList.contains('strip'));
-  if (!rows.length) { toast('编辑区还没有内容', true); return null; }
+  if (!rows.length) { toast(i18n('编辑区还没有内容'), true); return null; }
   const rowY = new Map();
   let accY = 0;
   rows.forEach(r => { rowY.set(r, accY); accY += r.offsetHeight; });
@@ -5497,7 +5635,7 @@ function copyText(text, okMsg) {
   const fail = () => {
     const ta = document.createElement('textarea');
     ta.value = text; document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败，请手动复制', true); }
+    try { document.execCommand('copy'); done(); } catch (e) { toast(i18n('复制失败，请手动复制'), true); }
     ta.remove();
   };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
@@ -5554,7 +5692,7 @@ function handleAct(act, btn) {
           break;
         }
       }
-      localStorage.setItem('wdgui-cols-min', String(Math.max(0, cur + n)));
+      storeSet('wdgui-cols-min', String(Math.max(0, cur + n)));
       renderGrid();
       break;
     }
@@ -5633,10 +5771,10 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast(i18n('PNG 生成失败'), true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
-      img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
+      img.onerror = () => { toast(i18n('PNG 生成失败'), true); URL.revokeObjectURL(url); };
       img.src = url;
       break;
     }
@@ -5657,10 +5795,10 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = cssVar('--bg'); ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast('PNG 生成失败', true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast(i18n('PNG 生成失败'), true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
-      img.onerror = () => { toast('PNG 生成失败', true); URL.revokeObjectURL(url); };
+      img.onerror = () => { toast(i18n('PNG 生成失败'), true); URL.revokeObjectURL(url); };
       img.src = url;
       break;
     }
@@ -5682,6 +5820,7 @@ function handleAct(act, btn) {
       /* 地址栏不再承载波形代码，这里主动拼官方 WaveJSON 格式的链接（与官方编辑器互通） */
       persist();
       const url = location.href.split('#')[0] + '#' + encodeURIComponent(JSON.stringify(buildJSON()));
+      if (url.length > 30000) toast(i18n('图表较大（链接 ') + url.length + i18n(' 字符），可能超出部分应用的粘贴上限，建议改用压缩分享链接'), true);
       copyText(url, i18n('分享链接已复制（含完整图表数据）'));
       break;
     }
@@ -5737,7 +5876,7 @@ function applySizes() {
     if (state.sizes.right) right.style.width = state.sizes.right + 'px';
   }
 }
-function saveSizes() { localStorage.setItem('wdgui-splits', JSON.stringify(state.sizes)); }
+function saveSizes() { storeSet('wdgui-splits', JSON.stringify(state.sizes)); }
 /* 信号列宽分割条：拖动 = 手动列宽（记忆到 wdgui-splits），双击 = 恢复自适应 */
 let nameSplitDrag = null;
 function bindNameSplit(el, container) {
@@ -5811,7 +5950,7 @@ function bindSplitters() {
 /* ---------- 主题切换 ---------- */
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
-  localStorage.setItem('wdgui-theme', t);
+  storeSet('wdgui-theme', t);
   renderGrid(); renderEdges(); renderBrushUI(); renderPreview();
 }
 
@@ -5854,7 +5993,7 @@ function scopeSkinFontRules() {
 
 /* 名称列操作按钮（拖拽/更多/删除）的显示开关（手机用，偏好持久化） */
 function applyHeadActions() {
-  if (localStorage.getItem('wdgui-head-actions') === '1') document.documentElement.dataset.headActions = '1';
+  if (tryGet('wdgui-head-actions') === '1') document.documentElement.dataset.headActions = '1';
   else delete document.documentElement.dataset.headActions;
 }
 /* ---------- 启动 ---------- */
@@ -5867,10 +6006,11 @@ function loadDocFromHash() {
   if (raw.startsWith('LZ')) {
     try {
       const json = LZShare.decompressFromEncodedURIComponent(raw.slice(2));
-      if (json) { adoptState(parseDoc(parseWaveJSON(json))); ok = true; }
+      /* hash 是别人可构造的外部内容：走无求值的 parseLoose，绝不 eval（见 parseWaveJSON 注释） */
+      if (json) { adoptState(parseDoc(parseLoose(json))); ok = true; }
     } catch (e) { /* 忽略坏链接 */ }
   } else {
-    try { adoptState(parseDoc(parseWaveJSON(decodeURIComponent(raw)))); ok = true; } catch (e) { /* 忽略坏链接 */ }
+    try { adoptState(parseDoc(parseLoose(decodeURIComponent(raw)))); ok = true; } catch (e) { /* 忽略坏链接 */ }
   }
   if (ok) history.replaceState(null, '', location.pathname + location.search);
   return ok;
@@ -5880,8 +6020,16 @@ function init() {
   let restored = false;
   if (location.hash.length > 1) restored = loadDocFromHash();
   if (!restored) {
-    const saved = localStorage.getItem('wdgui-doc-v1');
-    if (saved) { try { adoptState(parseDoc(JSON.parse(saved))); restored = true; } catch (e) { /* 忽略 */ } }
+    const saved = tryGet('wdgui-doc-v1');
+    if (saved) {
+      try { adoptState(parseDoc(JSON.parse(saved))); restored = true; }
+      catch (e) {
+        /* 损坏文档不能只静默回退：随后一次 persist() 就会用示例覆盖原键，再无恢复机会。
+           先隔离备份一份，下次还能手动抢救；toast 提示用户发生了什么 */
+        try { storeSet('wdgui-doc-v1-corrupt', saved); } catch (e2) {}
+        setTimeout(() => toast(i18n('本地保存的图表数据损坏，已隔离备份（wdgui-doc-v1-corrupt），当前显示示例'), true), 0);
+      }
+    }
   }
   if (!restored) adoptState(parseDoc(JSON.parse(JSON.stringify(EXAMPLES[1].json))));
 
@@ -5891,7 +6039,7 @@ function init() {
   applySideDock();
   $('#sideDockBtn').addEventListener('click', ev => {
     ev.stopPropagation();
-    localStorage.setItem('wdgui-side-dock', sideDock() ? '0' : '1');
+    storeSet('wdgui-side-dock', sideDock() ? '0' : '1');
     applySideDock();
     state.autoFit = true; renderPreview();
   });
@@ -5908,7 +6056,7 @@ function init() {
   else VIEWMODE_MQ.addListener(onNarrowChange);
 
   window.addEventListener('resize', () => { if (state_brush.mode === 'panel') layoutBrushGrid(); });
-  try { state.sizes = JSON.parse(localStorage.getItem('wdgui-splits')) || {}; } catch (e) { state.sizes = {}; }
+  try { state.sizes = JSON.parse(tryGet('wdgui-splits')) || {}; } catch (e) { state.sizes = {}; }
   applyPanes();
   applySizes();
   bindSplitters();
@@ -5918,6 +6066,10 @@ function init() {
   $('#redoBtn').addEventListener('click', doRedo);
   document.addEventListener('keydown', ev => {
     if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+    /* 输入框内让浏览器原生文本撤销工作：其余键盘处理器都排除 INPUT/TEXTAREA，这里原本漏了，
+       在代码框/信号名里按 Ctrl+Z 会被劫持成回滚整张图 */
+    const el = ev.target;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
     if (ev.key === 'z' || ev.key === 'Z') { ev.preventDefault(); ev.shiftKey ? doRedo() : doUndo(); }
     else if (ev.key === 'y' || ev.key === 'Y') { ev.preventDefault(); doRedo(); }
   });
@@ -5977,7 +6129,7 @@ function init() {
     const c = b.dataset.mode === 'compact';
     if (c === codeCompact) return;
     codeCompact = c;
-    localStorage.setItem('wdgui-code-compact', c ? '1' : '0');
+    storeSet('wdgui-code-compact', c ? '1' : '0');
     syncCodeMode();
     renderCode();
   });

@@ -155,6 +155,7 @@ node render.js -              # 从 stdin 读取 WaveJSON
 | `--node-pos` | `lt tm rt lm c rm lb bm rb` | `lm` | **仅现代模式**：节点圆标位置 |
 | `--node-scale` | 数字 | `1` | **仅现代模式**：节点圆标缩放 |
 | `--no-meta` | — | 默认内嵌 | 关闭 WaveJSON 元数据内嵌 |
+| `--strict` | — | 宽松解析 | **只接受严格 JSON**：渲染来源不明的文件时务必加上，禁用宽松求值回退 |
 
 ### 示例
 
@@ -183,7 +184,7 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 
 两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页的宽松解析行为一致）。
 
-> 安全提示：宽松 WaveJSON 解析会使用 JavaScript 表达式求值，以兼容未加引号的键、单引号和尾逗号。仅处理可信输入；不要对来源不明的文件或网络内容直接运行 CLI。
+> 安全提示：宽松 WaveJSON 解析会使用 JavaScript 表达式求值，以兼容未加引号的键、单引号和尾逗号。求值不是沙箱，恶意构造的输入可以在本进程内执行任意代码——**渲染来源不明的文件或网络内容时必须加 `--strict`**（只接受严格 JSON）；仅对可信输入使用默认的宽松解析。
 
 ## 支持的 WaveJSON 语法
 

@@ -47,9 +47,16 @@ const fakeVscode = {
     registerUriHandler(handler) { fakeUriHandler = handler; return { dispose() {} }; },
     createWebviewPanel(viewType, title, column, options) {
       const panel = {
-        viewType, title, column, options, active: fakeNewPanelActive, disposed: false,
-        webview: { html: '', onDidReceiveMessage() { return { dispose() {} }; } },
-        dispose() { this.disposed = true; },
+        viewType, title, column, options, active: fakeNewPanelActive, disposed: false, visible: true,
+        webview: {
+          html: '', _onMsg: null,
+          onDidReceiveMessage(cb) { this._onMsg = cb; return { dispose() {} }; },
+        },
+        _disposeCbs: [], _viewStateCbs: [],
+        onDidDispose(cb) { this._disposeCbs.push(cb); return { dispose() {} }; },
+        onDidChangeViewState(cb) { this._viewStateCbs.push(cb); return { dispose() {} }; },
+        fireViewState(visible) { this.visible = visible; this._viewStateCbs.forEach(cb => cb({ webviewPanel: this })); },
+        dispose() { this.disposed = true; this._disposeCbs.forEach(cb => cb()); },
       };
       fakePanels.push(panel);
       return panel;
@@ -125,6 +132,9 @@ while (off + 8 <= png2.length) {
 }
 ok(count === 1, '替换后仅剩一个 WaveJSON 文本块');
 ok(meta.pngExtractWaveJSON(skeleton) === null, '无元数据 PNG 提取为 null');
+const dims = meta.pngGetSize(png1);
+ok(dims && dims.width === 4 && dims.height === 4, 'pngGetSize 读出 IHDR 尺寸');
+ok(meta.pngGetSize(Buffer.from('not a png')) === null, '非 PNG 返回 null');
 
 const svg0 = '<svg xmlns="x" width="1"><rect/></svg>';
 const svg1 = meta.svgWithMeta(svg0, json1);
@@ -384,6 +394,9 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     const sandbox = {
       window: {}, JSON, encodeURIComponent, decodeURIComponent, console,
       location: { hash: '' },
+      /* index.html 的存储读写已统一走安全助手，沙箱里接到同一 store 上 */
+      tryGet: k => (k in store ? store[k] : null),
+      storeSet: (k, v) => { store[k] = v; },
       localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
       acquireVsCodeApi: () => ({ postMessage: m => posted.push(m) }),
       setTimeout: fn => { armed = fn; return 1; },
@@ -409,6 +422,54 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const relaxRun = runPoller('0');
   ok(relaxRun.ok && relaxRun.posted.length === 1, '舒缓模式：改动后发出一封保存消息');
   ok(relaxRun.posted[0].text.split('\n').some(l => /^ +"name": "bus",$/.test(l)), '舒缓模式：对象展开为多行（写回风格确实跟随模式）');
+
+  /* ---- 6c. 图片目标：轮询脚本把当前画面随 pixels 消息上报（PNG 按原图宽对齐比例） ---- */
+  ok(/var IMG = null;/.test(h1), '代码块目标不注入画面上报（IMG = null）');
+  ok(/var IMG = \{"ext":"png","pxW":150\};/.test(buildEditorHtml('{"signal":[]}', keyA, { ext: 'png', pxW: 150 })), 'PNG 目标注入 ext 与原图像素宽');
+  ok(/var IMG = \{"ext":"svg"\};/.test(buildEditorHtml('{"signal":[]}', keyA, { ext: 'svg' })), 'SVG 目标注入 ext=svg');
+
+  const runPollerImg = (imgCfg, preview) => {
+    const html = buildEditorHtml('{"signal":[]}', keyA, imgCfg);
+    const src = /\(function \(\) \{\s*var vs = acquireVsCodeApi\(\);[\s\S]*?\}\)\(\);/.exec(html)[0];
+    const store = {};
+    const timers = [];
+    const posted = [];
+    const canvas = { width: 0, height: 0, getContext: () => ({ fillRect() {}, drawImage() {} }), toBlob: cb => cb({}) };
+    let tick = null;
+    const sandbox = {
+      JSON, Math, console,
+      location: { hash: '' },
+      localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+      acquireVsCodeApi: () => ({ postMessage: m => posted.push(m) }),
+      setTimeout: fn => { timers.push(fn); return timers.length; },
+      setInterval: fn => { tick = fn; return 2; },
+      document: { querySelector: () => preview, createElement: () => canvas },
+      getExportSvg: () => ({ str: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', w: 100, h: 40 }),
+      Image: class { set src(v) { if (this.onload) this.onload(); } },
+      URL: { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} },
+      Blob: class { constructor(parts, opts) { this.parts = parts; this.type = opts && opts.type; } },
+      FileReader: class { readAsDataURL() { this.result = 'data:image/png;base64,QUJD'; this.onload && this.onload(); } },
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(src, sandbox);
+    timers.shift()();                            // 1200ms 的武装定时器
+    store[keyA] = JSON.stringify(nextDoc);
+    tick();                                      // 改动 → save 消息 + sendPixels
+    while (timers.length) timers.shift()();      // 排队的宏任务（画面渲染的 setTimeout(0)）
+    return { posted, canvas };
+  };
+
+  const pxRun = runPollerImg({ ext: 'png', pxW: 150 }, {});
+  ok(pxRun.posted.length === 2 && pxRun.posted[0].type === 'save', 'PNG 目标：改动先发 save，再上报画面');
+  ok(pxRun.posted[1].type === 'pixels' && pxRun.posted[1].png === 'QUJD' && pxRun.posted[1].json === JSON.stringify(nextDoc), 'pixels 消息带 base64 PNG 与渲染完成后的文档 JSON');
+  ok(pxRun.canvas.width === 150 && pxRun.canvas.height === 60, '栅格尺寸按原图宽对齐（100×40 → 150×60，1.5×）');
+  ok(runPollerImg({ ext: 'png', pxW: 1000 }, {}).canvas.width === 400, '放大比例夹到上限 4×');
+  ok(runPollerImg({ ext: 'png', pxW: 50 }, {}).canvas.width === 100, '缩到不足 1× 时夹到下限 1×（不渲染模糊图）');
+  const pxDef = runPollerImg({ ext: 'png' }, {});
+  ok(pxDef.canvas.width === 200 && pxDef.canvas.height === 80, '原图读不到宽度时退回默认 2×（与导出按钮一致）');
+  const pxSvg = runPollerImg({ ext: 'svg' }, {});
+  ok(pxSvg.posted.length === 2 && pxSvg.posted[1].svg === '<svg xmlns="http://www.w3.org/2000/svg"></svg>' && pxSvg.posted[1].png === undefined, 'SVG 目标：直接上报矢量文本，不经光栅化');
+  ok(runPollerImg({ ext: 'png' }, null).posted.length === 1, '预览还没内容（空文档）时静默跳过，不误触 getExportSvg 的提示');
 
   /* ---- 7. 界面格式化钩子与打包副本同步（VSIX 里的 editor.html 由 index.html 拷贝而来） ---- */
   ok(/window\.wdFormatDoc = function \(jsonStr\)/.test(editorSrc), 'index.html 暴露写回格式化钩子（复用 fmtJSON）');
@@ -556,7 +617,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(/wavedrom-renderer-ready/.test(fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build.js'), 'utf8')), 'build.js 里生成了就绪事件广播');
 
   /* ---- 8b. 编辑器 CodeLens：不经过预览的稳定入口 ---- */
-  const { makeCodeLensProvider, editFenceCommand } = ext.__test;
+  const { makeCodeLensProvider, editFenceCommand, editImageCommand } = ext.__test;
   ok(fakeCodeLensSelector && fakeCodeLensSelector.language === 'markdown', 'CodeLens 注册在 markdown 文档上');
   const lensDoc = {
     languageId: 'markdown',
@@ -582,6 +643,71 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   fakePanels.length = 0; fakeMessages.length = 0;
   await editFenceCommand({ kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 });
   ok(fakePanels.length === 0 && /Cannot find this code block/.test(fakeMessages[0][1] || ''), 'editFence：内容也对不上时提示而不是打开错块');
+
+  /* 8b-2. 图片引用的 CodeLens：只有内嵌 WaveJSON 的图片才有 */
+  const imgLensDoc = {
+    languageId: 'markdown',
+    uri: { fsPath: mdPath },
+    getText: () => '# t\n\n![波形](./wave.png)\n\n![普通图](./plain.png)\n\n![远程](https://a.com/x.png)\n\n![带标题](./wave.svg "标题")\n',
+  };
+  const imgLenses = makeCodeLensProvider().provideCodeLenses(imgLensDoc);
+  ok(imgLenses.length === 2, '图片引用：内嵌 WaveJSON 的 PNG 与 SVG 各给一个 CodeLens，普通图/远程图不给');
+  ok(imgLenses[0].range.line === 2 && imgLenses[0].command.command === 'wavedrom-gui.editImage'
+    && imgLenses[0].command.arguments[0].src === './wave.png', '图片 CodeLens 落在引用行，指向 editImage，参数带原始引用路径');
+  ok(imgLenses[1].range.line === 8 && imgLenses[1].command.arguments[0].src === './wave.svg', '带 title 的 SVG 引用同样命中（路径取到空白为止）');
+
+  /* CodeLens 点击：打开前重新探测，文件没了/元数据没了要提示而不是打开错图 */
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await editImageCommand({ kind: 'image', docPath: mdPath, src: './wave.png' });
+  ok(fakePanels.length === 1, 'editImage：命中内嵌 WaveJSON 时打开编辑器');
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await editImageCommand({ kind: 'image', docPath: mdPath, src: './plain.png' });
+  await editImageCommand({ kind: 'image', docPath: mdPath, src: './nofile.png' });
+  await editImageCommand({ kind: 'fence', docPath: mdPath, fenceRaw: 'x' });
+  ok(fakePanels.length === 0 && fakeMessages.length === 2, 'editImage：无元数据/文件不存在时提示，非法参数静默忽略');
+
+  /* 8b-3. 引用式图片 CodeLens + 围栏内排除 */
+  const refLensDoc = {
+    languageId: 'markdown',
+    uri: { fsPath: mdPath },
+    getText: () => '# t\n\n![波形][pic]\n\n![别名][]\n\n```text\n![波形](./wave.png)\n```\n\n[pic]: ./wave.png\n[别名]: <./wave.svg> "标题"\n',
+  };
+  const refLenses = makeCodeLensProvider().provideCodeLenses(refLensDoc);
+  ok(refLenses.length === 2, '引用式图片：完整式与折叠式各给一个 CodeLens，定义行与围栏内的行内引用不给');
+  ok(refLenses[0].range.line === 2 && refLenses[0].command.arguments[0].src === './wave.png', '引用式：定义出现在使用之后也能解析（label 大小写/空白折叠）');
+  ok(refLenses[1].range.line === 4 && refLenses[1].command.arguments[0].src === './wave.svg', '折叠式引用回退用 alt 作 label，<尖括号路径> 带标题的定义可解析');
+
+  /* 8b-4. preview.js 宽松解析：与 CLI/编辑器同一覆盖面，且不做任何求值 */
+  const previewSrcFull = fs.readFileSync(path.join(__dirname, '..', 'media', 'preview.js'), 'utf8');
+  const looseSrc = /function parseLoose\(text\) \{[\s\S]*?return JSON\.parse\(out\);\n  \}/.exec(previewSrcFull);
+  ok(looseSrc, 'preview.js 内置无求值的宽松解析器');
+  const sb = { JSON };
+  vm.createContext(sb);
+  vm.runInContext(looseSrc[0], sb);
+  const lenient = '{ // 行注释\n  /* 块注释 */\n  signal: [ // 行尾注释\n    { name: \'clk\', wave: \'p...\', },\n  ],\n}';
+  ok(JSON.stringify(sb.parseLoose(lenient)) === JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), '宽松解析：注释/免引号键/单引号/尾逗号与 CLI 同覆盖面');
+  ok(sb.parseLoose('{"a": "http://x //b"}').a === 'http://x //b', '字符串内的 // 不当注释');
+  ok(sb.parseLoose('{"a": "值, }"}').a === '值, }', '字符串内的「, }」不被当尾逗号');
+  ok(sb.parseLoose("{a: 'x\"y'}").a === 'x"y', '单引号串转双引号时内部双引号补转义');
+  ok((() => { try { sb.parseLoose('{a: process.mainModule.require("child_process")}'); return false; } catch (e) { return true; } })(), '宽松解析不求值：JS 表达式只会解析失败而非执行');
+
+  /* 8b-5. P0 收敛：hash 链接与文件导入走无求值解析，eval 只留给用户亲手输入 */
+  const editorSrcFull = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
+  const edLoose = /function parseLoose\(text\) \{[\s\S]*?return JSON\.parse\(out\);\n\}/.exec(editorSrcFull);
+  ok(edLoose, 'index.html 里有 parseLoose');
+  /* 双副本逐字同步（去除全部空白后比较，兼容缩进差异） */
+  const squash = x => x.replace(/\s+/g, '');
+  ok(squash(edLoose[0]) === squash(looseSrc[0]), 'index.html 与 preview.js 的 parseLoose 逐字同步');
+  const ldBody = /function loadDocFromHash\(\) \{[\s\S]*?\n\}/.exec(editorSrcFull)[0];
+  ok(ldBody.includes('parseLoose(') && !ldBody.includes('parseWaveJSON('), 'hash 导入（含 #LZ 压缩链）只用 parseLoose，不触碰 eval');
+  const imStart = editorSrcFull.indexOf('function importFile');
+  const imCall = editorSrcFull.indexOf('applyDocJSON(', imStart);
+  ok(imStart >= 0 && imCall > imStart && !editorSrcFull.slice(imStart, imCall).includes('parseWaveJSON('), '文件导入只用 parseLoose');
+  ok((editorSrcFull.match(/parseWaveJSON\(/g) || []).length === 3, 'parseWaveJSON（求值）全库仅 3 处：定义 + 代码框 + 粘贴框');
+  const sb2 = { JSON };
+  vm.createContext(sb2);
+  vm.runInContext(edLoose[0], sb2);
+  ok(JSON.stringify(sb2.parseLoose("{ signal: [ { name: 'clk', wave: 'p...', }, ], } // 尾注")) === JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), 'index.html 的 parseLoose 同样吃宽松写法');
 
   /* ---- 9. 编辑面板位置设置（wavedrom-gui.editorPanelPosition，默认 beside） ---- */
   const { editorPanelPosition, openEditor } = ext.__test;
@@ -630,6 +756,44 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
 
   const posProp = pkg.contributes.configuration.properties['wavedrom-gui.editorPanelPosition'];
   ok(posProp && posProp.default === 'current' && posProp.enum.join(',') === 'current,beside,below,newWindow', 'package.json 声明了面板位置设置，默认 current、四个可选值');
+
+  /* ---- 9b. 图片像素写回：关闭/切走面板立即落盘，不同源的像素不写 ---- */
+  const pxDoc1 = JSON.stringify({ signal: [{ name: 'p1', wave: '1.' }] });
+  const pxDoc2 = JSON.stringify({ signal: [{ name: 'p2', wave: '0.' }] });
+  const pxDoc3 = JSON.stringify({ signal: [{ name: 'p3', wave: '1.' }] });
+  const pxPath = path.join(tmp, 'px.png');
+  fs.writeFileSync(pxPath, png2); // 初始内容：png1 之外的像素 + json2 元数据
+  const openImg = () => {
+    fakePanels.length = 0; fakeCommands.length = 0;
+    openEditor({ kind: 'image', docPath: docMd, imgPath: pxPath });
+    return fakePanels[0];
+  };
+
+  /* 关闭面板：宿主手里的像素 + 最新元数据一次落盘，并刷新预览 */
+  let pxPanel = openImg();
+  pxPanel.webview._onMsg({ type: 'save', json: pxDoc1, text: null });
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDoc1, 'save 消息即时更新图片元数据（像素不动）');
+  pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc1, png: png1.toString('base64') });
+  pxPanel.dispose();
+  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(png1, meta.WD_PNG_KEYWORD, pxDoc1)), '关闭面板：像素按上报内容重写并嵌入最新元数据');
+  ok(fakeCommands.includes('markdown.preview.refresh'), '像素落盘后主动刷新 Markdown 预览');
+  ok(!fs.existsSync(pxPath + '.wdtmp'), '临时文件已清理（临时文件 + rename 原子写）');
+
+  /* 像素与当前元数据不同源（渲染没跟上）时不写：保持「元数据新、像素旧」的现状语义 */
+  pxPanel = openImg();
+  pxPanel.webview._onMsg({ type: 'save', json: pxDoc2, text: null });
+  const beforeStale = fs.readFileSync(pxPath);
+  pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc1, png: png1.toString('base64') });
+  pxPanel.dispose();
+  ok(fs.readFileSync(pxPath).equals(beforeStale), '不同源的迟到像素不落盘（不覆盖刚写回的新元数据）');
+
+  /* 切走面板标签同样立即落盘（placePanel 搬动面板时 pendingPx 为空，自然跳过） */
+  pxPanel = openImg();
+  pxPanel.webview._onMsg({ type: 'save', json: pxDoc3, text: null });
+  pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc3, png: png1.toString('base64') });
+  pxPanel.fireViewState(false);
+  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(png1, meta.WD_PNG_KEYWORD, pxDoc3)), '切走标签：像素立即落盘');
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDoc3, '落盘内容内嵌的元数据与像素同源');
 
   /* ---- 10. 中英双语：扩展宿主 l10n 包 + package.nls 包 ---- */
   const readJson = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
