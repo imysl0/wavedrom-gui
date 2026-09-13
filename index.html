@@ -4305,6 +4305,7 @@ function openPop(lane, t, anchor) {
     if (y0 + ph0 > innerHeight - 8) y0 = r0.top - ph0 - 6;
     pop.style.left = Math.max(8, x0) + 'px';
     pop.style.top = Math.max(8, y0) + 'px';
+    watchPopViewport(true); // 标签输入框会唤起软键盘，键盘弹出/收起时把弹窗夹回可视区
     markEditingRow(lane);
     return;
   }
@@ -4374,6 +4375,7 @@ function openPop(lane, t, anchor) {
   if (y + ph > innerHeight - 8) y = r.top - ph - 6;
   pop.style.left = Math.max(8, x) + 'px';
   pop.style.top = Math.max(8, y) + 'px';
+  watchPopViewport(true);
   markEditingRow(lane);
 }
 function extendSample() {
@@ -4385,8 +4387,80 @@ function extendSample() {
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   return svg;
 }
+/* 软键盘弹出会压缩视觉视口，而 fixed 弹窗仍停在打开时的坐标，被键盘盖住
+   （手机上给总线格输标签必现）。弹窗打开期间监听 visualViewport 的 resize/scroll，
+   把弹窗实时夹回当前可见区：弹窗比可视区还高时贴可视区顶（输入框在弹窗上部，先保住它）。 */
+let popVVGuard = null;
+function clampPopToViewport() {
+  const pop = $('#cellPop');
+  if (!pop.classList.contains('open')) return;
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : innerWidth;
+  const vh = vv ? vv.height : innerHeight;
+  const vx = vv ? vv.offsetLeft : 0;
+  const vy = vv ? vv.offsetTop : 0;
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = parseFloat(pop.style.left) || 0;
+  let y = parseFloat(pop.style.top) || 0;
+  x = pw >= vw - 16 ? vx + 8 : Math.min(Math.max(x, vx + 8), vx + vw - pw - 8);
+  y = ph >= vh - 16 ? vy + 8 : Math.min(Math.max(y, vy + 8), vy + vh - ph - 8);
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
+}
+function watchPopViewport(on) {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  if (on && !popVVGuard) {
+    /* resize（软键盘弹出/收起）才连带滚格子：scroll 事件（用户缩放平移）只夹弹窗，不抢滚动权 */
+    popVVGuard = ev => {
+      clampPopToViewport();
+      if (ev && ev.type === 'resize') keepEditedCellVisible();
+    };
+    vv.addEventListener('resize', popVVGuard);
+    vv.addEventListener('scroll', popVVGuard);
+  } else if (!on && popVVGuard) {
+    vv.removeEventListener('resize', popVVGuard);
+    vv.removeEventListener('scroll', popVVGuard);
+    popVVGuard = null;
+  }
+}
+/* 键盘压缩可视区后，被编辑（弹窗锚定）/自动模式选中的格子本身可能仍在键盘下面——
+   按当前视觉视口把格子就近滚回 #gridScroll 可视范围（nearest 语义：够到即可，不强行居中）。
+   下边界取弹窗上沿而非视口底：弹窗贴着键盘时，视口底部那一截被弹窗占着，
+   格子滚到「视口内」仍看不见——要滚到弹窗上方才是真正可见。 */
+function keepEditedCellVisible() {
+  const ref = popCell || (autoChain && chainSel ? chainSel : null);
+  if (!ref) return;
+  const laneId = ref.lane ? ref.lane.id : ref.laneId;
+  const cell = document.querySelector(`#gridInner .lane-row[data-lane="${laneId}"] .cell[data-t="${ref.t}"]`);
+  const sc = $('#gridScroll');
+  if (!cell || !sc) return;
+  const vv = window.visualViewport;
+  const vTop = (vv ? vv.offsetTop : 0) + 8;
+  let vBot = (vv ? vv.offsetTop + vv.height : innerHeight) - 8;
+  const r = cell.getBoundingClientRect();
+  const pop = $('#cellPop');
+  if (pop.classList.contains('open')) {
+    /* 弹窗与格子纵向重叠时才把下边界抬到弹窗上沿：桌面翻转布局里格子可能在
+       弹窗下方且完整可见，不该被误滚到弹窗上方 */
+    const pr = pop.getBoundingClientRect();
+    if (r.top < pr.bottom && r.bottom > pr.top && pr.top < vBot) vBot = pr.top - 4;
+  }
+  if (r.top < vTop) sc.scrollTop -= vTop - r.top;
+  else if (r.bottom > vBot) {
+    /* 下出界（被弹窗/键盘挡住）：滚到弹窗上方可用区的垂直居中——贴边会显得挤，
+       居中让正在编辑的行上下都有邻行做参照 */
+    const ideal = vTop + Math.max(0, (vBot - vTop - r.height) / 2);
+    sc.scrollTop += r.top - ideal;
+  }
+  const vLeft = (vv ? vv.offsetLeft : 0) + 8;
+  const vRight = (vv ? vv.offsetLeft + vv.width : innerWidth) - 8;
+  if (r.left < vLeft) sc.scrollLeft -= vLeft - r.left;
+  else if (r.right > vRight) sc.scrollLeft += r.right - vRight;
+}
 function closePop() {
   $('#cellPop').classList.remove('open');
+  watchPopViewport(false);
   popCell = null;
   dropLabelStash();
   const active = document.activeElement;
@@ -4424,6 +4498,7 @@ function openLanePropPop(lane, anchor) {
   if (y + ph > innerHeight - 8) y = innerHeight - ph - 8;
   pop.style.left = x + 'px';
   pop.style.top = Math.max(8, y) + 'px';
+  watchPopViewport(true); // period/phase 输入框同样会唤起软键盘
   setTimeout(() => pInp.focus(), 30);
 }
 
