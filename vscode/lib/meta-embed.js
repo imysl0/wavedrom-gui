@@ -172,11 +172,13 @@ function svgDetectExportKind(text) {
     /* 官方渲染器（编辑器 WaveDrom 标签 / 传统模式 skill 导出）的 SVG 必带 waves_<n> 组 */
     if (/id="waves_\d+"/.test(text)) return 'wavedrom';
     /* 剩下的是无标记且无官方特征的旧 SVG：无 xlink 命名空间、无 <style> 的按编辑区导出
-       认定（编辑区矢量重建没有这两样）；现代模式 skill 导出带 xmlns:xlink，归 wavedrom
-       （插件暂无该风格的精确重绘，维持官方渲染这一现状行为） */
+       认定（编辑区矢量重建没有这两样）；带 xlink/style 的无标记 SVG 是现代模式 skill 导出 */
     if (!/xmlns:xlink/.test(text) && !/<style[ >]/.test(text)) return 'editor';
+    return 'skill-modern';
   }
-  return 'wavedrom';
+  /* 标记与指纹都识别失败（含 PNG 无标记）→ 按现代风格兜底：
+     新工具链默认导出即 modern，识别不出来时按它重绘最接近原图 */
+  return 'skill-modern';
 }
 
 function pngDetectExportKind(buf) {

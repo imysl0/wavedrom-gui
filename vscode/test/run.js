@@ -147,7 +147,7 @@ ok(meta.svgDetectExportKind(meta.svgWithMeta(svg0, json1, 'editor')) === 'editor
 ok(meta.svgDetectExportKind(meta.svgWithMeta(svg0, json1, 'wavedrom')) === 'wavedrom', 'SVG data-export 标记：wavedrom');
 ok(meta.svgWithMeta(svg0, json1).indexOf('data-export') < 0, '不带 kind 时维持旧格式（与 skill 导出互通）');
 ok(meta.svgDetectExportKind('<svg><metadata data-wavedrom="1">eHg=</metadata><g id="waves_0"/></svg>') === 'wavedrom', '无标记旧 SVG：waves_0 指纹判官方渲染');
-ok(meta.svgDetectExportKind('<svg xmlns:xlink="u"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'wavedrom', '无标记旧 SVG：xlink 命名空间归官方风格（现代模式 skill 导出）');
+ok(meta.svgDetectExportKind('<svg xmlns:xlink="u"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'skill-modern', '无标记旧 SVG：xlink/style 归现代模式 skill 导出');
 ok(meta.svgDetectExportKind('<svg data-editor-export="1"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'editor', '无标记旧 SVG：根元素 data-editor-export 指纹判编辑区');
 ok(meta.svgDetectExportKind('<svg><metadata data-wavedrom="1">eHg=</metadata><rect/></svg>') === 'editor', '无标记旧 SVG：无任何官方特征判编辑区导出');
 ok(meta.svgDetectExportKind(meta.svgWithMeta(svg0, json1, 'skill-modern')) === 'skill-modern', 'SVG data-export 标记：skill-modern');
@@ -155,7 +155,8 @@ const pngSm = meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-mod
 ok(meta.pngDetectExportKind(pngSm) === 'skill-modern', 'PNG WaveDromGui 标记：skill-modern');
 const pngMark = meta.pngInsertITXt(meta.pngInsertITXt(skeleton, meta.WD_PNG_KEYWORD, json1), meta.WD_EXPORT_KEYWORD, 'export=editor');
 ok(meta.pngDetectExportKind(pngMark) === 'editor', 'PNG WaveDromGui iTXt 标记可识别');
-ok(meta.pngDetectExportKind(png1) === null, '无标记 PNG 返回 null（写回按 wavedrom 默认）');
+ok(meta.pngDetectExportKind(png1) === null, '无标记 PNG 返回 null（调用侧按 skill-modern 兜底）');
+ok(meta.svgDetectExportKind('<svg/>') === 'skill-modern' && meta.svgDetectExportKind('<svg><metadata></metadata></svg>') === 'skill-modern', '标记与指纹全失败时兜底 skill-modern（无 WaveJSON 元数据等不可判定输入）');
 const pngReplaced = meta.pngReplaceITXt(pngMark, meta.WD_PNG_KEYWORD, json2);
 
 
@@ -820,6 +821,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   let pxPanel = openImg();
   pxPanel.webview._onMsg({ type: 'save', json: pxDoc1, text: null });
   ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDoc1, 'save 消息即时更新图片元数据（像素不动）');
+  ok(pxPanel.webview.html.includes('"kind":"skill-modern"'), '无标记 PNG 打开即注入 skill-modern 渲染器（兜底默认）');
   pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc1, png: png1.toString('base64') });
   pxPanel.dispose();
   ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(png1, meta.WD_PNG_KEYWORD, pxDoc1)), '关闭面板：像素按上报内容重写并嵌入最新元数据');

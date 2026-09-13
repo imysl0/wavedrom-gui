@@ -267,7 +267,7 @@ function openEditor(target) {
       if (!isSvg) { const dim = pngGetSize(bytes); imgPxW = dim ? dim.width : null; }
       /* 原图的导出来源（wavedrom 官方渲染 / editor 编辑区矢量重建）：
          写回重绘时选同一种，编辑区导出的图才不会在保存后被重绘成官方样式 */
-      imgKind = (isSvg ? svgDetectExportKind(bytes.toString('utf8')) : pngDetectExportKind(bytes)) || 'wavedrom';
+      imgKind = (isSvg ? svgDetectExportKind(bytes.toString('utf8')) : pngDetectExportKind(bytes)) || 'skill-modern';
     }
   } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to read the diagram — {0}', e.message)); return; }
   if (!jsonText) { vscode.window.showErrorMessage(t('WaveDrom: No editable WaveJSON in this target')); return; }
@@ -278,7 +278,7 @@ function openEditor(target) {
     html = buildEditorHtml(jsonText, panelDocKey(target), target.kind === 'image' && {
       ext: /\.svg$/i.test(target.imgPath) ? 'svg' : 'png',
       pxW: imgPxW,
-      kind: imgKind || 'wavedrom',
+      kind: imgKind || 'skill-modern',
     });
   }
   catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to load the editor UI — {0}', e.message)); return; }
