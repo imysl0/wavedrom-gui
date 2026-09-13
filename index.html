@@ -877,7 +877,7 @@ html:not([data-theme]) #wv0 svg { filter: invert(0.91) hue-rotate(180deg) contra
 /* 侧栏迁移弹窗（边与箭头/图表设置）：内容可能高于视口，正文区内部滚动（触屏可拖动滚） */
 .modal-body { max-height: min(72vh, 620px); overflow-y: auto; overscroll-behavior: contain; }
 .modal-mask.side-pop { z-index: 140; } /* 高于手机抽屉(130)/遮罩(129)，面板打开时也可叠加弹出 */
-#edgeMask .modal, #cfgMask .modal { width: min(430px, 92vw); }
+#edgeMask .modal, #cfgMask .modal, #nodeLinkMask .modal { width: min(430px, 92vw); }
 .ver-badge {
   flex: none;
   font: 600 10px var(--font-mono); color: var(--faint);
@@ -1322,6 +1322,19 @@ html[data-mobile] {
   </div>
 </div>
 
+<div class="modal-mask side-pop" id="nodeLinkMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="节点连线" data-i18n-aria="节点连线">
+    <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/></svg><span id="nodeLinkTitle" data-i18n="节点连线">节点连线</span>
+      <button class="icon-btn pop-close" data-act="node-link-close" data-i18n-title="关闭" aria-label="关闭节点连线" data-i18n-aria="关闭节点连线"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </h3>
+    <div class="modal-body">
+      <div class="edge-hint" id="nodeLinkHint"></div>
+      <div class="edge-list" id="nodeLinkList"></div>
+      <div class="add-lane-btns"><button class="btn" data-act="add-node-link" data-i18n="＋添加连线">＋添加连线</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-mask side-pop" id="cfgMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="图表设置" data-i18n-aria="图表设置">
     <h3><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg><span data-i18n="图表设置">图表设置</span>
@@ -1623,6 +1636,15 @@ const I18N_EN = {
   '复制失败，请手动复制': 'Copy failed — please copy manually', 'PNG 生成失败': 'PNG generation failed',
   '钉住笔刷弹层': 'Pin brush flyout', '标签': 'Label', '数据标签': 'Data label', '子组': 'Subgroup',
   '图表较大（链接 ': 'Large diagram (link of ', ' 字符），可能超出部分应用的粘贴上限，建议改用压缩分享链接': ' chars) — may exceed paste limits in some apps; prefer the compressed share link',
+  /* 单元格弹窗「连线…」入口与节点连线弹窗 */
+  '连线…': 'Links…', '本节点与其他节点的连线（增删 / 换向 / 样式）': 'Links of this node (add / remove / swap / style)',
+  '已放置节点 ': 'Placed node ',
+  '节点连线': 'Node links', '关闭节点连线': 'Close node links',
+  '节点 ': 'Node ', ' 的连线': ' links',
+  '另一端节点': 'Other node', '交换方向': 'Swap ends', '删除连线': 'Delete link',
+  '＋添加连线': '+ Add link',
+  '还没有连线 —— 点下方「＋添加连线」。': 'No links yet — click "+ Add link" below.',
+  '再放一个节点标记才能连线 —— 在其他单元格里点「放置节点」。': 'One more node is needed — click "place node" in another cell popup.',
 };
 /* localStorage 安全读写：隐私模式/禁用存储时 setItem 会抛异常、个别环境连访问都抛，
    裸调用会打断主题/语言切换等后续渲染，顶层读取直接崩掉整个脚本。
@@ -1643,6 +1665,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = i18n(el.dataset.i18nPh); });
   closePop(); closeMoreMenu(); closeSetPop(); // 动态浮层内容不随语言刷新，直接收起避免中英混排
   renderGrid(); renderEdges(); renderBrushUI();
+  if ($('#nodeLinkMask').classList.contains('open')) renderNodeLinks(); // 标题与提示随语言重排
   updateChainBtn();
 }
 
@@ -3423,6 +3446,78 @@ function renderEdges() {
   });
 }
 
+/* ---------- 渲染：单元格弹窗「连线…」入口的节点连线弹窗 ---------- */
+/* 只显示与本节点相关的边，数据仍是 state.edges 本体（与「边与箭头」弹窗同一份） */
+let nodeLinkLetter = null; // 弹窗聚焦的节点字母
+function openNodeLinks(lane, t) {
+  let letter = lane.nodeByT[t];
+  if (!letter) {
+    const L = nextNodeLetter();
+    if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; }
+    lane.nodeByT[t] = L;
+    update(true);
+    letter = L;
+    toast(i18n('已放置节点 ') + L); // 自动放置不是用户直接点的「放置节点」，toast 点明这一步
+  }
+  nodeLinkLetter = letter;
+  closePop();
+  $('#nodeLinkMask').classList.add('open');
+  renderNodeLinks();
+}
+function renderNodeLinks() {
+  const list = $('#nodeLinkList');
+  list.textContent = '';
+  const nodes = collectNodes();
+  if (!nodeLinkLetter || !nodes.some(n => n.letter === nodeLinkLetter)) {
+    nodeLinkLetter = null; // 节点被撤销/删除：弹窗失去主体，直接收起
+    $('#nodeLinkMask').classList.remove('open');
+    return;
+  }
+  $('#nodeLinkTitle').textContent = i18n('节点 ') + nodeLinkLetter + i18n(' 的连线');
+  const others = nodes.filter(n => n.letter !== nodeLinkLetter);
+  const mine = state.edges.filter(e => e.from === nodeLinkLetter || e.to === nodeLinkLetter);
+  const hint = $('#nodeLinkHint');
+  hint.textContent = !others.length ? i18n('再放一个节点标记才能连线 —— 在其他单元格里点「放置节点」。')
+    : !mine.length ? i18n('还没有连线 —— 点下方「＋添加连线」。') : '';
+  for (const e of mine) {
+    const badge = h('span', { class: 'badge' }, nodeLinkLetter);
+    const swap = h('button', { class: 'icon-btn', style: 'flex:none', title: i18n('交换方向'), 'aria-label': i18n('交换方向') });
+    swap.appendChild(icon('<path d="M3 5.5h10m0 0-2.5-2.5m2.5 2.5-2.5 2.5"/><path d="M13 10.5h-10m0 0 2.5-2.5m-2.5 2.5 2.5 2.5"/>', 12));
+    swap.addEventListener('click', () => { const f = e.from; e.from = e.to; e.to = f; update(true); });
+    const otherVal = e.from === nodeLinkLetter ? e.to : e.from;
+    const otherSel = h('select', { 'aria-label': i18n('另一端节点') }, ...nodes
+      .filter(n => n.letter !== nodeLinkLetter || n.letter === otherVal)
+      .map(n => {
+        const o = h('option', { value: n.letter }, `${n.letter} · ${n.lane.name || i18n('未命名')}@${n.t}`);
+        if (n.letter === otherVal) o.selected = true; return o;
+      }));
+    otherSel.addEventListener('change', () => {
+      if (e.from === nodeLinkLetter) e.to = otherSel.value; else e.from = otherSel.value;
+      scheduleUpdate();
+    });
+    const styleSel = h('select', { 'aria-label': i18n('箭头样式') },
+      h('option', { value: '', disabled: true, hidden: true }, i18n('选择样式')),
+      h('optgroup', { label: i18n('常用') }, ...EDGE_SPECS.slice(0, 9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${i18n(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })),
+      h('optgroup', { label: i18n('更多') }, ...EDGE_SPECS.slice(9).map(s => { const o = h('option', { value: s.s }, `${s.s}  ${i18n(s.name)}`); if (s.s === e.spec) o.selected = true; return o; })));
+    const prevWrap = h('span', { class: 'preview' }); prevWrap.appendChild(edgePreviewSVG(e.spec));
+    styleSel.addEventListener('change', () => {
+      e.spec = styleSel.value;
+      prevWrap.textContent = ''; prevWrap.appendChild(edgePreviewSVG(e.spec));
+      scheduleUpdate();
+    });
+    const labelInp = h('input', { type: 'text', value: e.label, placeholder: i18n('箭头标注（可选）'), 'aria-label': i18n('箭头标注') });
+    labelInp.addEventListener('input', () => { commitTag = 'edge'; e.label = labelInp.value; scheduleUpdate(); });
+    const del = h('button', { class: 'icon-btn danger-hover del', title: i18n('删除连线'), 'aria-label': i18n('删除连线') });
+    del.appendChild(icon(IC.trash, 13));
+    /* 行是过滤视图：用边对象引用反查下标再删，行闭包不持有 state.edges 下标 */
+    del.addEventListener('click', () => { const i = state.edges.indexOf(e); if (i >= 0) state.edges.splice(i, 1); update(true); });
+    list.appendChild(h('div', { class: 'edge-row' },
+      h('div', { class: 'edge-pick' }, badge, swap, otherSel),
+      h('div', { class: 'edge-style-pick' }, prevWrap, styleSel),
+      labelInp, del));
+  }
+}
+
 /* ---------- 渲染：设置 / 代码 / 预览 ---------- */
 function renderSettings() {
   $('#headText').value = state.head.text; $('#headTick').value = fmtTick(state.head.tick);
@@ -3558,6 +3653,8 @@ function update(structureChanged) {
   clearTimeout(previewTimer);
   previewTimer = setTimeout(renderPreview, 50);
   if (structureChanged) renderEdges();
+  /* 节点连线弹窗开着时同步重建：增删/换边后行数变化；撤销恢复后字母可能失效（函数内自会收起） */
+  if (structureChanged && $('#nodeLinkMask').classList.contains('open')) renderNodeLinks();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(persist, 400);
 }
@@ -4195,6 +4292,10 @@ function openPop(lane, t, anchor) {
       openPop(lane, t, anchor);
     });
     row.appendChild(nodeBtn);
+    const linkBtnM = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, i18n('连线…'));
+    linkBtnM.title = i18n('本节点与其他节点的连线（增删 / 换向 / 样式）');
+    linkBtnM.addEventListener('click', () => openNodeLinks(lane, t));
+    row.appendChild(linkBtnM);
     pop.appendChild(row);
     pop.classList.add('open');
     const r0 = anchor.getBoundingClientRect();
@@ -4243,7 +4344,9 @@ function openPop(lane, t, anchor) {
     rm.addEventListener('click', () => { delete lane.nodeByT[t]; update(); openPop(lane, t, anchor); });
     nodeRow.appendChild(rm);
   } else {
-    const add = h('button', { class: 'btn ghost', style: 'height:26px' }, i18n('⊕ 放置节点'));
+    /* 说明文字独占一行，两个按钮第二行靠右：272px 弹窗一行放不下三者 */
+    nodeRow.appendChild(h('span', { style: 'flex-basis:100%' }, i18n('放置节点后可连箭头')));
+    const add = h('button', { class: 'btn ghost', style: 'height:26px;margin-left:auto' }, i18n('⊕ 放置节点'));
     add.addEventListener('click', () => {
       const L = nextNodeLetter();
       if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; }
@@ -4251,9 +4354,13 @@ function openPop(lane, t, anchor) {
       update(true);
       openPop(lane, t, anchor);
     });
-    nodeRow.appendChild(h('span', null, i18n('放置节点后可连箭头')));
     nodeRow.appendChild(add);
   }
+  /* 节点按钮右侧的连线入口：本格还没放节点时，进弹窗前先按放置逻辑自动补一个 */
+  const linkBtn = h('button', { class: 'btn ghost', style: 'height:26px', title: i18n('本节点与其他节点的连线（增删 / 换向 / 样式）') },
+    icon('<path d="M2 8h9m0 0-2.5-2.5M11 8l-2.5 2.5"/><path d="M13.5 4.5v7"/>', 12), i18n('连线…'));
+  linkBtn.addEventListener('click', () => openNodeLinks(lane, t));
+  nodeRow.appendChild(linkBtn);
   pop.appendChild(nodeRow);
 
   const clearBtn = h('button', { class: 'btn danger', style: 'flex:none' }, i18n('清除本格'));
@@ -4641,6 +4748,7 @@ function bindGrid() {
     closeSetPop(); closePop(); closeMenus(); closeBrushFly(); closeBrushPanel();
     $('#aboutMask').classList.remove('open'); $('#shortcutMask').classList.remove('open');
     $('#edgeMask').classList.remove('open'); $('#cfgMask').classList.remove('open');
+    $('#nodeLinkMask').classList.remove('open');
     $('#hintBox').classList.remove('pinned');
   });
   const hintBox = $('#hintBox');
@@ -5752,6 +5860,18 @@ function handleAct(act, btn) {
     case 'shortcut-close': $('#shortcutMask').classList.remove('open'); break;
     case 'open-edge-pop': renderEdges(); $('#edgeMask').classList.add('open'); break;
     case 'edge-close': $('#edgeMask').classList.remove('open'); break;
+    case 'node-link-close': nodeLinkLetter = null; $('#nodeLinkMask').classList.remove('open'); break;
+    case 'add-node-link': {
+      if (!nodeLinkLetter) break;
+      const others = collectNodes().filter(n => n.letter !== nodeLinkLetter);
+      if (!others.length) { toast(i18n('至少需要两个节点标记，先在单元格里放置节点'), true); break; }
+      const used = new Set(state.edges.map(e => e.from + e.spec + e.to));
+      let to = others[0].letter;
+      for (const b of others) if (!used.has(nodeLinkLetter + '->' + b.letter)) { to = b.letter; break; }
+      state.edges.push({ from: nodeLinkLetter, to, spec: '->', label: '' });
+      update(true);
+      break;
+    }
     case 'open-cfg-pop': $('#cfgMask').classList.add('open'); break;
     case 'cfg-close': $('#cfgMask').classList.remove('open'); break;
     case 'clear-doc':
@@ -6120,7 +6240,7 @@ function init() {
   $('#aboutMask').addEventListener('mousedown', ev => { if (ev.target === $('#aboutMask')) handleAct('about-close'); });
   $('#shortcutMask').addEventListener('mousedown', ev => { if (ev.target === $('#shortcutMask')) handleAct('shortcut-close'); });
   /* 侧栏迁移弹窗：点遮罩空白处关闭 */
-  [['#edgeMask', 'edge-close'], ['#cfgMask', 'cfg-close']].forEach(([sel, act]) =>
+  [['#edgeMask', 'edge-close'], ['#cfgMask', 'cfg-close'], ['#nodeLinkMask', 'node-link-close']].forEach(([sel, act]) =>
     $(sel).addEventListener('mousedown', ev => { if (ev.target === $(sel)) handleAct(act); }));
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Enter' && $('#pasteMask').classList.contains('open') && (ev.ctrlKey || ev.metaKey)) handleAct('paste-ok');
