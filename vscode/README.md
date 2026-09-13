@@ -61,11 +61,11 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（�
 
 - **`wavedrom-gui.showCodeLens`**（默认 `true`）— 在 Markdown **源码**里每个 ` ```wavedrom ` 代码块上方显示一行「编辑波形」CodeLens，点击直接进可视化编辑器。这条入口不经过预览，与预览安全级别无关，也不受 CSP 影响，是不想用预览按钮（或预览被限制）时的稳定入口。
 
-- **`wavedrom-gui.editorViewMode`** — 可视化编辑器面板打开时用哪种布局：
-  - `simple`（默认）：每次打开面板都把界面设为**简约模式**（手机版紧凑布局）。面板通常是一个窄分栏，简约布局更合用
-  - `auto`：不干预，沿用编辑器界面自己记住的布局偏好
+- **`wavedrom-gui.editorViewMode`** — 可视化编辑器面板打开时用哪种布局，以及右侧「实时预览 / WaveJSON 代码」窗口的初始显隐：
+  - `auto`（默认）：**沿用编辑器界面自己记住的布局偏好**；同时把右侧「实时预览 / WaveJSON 代码」两个窗口默认**收起**——编辑面板通常是一个窄分栏，右侧窗只会挤占空间。需要看预览时在面板内从编辑器设置 → 视图 → 窗口显示恢复，面板内切换的面板内有效
+  - `simple`：每次打开面板都把界面设为**简约模式**（手机版紧凑布局）；手机布局下右栏本就收起（底部按钮切换），此项不碰窗口显隐
 
-  面板里仍可临时切换视图模式（设置 →「视图模式」），只是下次从扩展打开时会回到这里设置的值。
+  两个窗口都收起时整个右栏（含拖拽分割条）隐藏；`simple` 模式不受窗口显隐影响。
 
 - **`wavedrom-gui.editorSidePanel`** — 「通道与分组」左栏的初始显隐（只在简约/手机布局下生效，见上一项）：
   - `shown`（默认）：每次打开面板都**展开**它。编辑器界面自身的默认是隐藏，而面板里这一栏常要用（＋信号/时钟/总线/占位/分组、节点、图表都在这里）
@@ -95,7 +95,7 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据（�
   `[wavedrom-gui] i18n {"setting":"auto","envLanguage":"zh-cn","effective":"zh","l10nApi":true,"zhTableKeys":24}`。
 - ⚠️ 用 **F5 的扩展开发宿主**调试时，**命令标题与设置说明会显示英文**：VS Code 在开发模式下会直接跳过 `package.nls.<locale>.json`（工作台代码里是 `if (t.devMode || t.pseudo || !t.language) return { localized: package.nls.json }`），这是宿主行为、扩展无法绕过；消息、CodeLens 与预览文案不受此限。想看完整中文界面请装 VSIX 后再测。
 - 编辑器面板（`index.html`）**有自己的语言菜单**（跟随系统 / 简体中文 / English，偏好持久化），初始值取 `wavedrom-gui.language` 的结果，之后以你在面板里选的语言为准。
-- 编辑器面板的布局：`wavedrom-gui.editorViewMode` 默认 `simple`，**每次打开都是简约模式**（面板通常是窄分栏，简约布局更合用）；`wavedrom-gui.editorSidePanel` 默认 `shown`，**「通道与分组」左栏默认展开**（界面自身的默认是隐藏）。两项都可设成 `auto` 以沿用界面里记住的偏好，面板内也能临时切换。
+- 编辑器面板的布局：`wavedrom-gui.editorViewMode` 默认 `auto`——沿用编辑器界面记住的布局偏好，且「实时预览 / WaveJSON」右侧窗默认收起（面板内可从编辑器设置恢复）；`wavedrom-gui.editorSidePanel` 默认 `shown`，**「通道与分组」左栏默认展开**（界面自身的默认是隐藏）。两项都可调整，面板内也能临时切换。
 
 ## 安装与调试
 
