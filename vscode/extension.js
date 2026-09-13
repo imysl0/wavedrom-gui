@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const {
   svgWithMeta, svgExtractWaveJSON,
-  pngReplaceITXt, pngExtractWaveJSON, pngGetSize,
+  pngReplaceITXt, pngInsertITXt, pngExtractWaveJSON, pngGetSize,
   svgDetectExportKind, pngDetectExportKind,
 } = require('./lib/meta-embed.js');
 
@@ -407,6 +407,18 @@ function imageExportTheme() {
   } catch (e) { return 'auto'; }
 }
 
+/* 像素落盘时把来源标记重新嵌入 PNG（与 SVG 路径的 svgWithMeta 对称）：
+   webview 光栅化的 PNG 是 canvas 全新编码，不含原文件任何 iTXt——只写 WaveJSON
+   会把 export= 标记弄丢，下次打开兜底判成 skill-modern，传统风格的图编辑第二轮
+   就漂成现代（实测踩过）。imgKind 缺失时跳过标记（保持旧行为）。 */
+function reembedPngMarker(rasterized, imgKind, jsonText) {
+  if (!imgKind) return pngReplaceITXt(rasterized, 'WaveJSON', jsonText);
+  return pngReplaceITXt(
+    pngInsertITXt(rasterized, 'WaveDromGui', 'export=' + imgKind),
+    'WaveJSON', jsonText,
+  );
+}
+
 function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null) {
   if (target.kind === 'image') {
     const theme = imageExportTheme();
@@ -446,7 +458,7 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
          下次打开才能继续按同一种导出风格重绘 */
       const out = px.svg != null
         ? Buffer.from(svgWithMeta(px.svg, saveTarget.lastSaved, imgKind), 'utf8')
-        : pngReplaceITXt(px.png, 'WaveJSON', saveTarget.lastSaved);
+        : reembedPngMarker(px.png, imgKind, saveTarget.lastSaved);
       /* 写临时文件再改名：整文件重写像素后，半途崩溃不能再留下坏图 */
       const tmp = saveTarget.imgPath + '.wdtmp';
       try { fs.writeFileSync(tmp, out); fs.renameSync(tmp, saveTarget.imgPath); }
@@ -555,11 +567,18 @@ function panelDocKey(target) {
 /* 编辑器面板的视图模式（wavedrom-gui.editorViewMode）：
    simple = 每次打开面板都把界面的视图模式设为「简约模式」（默认）；
    auto = 不干预，沿用编辑器界面里记住的偏好。取值非法或读不到时按 simple */
+/* 编辑器面板的视图模式（wavedrom-gui.editorViewMode）：
+   auto = 默认：不干预布局偏好，沿用界面里记住的设置；同时把「实时预览 / WaveJSON
+          代码」右侧窗默认收起——编辑面板通常是一个窄分栏，右侧窗只会挤占空间，
+          需要时可从编辑器设置 → 视图 → 窗口显示里恢复；
+   simple = 每次打开面板都把界面设为简约模式（手机版紧凑布局），右侧窗显隐不碰
+   （手机布局下 right-col 本就收起，由底部按钮切换）。
+   取值非法或读不到时按 auto */
 function editorViewMode() {
   try {
     const v = vscode.workspace.getConfiguration('wavedrom-gui').get('editorViewMode');
-    return v === 'auto' ? 'auto' : 'simple';
-  } catch (e) { return 'simple'; }
+    return (v === 'simple' || v === 'auto') ? v : 'auto';
+  } catch (e) { return 'auto'; }
 }
 
 /* 「通道与分组」左栏（wavedrom-gui.editorSidePanel）：
@@ -594,12 +613,14 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
   /* 编辑器界面自己的偏好（都在 localStorage，界面启动时读）：
      - 语言（wdgui-lang，菜单里 auto/zh/en）：只在没设置过时按 VS Code 的显示语言写一份，
        之后用户在界面里选过的语言优先；界面的 auto 本来就会跟随系统/宿主语言，不覆盖也对。
-     - 视图模式（wdgui-viewmode，菜单里 auto/simple）与「通道与分组」左栏
-       （wdgui-side-dock，1=显示 / 0=隐藏，界面默认隐藏）：这两项扩展要的是稳定可用的
-       面板布局（面板通常很窄，简约布局 + 展开左栏更好用），所以每次打开都按设置写；
-       设成 auto 则不碰、沿用界面里记住的偏好。面板内仍可临时切换（下次打开回到设置值）。 */
+     - 视图模式（wdgui-viewmode）：simple = 每次打开都强制简约布局（面板通常很窄更合用）；
+       auto（默认）= 不碰布局偏好，但把「实时预览 / WaveJSON 代码」右侧窗写成收起
+       （wdgui-show-preview / wdgui-show-code = 0，编辑器两个都关时整个右栏隐藏）——
+       窄面板里右侧窗只会挤占空间，需要时面板内从编辑器设置 → 视图 → 窗口显示恢复。
+       simple 布局下右栏本就收起（底部按钮切换），不碰这两个键。面板内仍可临时切换。 */
   const init = `<script>try { if (!localStorage.getItem('wdgui-lang')) localStorage.setItem('wdgui-lang', ${JSON.stringify(uiLang())});`
     + (editorViewMode() === 'simple' ? ` localStorage.setItem('wdgui-viewmode', 'simple');` : '')
+    + (editorViewMode() === 'auto' ? ` localStorage.setItem('wdgui-show-preview', '0'); localStorage.setItem('wdgui-show-code', '0');` : '')
     + (editorSidePanel() === 'shown' ? ` localStorage.setItem('wdgui-side-dock', '1');` : '')
     + ` } catch (e) {}`
     + `location.hash = ${JSON.stringify(encodeURIComponent(initialJson))};</script>\n`;

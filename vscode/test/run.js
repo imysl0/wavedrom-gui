@@ -838,6 +838,31 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const ce2 = pkgJson.contributes.configuration.properties['wavedrom-gui.imageExportTheme'];
   ok(ce2 && ce2.enum.join() === 'auto,modern,traditional' && ce2.default === 'auto', 'package.json：设置声明三档枚举、默认 auto');
 
+  /* ---- 8g-2. 像素落盘保留来源标记（回归：传统图第二轮编辑漂成现代） ---- */
+  const tradPath = path.join(tmp, 'open-loop.png');
+  fs.writeFileSync(tradPath, meta.pngInsertITXt(meta.pngInsertITXt(meta.pngMakeFenceSkeleton(), 'WaveJSON', json1), 'WaveDromGui', 'export=wavedrom'));
+  fakePanels.length = 0;
+  const loopPanel = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(loopPanel, { kind: 'image', docPath: tradPath, imgPath: tradPath }, json1, 100, 'wavedrom');
+  const editedJson = '{"signal":[{"name":"a","wave":"10"}]}';
+  await loopPanel.webview._onMsg({ type: 'save', json: editedJson });
+  await loopPanel.webview._onMsg({ type: 'pixels', json: editedJson, png: meta.pngMakeFenceSkeleton().toString('base64') });
+  loopPanel.fireViewState(false); // 切走面板 → flushPixels 落盘
+  let buf = fs.readFileSync(tradPath);
+  ok(meta.pngDetectExportKind(buf) === 'wavedrom', '落盘后 export=wavedrom 标记保留（不再丢失）');
+  ok(meta.pngExtractWaveJSON(buf) === editedJson, '落盘后内嵌 WaveJSON 更新为编辑后的内容');
+  ok(readImageTarget(tradPath).kind === 'wavedrom', '第二轮打开仍判为传统来源（闭环保真）');
+  // 无标记的图落盘后固化 skill-modern 标记（下次打开不再依赖兜底）
+  const barePath = path.join(tmp, 'open-bare.png');
+  fs.writeFileSync(barePath, meta.pngMakeFenceSkeleton());
+  fakePanels.length = 0;
+  const barePanel = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(barePanel, { kind: 'image', docPath: barePath, imgPath: barePath }, json1, 100, 'skill-modern');
+  await barePanel.webview._onMsg({ type: 'save', json: editedJson });
+  await barePanel.webview._onMsg({ type: 'pixels', json: editedJson, png: meta.pngMakeFenceSkeleton().toString('base64') });
+  barePanel.fireViewState(false);
+  ok(meta.pngDetectExportKind(fs.readFileSync(barePath)) === 'skill-modern', '无标记图落盘后固化 skill-modern 标记');
+
   /* ---- 8e. 宿主渲染与宽松解析 ---- */
   const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');
   ok(svg1.svg && svg1.svg.includes('<svg'), 'renderSvg：渲染出 SVG');
@@ -978,7 +1003,11 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(pxPanel.webview.html.includes('"kind":"skill-modern"'), '无标记 PNG 打开即注入 skill-modern 渲染器（兜底默认）');
   pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc1, png: png1.toString('base64') });
   pxPanel.dispose();
-  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(png1, meta.WD_PNG_KEYWORD, pxDoc1)), '关闭面板：像素按上报内容重写并嵌入最新元数据');
+  /* 落盘 = 光栅化像素 + 来源标记固化（skill-modern，兜底判定的来源）+ 最新元数据。
+     标记必须随像素重新嵌入：canvas 产物不含原文件 iTXt，丢标记会让第二轮编辑漂成现代 */
+  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(
+    meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern'),
+    meta.WD_PNG_KEYWORD, pxDoc1)), '关闭面板：像素按上报内容重写，固化来源标记并嵌入最新元数据');
   ok(fakeCommands.includes('markdown.preview.refresh'), '像素落盘后主动刷新 Markdown 预览');
   ok(!fs.existsSync(pxPath + '.wdtmp'), '临时文件已清理（临时文件 + rename 原子写）');
 
@@ -995,7 +1024,9 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   pxPanel.webview._onMsg({ type: 'save', json: pxDoc3, text: null });
   pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc3, png: png1.toString('base64') });
   pxPanel.fireViewState(false);
-  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(png1, meta.WD_PNG_KEYWORD, pxDoc3)), '切走标签：像素立即落盘');
+  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(
+    meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern'),
+    meta.WD_PNG_KEYWORD, pxDoc3)), '切走标签：像素立即落盘（含固化的来源标记）');
   ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDoc3, '落盘内容内嵌的元数据与像素同源');
 
   /* ---- 10. 中英双语：扩展宿主 l10n 包 + package.nls 包 ---- */
@@ -1064,24 +1095,26 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const zhPanel = buildEditorHtml('{"signal":[]}', 'k1');  ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && /localStorage\.setItem\('wdgui-lang'/.test(zhPanel), '编辑器界面打开时按 VS Code 语言写入初始语言');
   ok(/localStorage\.getItem\('wdgui-lang'\)/.test(zhPanel) && zhPanel.indexOf("getItem('wdgui-lang')") < zhPanel.indexOf("setItem('wdgui-lang'"), '先判断是否已有语言偏好，有则不覆盖');
 
-  /* ---- 11. 编辑器面板的视图模式（wavedrom-gui.editorViewMode，默认 simple） ---- */
+  /* ---- 11. 编辑器面板的视图模式（wavedrom-gui.editorViewMode，默认 auto） ---- */
   const { editorViewMode } = ext.__test;
   /* 只取扩展注入的那段初始化脚本——index.html 自己也有 wdgui-viewmode 字样，不能全串匹配 */
   const initScript = html => {
     const m = /<script>(try \{ if \(!localStorage\.getItem\('wdgui-lang'\)[\s\S]*?<\/script>)/.exec(html);
     return m ? m[1] : '';
   };
-  ok(editorViewMode() === 'simple', '未配置时视图模式为 simple');
+  ok(editorViewMode() === 'auto', '未配置时视图模式为 auto（默认）');
   const initDefault = initScript(buildEditorHtml('{"signal":[]}', 'k1'));
-  ok(/setItem\('wdgui-viewmode', 'simple'\)/.test(initDefault), '默认：打开面板时在注入脚本里把视图模式写成简约模式');
-  ok(initDefault.indexOf('hash = ') > initDefault.indexOf("setItem('wdgui-viewmode'"), '写入视图模式发生在界面按 hash 启动之前');
-  fakeConfig.editorViewMode = 'auto';
-  ok(editorViewMode() === 'auto' && !/wdgui-viewmode/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), 'auto：注入脚本里不碰视图模式，沿用界面自己的偏好');
+  ok(!/wdgui-viewmode/.test(initDefault), '默认（auto）：不碰布局偏好，沿用界面自己的设置');
+  ok(/setItem\('wdgui-show-preview', '0'\)/.test(initDefault) && /setItem\('wdgui-show-code', '0'\)/.test(initDefault), '默认（auto）：「实时预览 / WaveJSON」右侧窗写入收起');
+  ok(initDefault.indexOf('hash = ') > initDefault.indexOf("setItem('wdgui-show-preview'"), '右侧窗显隐写入发生在界面按 hash 启动之前');
+  fakeConfig.editorViewMode = 'simple';
+  const initSimple = initScript(buildEditorHtml('{"signal":[]}', 'k1'));
+  ok(editorViewMode() === 'simple' && /setItem\('wdgui-viewmode', 'simple'\)/.test(initSimple) && !/wdgui-show-preview/.test(initSimple), 'simple：强制简约布局，不碰右侧窗显隐（手机布局本就收起）');
   fakeConfig.editorViewMode = '乱填的';
-  ok(editorViewMode() === 'simple' && /setItem\('wdgui-viewmode', 'simple'\)/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), '取值非法时回退 simple');
+  ok(editorViewMode() === 'auto' && /setItem\('wdgui-show-preview', '0'\)/.test(initScript(buildEditorHtml('{"signal":[]}', 'k1'))), '取值非法时回退 auto');
   delete fakeConfig.editorViewMode;
   const vmProp = pkg.contributes.configuration.properties['wavedrom-gui.editorViewMode'];
-  ok(vmProp && vmProp.default === 'simple' && vmProp.enum.join(',') === 'simple,auto', 'package.json 声明了视图模式设置，默认 simple、可选 simple/auto');
+  ok(vmProp && vmProp.default === 'auto' && vmProp.enum.join(',') === 'simple,auto', 'package.json 声明了视图模式设置，默认 auto、可选 simple/auto');
 
   /* ---- 11b. 「通道与分组」左栏（wavedrom-gui.editorSidePanel，默认展开） ---- */
   const { editorSidePanel } = ext.__test;
@@ -1097,7 +1130,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   /* 两项面板布局偏好互不影响 */
   fakeConfig.editorSidePanel = 'auto';
   const onlyView = initScript(buildEditorHtml('{"signal":[]}', 'k1'));
-  ok(/setItem\('wdgui-viewmode', 'simple'\)/.test(onlyView) && !/wdgui-side-dock/.test(onlyView), '视图模式与左栏两项设置各自独立生效');
+  ok(/setItem\('wdgui-show-preview', '0'\)/.test(onlyView) && !/wdgui-side-dock/.test(onlyView) && !/wdgui-viewmode/.test(onlyView), '视图模式与左栏两项设置各自独立生效');
   delete fakeConfig.editorSidePanel;
 
   /* ---- 12. 语言设置与中文保底（wavedrom-gui.language，默认 auto） ---- */
