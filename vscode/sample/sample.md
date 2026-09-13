@@ -10,7 +10,7 @@
 
 ```wavedrom
 { "signal": [
-  { "name": "clk",  "wave": "p.........", "node": ".a........" },
+  { "name": "clk",  "wave": "p.........", "node": ".a.b......" },
   { "name": "req",  "wave": "0.1.....0.", "node": "..b......." },
   { "name": "data", "wave": "x.==..x...", "data": ["D0", "D1"] }
 ] }
