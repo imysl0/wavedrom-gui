@@ -33,7 +33,7 @@ const path = require('path');
 const { renderModern } = require('./lib/render-modern.js');
 const { renderTraditional } = require('./lib/render-traditional.js');
 const { svgToPng } = require('./lib/svg-to-png.js');
-const { svgWithMeta, pngInsertITXt, WD_PNG_KEYWORD } = require('./lib/meta-embed.js');
+const { svgWithMeta, pngInsertITXt, WD_PNG_KEYWORD, WD_EXPORT_KEYWORD } = require('./lib/meta-embed.js');
 
 function parseArgs(argv) {
   const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, nodeInset: 4, nodeMode: 'bare', noMeta: false, strict: false };
@@ -142,9 +142,11 @@ function main() {
 
   /* 先在内存里备齐全部产物再落盘：--format both 时 PNG 失败不会留下只有 SVG 的残缺输出。
      写入走临时文件 + rename（原子替换），写一半崩溃不会截断既有文件 */
+  /* 来源标记：VS Code 插件写回重绘时按同一种风格渲染（traditional 就是官方引擎，归 wavedrom） */
+  const exportKind = o.mode === 'modern' ? 'skill-modern' : 'wavedrom';
   const staging = [];
   if (o.format === 'svg' || o.format === 'both') {
-    staging.push({ p: base + '.svg', data: Buffer.from(o.noMeta ? res.svg : svgWithMeta(res.svg, jsonText), 'utf8') });
+    staging.push({ p: base + '.svg', data: Buffer.from(o.noMeta ? res.svg : svgWithMeta(res.svg, jsonText, exportKind), 'utf8') });
   }
   let conv = null;
   if (o.format === 'png' || o.format === 'both') {
@@ -152,7 +154,10 @@ function main() {
     try {
       conv = svgToPng(res.svg, tmpPng, { scale: o.scale });
       let png = fs.readFileSync(tmpPng);
-      if (!o.noMeta) png = pngInsertITXt(png, WD_PNG_KEYWORD, jsonText);
+      if (!o.noMeta) {
+        png = pngInsertITXt(png, WD_PNG_KEYWORD, jsonText);
+        png = pngInsertITXt(png, WD_EXPORT_KEYWORD, 'export=' + exportKind);
+      }
       staging.push({ p: base + '.png', data: png });
     } finally {
       try { fs.unlinkSync(tmpPng); } catch (e) { /* 已 rename 时本就不存在 */ }

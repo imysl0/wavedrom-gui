@@ -31,8 +31,8 @@ const META_RE = /<metadata[^>]*data-wavedrom[^>]*>([\s\S]*?)<\/metadata>/;
 
 function svgWithMeta(svgStr, json, kind) {
   try {
-    /* kind：导出来源（'wavedrom'|'editor'），写进 data-export 供下次打开时识别 */
-    const mark = kind ? ` data-export="${kind === 'editor' ? 'editor' : 'wavedrom'}"` : '';
+    /* kind：导出来源（'wavedrom'|'editor'|'skill-modern'），写进 data-export 供下次打开时识别 */
+    const mark = (kind && ['editor', 'wavedrom', 'skill-modern'].includes(kind)) ? ` data-export="${kind}"` : '';
     const meta = `<metadata data-wavedrom="1"${mark}>` + Buffer.from(json, 'utf8').toString('base64') + '</metadata>';
     if (META_RE.test(svgStr)) return svgStr.replace(META_RE, meta); // 替换已有，避免重复
     const i = svgStr.indexOf('<svg');
@@ -162,8 +162,8 @@ function pngExtractWaveJSON(buf) {
 const WD_EXPORT_KEYWORD = 'WaveDromGui';
 
 function svgDetectExportKind(text) {
-  const m = /<metadata[^>]*data-export="(editor|wavedrom)"[^>]*>/.exec(text)
-    || /<metadata[^>]*data-export="(editor|wavedrom)"[^>]*data-wavedrom[^>]*>/.exec(text);
+  const m = /<metadata[^>]*data-export="(editor|wavedrom|skill-modern)"[^>]*>/.exec(text)
+    || /<metadata[^>]*data-export="(editor|wavedrom|skill-modern)"[^>]*data-wavedrom[^>]*>/.exec(text);
   if (m) return m[1];
   if (/<metadata[^>]*data-wavedrom[^>]*>/.test(text)) {
     /* 无来源标记的旧文件：编辑区导出的根元素带 data-editor-export（若有） */
@@ -191,7 +191,7 @@ function pngDetectExportKind(buf) {
       const z = body.indexOf(0);
       if (z > 0 && body.toString('latin1', 0, z) === WD_EXPORT_KEYWORD) {
         const val = body.toString('latin1', z + 1);
-        const m = /export=(editor|wavedrom)/.exec(val);
+        const m = /export=(editor|wavedrom|skill-modern)/.exec(val);
         if (m) return m[1];
       }
     }

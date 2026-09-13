@@ -150,6 +150,9 @@ ok(meta.svgDetectExportKind('<svg><metadata data-wavedrom="1">eHg=</metadata><g 
 ok(meta.svgDetectExportKind('<svg xmlns:xlink="u"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'wavedrom', '无标记旧 SVG：xlink 命名空间归官方风格（现代模式 skill 导出）');
 ok(meta.svgDetectExportKind('<svg data-editor-export="1"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'editor', '无标记旧 SVG：根元素 data-editor-export 指纹判编辑区');
 ok(meta.svgDetectExportKind('<svg><metadata data-wavedrom="1">eHg=</metadata><rect/></svg>') === 'editor', '无标记旧 SVG：无任何官方特征判编辑区导出');
+ok(meta.svgDetectExportKind(meta.svgWithMeta(svg0, json1, 'skill-modern')) === 'skill-modern', 'SVG data-export 标记：skill-modern');
+const pngSm = meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern');
+ok(meta.pngDetectExportKind(pngSm) === 'skill-modern', 'PNG WaveDromGui 标记：skill-modern');
 const pngMark = meta.pngInsertITXt(meta.pngInsertITXt(skeleton, meta.WD_PNG_KEYWORD, json1), meta.WD_EXPORT_KEYWORD, 'export=editor');
 ok(meta.pngDetectExportKind(pngMark) === 'editor', 'PNG WaveDromGui iTXt 标记可识别');
 ok(meta.pngDetectExportKind(png1) === null, '无标记 PNG 返回 null（写回按 wavedrom 默认）');
@@ -441,6 +444,10 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(/var IMG = null;/.test(h1), '代码块目标不注入画面上报（IMG = null）');
   ok(/var IMG = \{"ext":"png","pxW":150\};/.test(buildEditorHtml('{"signal":[]}', keyA, { ext: 'png', pxW: 150 })), 'PNG 目标注入 ext 与原图像素宽');
   ok(/var IMG = \{"ext":"svg"\};/.test(buildEditorHtml('{"signal":[]}', keyA, { ext: 'svg' })), 'SVG 目标注入 ext=svg');
+  ok(/var IMG = \{"ext":"png","pxW":150,"kind":"editor"\};/.test(buildEditorHtml('{"signal":[]}', keyA, { ext: 'png', pxW: 150, kind: 'editor' })), 'IMG 注入携带 kind=editor');
+  const smHtml = buildEditorHtml('{"signal":[]}', keyA, { ext: 'png', kind: 'skill-modern' });
+  ok(/var IMG = \{"ext":"png","kind":"skill-modern"\};/.test(smHtml) && smHtml.includes('wavedrom-renderer-ready'), 'kind=skill-modern：面板内联无浏览器渲染器（含就绪事件广播）');
+  ok(!buildEditorHtml('{"signal":[]}', keyA, { ext: 'png', kind: 'wavedrom' }).includes('wavedrom-renderer-ready'), '其它来源不内联渲染器（面板保持轻量）');
 
   const runPollerImg = (imgCfg, preview) => {
     const html = buildEditorHtml('{"signal":[]}', keyA, imgCfg);
@@ -448,8 +455,8 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     const store = {};
     const timers = [];
     const posted = [];
-    const canvas = { width: 0, height: 0, getContext: () => ({ fillRect() {}, drawImage() {} }), toBlob: cb => cb({}) };
-    const calls = { getExportSvg: 0, buildEditorSvg: 0, fill: '' };
+    const canvas = { width: 0, height: 0, getContext: () => ({ fillRect: () => { calls.fill++; }, drawImage() {} }), toBlob: cb => cb({}) };
+    const calls = { getExportSvg: 0, buildEditorSvg: 0, fill: 0 };
     let tick = null;
     const sandbox = {
       JSON, Math, console,
@@ -465,6 +472,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
         return { getAttribute: k => (k === 'width' ? 120 : k === 'height' ? 88 : null) };
       },
       XMLSerializer: class { serializeToString() { return '<svg data-editor-export="1"></svg>'; } },
+      window: { WaveDromModern: { renderModern: () => ({ svg: '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"></svg>' }) } },
       cssVar: name => (name === '--bg' ? '#101418' : ''),
       Image: class { set src(v) { if (this.onload) this.onload(); } },
       URL: { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} },
@@ -498,6 +506,15 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(edRun.canvas.width === 150 && edRun.canvas.height === 110, '编辑区导出同样按原图宽对齐比例（120×88 → 150×110）');
   const edSvgRun = runPollerImg({ ext: 'svg', kind: 'editor' }, {});
   ok(edSvgRun.posted[1].svg === '<svg data-editor-export="1"></svg>', '编辑区导出的矢量文本来自 buildEditorSvg 序列化');
+  const smRun = runPollerImg({ ext: 'png', pxW: 600, kind: 'skill-modern' }, {});
+  ok(smRun.calls.getExportSvg === 0 && smRun.calls.buildEditorSvg === 0, 'kind=skill-modern：走内联的无浏览器渲染器，不碰另外两条路');
+  ok(smRun.canvas.width === 600 && smRun.canvas.height === 300, 'skill-modern：尺寸从渲染输出的根属性解析（300×150 → 2× = 600×300）');
+  ok(smRun.calls.fill === 0, 'skill-modern：保持透明底（原导出未经填充）');
+  const smSvgRun = runPollerImg({ ext: 'svg', kind: 'skill-modern' }, {});
+  ok(smSvgRun.posted[1].svg.indexOf('<svg xmlns="http://www.w3.org/2000/svg"') === 0, 'skill-modern SVG：上报时已剥掉 XML 声明');
+  const smFallback = runPollerImg({ ext: 'png', kind: 'skill-modern' }, {});
+  ok(smFallback.posted.length === 2, 'skill-modern：渲染器在时正常出图');
+
   const wdRun = runPollerImg({ ext: 'png', pxW: 150, kind: 'wavedrom' }, {});
   ok(wdRun.calls.getExportSvg === 1 && wdRun.calls.buildEditorSvg === 0, 'kind=wavedrom（默认）：维持官方渲染路径');
 

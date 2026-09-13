@@ -412,6 +412,16 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
     + ` } catch (e) {}`
     + `location.hash = ${JSON.stringify(encodeURIComponent(initialJson))};</script>\n`;
   html = html.replace(/(<body[^>]*>)/i, `$1\n${init}`);
+  /* skill-modern 来源的图要用同一渲染器忠实重绘：把无浏览器渲染器内联进面板
+     （打包自带 media/modern-render.browser.js，CSP 允许 inline script；
+     文件缺失时轮询自动退回官方渲染路径） */
+  let rendererInline = '';
+  if (imageTarget && imageTarget.kind === 'skill-modern') {
+    try {
+      const rsrc = fs.readFileSync(path.join(_ctx.extensionUri.fsPath, 'media', 'modern-render.browser.js'), 'utf8');
+      if (!rsrc.includes('</script')) rendererInline = '<script>' + rsrc + '</script>\n';
+    } catch (e) { /* 读不到：退回官方渲染 */ }
+  }
   const poller = `<script>
 (function () {
   var vs = acquireVsCodeApi();
@@ -448,16 +458,26 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
     setTimeout(function () { /* 让出本轮：先把已到手的编辑渲染完，再取画面 */
       try {
         if (!document.querySelector('#wv0 svg')) { rasterDone(); return; } /* 空文档无预览，直接跳过（getExportSvg 会弹提示） */
-        /* 原图是哪种导出就按哪种重绘：编辑区导出走 buildEditorSvg（矢量重建，所见即所得），
-           其余（默认）走 getExportSvg（官方 WaveDrom 渲染）。编辑区版本无 w/h 返回值，
-           从序列化前的元素属性上取 */
+        /* 原图是哪种导出就按哪种重绘：editor 走 buildEditorSvg（矢量重建，所见即所得）；
+           skill-modern 走随面板内联的无浏览器渲染器（与 skill 导出同一渲染）；其余（默认）
+           走 getExportSvg（官方 WaveDrom 渲染）。后两者无 w/h 返回值，从 SVG 文本上解析 */
         var ex = null;
         if (IMG.kind === 'editor' && typeof buildEditorSvg === 'function') {
           var es = buildEditorSvg();
           if (es) ex = { str: new XMLSerializer().serializeToString(es), w: +es.getAttribute('width'), h: +es.getAttribute('height') };
-        } else {
-          ex = getExportSvg();
         }
+        if (ex === null && IMG.kind === 'skill-modern' && window.WaveDromModern && typeof window.WaveDromModern.renderModern === 'function') {
+          try {
+            var srcDoc = JSON.parse(localStorage.getItem(KEY) || 'null');
+            var rr = window.WaveDromModern.renderModern(srcDoc, {});
+            /* 模板字符串里的正则：\s \d 必须双写反斜杠，否则转义被模板吃掉变成字面量 */
+            var mstr = String(rr.svg).replace(/^<\\?xml[^>]*\\?>\\s*/, '');
+            var mw = parseInt((mstr.match(/<svg[^>]*\\swidth="([\\d.]+)"/) || [])[1], 10);
+            var mh = parseInt((mstr.match(/<svg[^>]*\\sheight="([\\d.]+)"/) || [])[1], 10);
+            if (mw > 0 && mh > 0) ex = { str: mstr, w: mw, h: mh, transparent: true };
+          } catch (e) { /* 渲染失败退回官方渲染 */ }
+        }
+        if (ex === null) ex = getExportSvg();
         if (!ex) { rasterDone(); return; }
         if (IMG.ext === 'svg') { postPixels({ svg: ex.str }); rasterDone(); return; }
         /* PNG 尺寸对齐原图宽度：比例 = 原图宽 ÷ 当前自然宽，夹在 1–4 之间。
@@ -473,10 +493,13 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
             cv.width = Math.max(1, Math.round(ex.w * scale));
             cv.height = Math.max(1, Math.round(ex.h * scale));
             var ctx = cv.getContext('2d');
-            /* 编辑区导出的底色随主题（cssVar('--bg')），官方渲染维持白底（与导出按钮一致） */
-            var fill = '#ffffff';
-            try { if (IMG.kind === 'editor') { var bg = cssVar('--bg'); if (bg) fill = bg; } } catch (e) {}
-            ctx.fillStyle = fill; ctx.fillRect(0, 0, cv.width, cv.height);
+            /* 编辑区导出的底色随主题（cssVar('--bg')），官方渲染维持白底（与导出按钮一致）；
+               skill-modern 的原导出未经填充（透明底），写回保持透明 */
+            if (!ex.transparent) {
+              var fill = '#ffffff';
+              try { if (IMG.kind === 'editor') { var bg = cssVar('--bg'); if (bg) fill = bg; } } catch (e) {}
+              ctx.fillStyle = fill; ctx.fillRect(0, 0, cv.width, cv.height);
+            }
             ctx.drawImage(img, 0, 0, cv.width, cv.height);
             cv.toBlob(function (b) {
               try {
@@ -523,7 +546,7 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
 })();
 </script>
 `;
-  html = html.replace(/<\/body>/i, poller + '</body>');
+  html = html.replace(/<\/body>/i, rendererInline + poller + '</body>');
   return html;
 }
 

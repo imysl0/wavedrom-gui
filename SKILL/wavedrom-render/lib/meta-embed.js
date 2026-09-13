@@ -27,7 +27,7 @@ function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function svgWithMeta(svgStr, json) {
+function svgWithMeta(svgStr, json, kind) {
   try {
     const i = svgStr.indexOf('<svg');
     if (i < 0) return svgStr;
@@ -39,7 +39,10 @@ function svgWithMeta(svgStr, json) {
       else if (ch === '>') break;
       j++;
     }
-    const meta = '<metadata data-wavedrom="1">' + Buffer.from(json, 'utf8').toString('base64') + '</metadata>';
+    /* kind：导出来源（'skill-modern' | 'wavedrom'），写进 data-export 供 VS Code 插件
+       写回重绘时识别；不带 kind 时维持旧格式（与 wavedrom-gui 旧版互通） */
+    const mark = (kind && ['editor', 'wavedrom', 'skill-modern'].includes(kind)) ? ` data-export="${kind}"` : '';
+    const meta = `<metadata data-wavedrom="1"${mark}>` + Buffer.from(json, 'utf8').toString('base64') + '</metadata>';
     return svgStr.slice(0, j + 1) + meta + svgStr.slice(j + 1);
   } catch (e) { return svgStr; }
 }
@@ -99,4 +102,6 @@ function pngExtractWaveJSON(buf) {
   return null;
 }
 
-module.exports = { svgWithMeta, svgExtractWaveJSON, pngInsertITXt, pngExtractWaveJSON, WD_PNG_KEYWORD };
+const WD_EXPORT_KEYWORD = 'WaveDromGui';
+
+module.exports = { svgWithMeta, svgExtractWaveJSON, pngInsertITXt, pngExtractWaveJSON, WD_PNG_KEYWORD, WD_EXPORT_KEYWORD };
