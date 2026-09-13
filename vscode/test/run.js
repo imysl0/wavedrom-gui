@@ -136,11 +136,25 @@ const dims = meta.pngGetSize(png1);
 ok(dims && dims.width === 4 && dims.height === 4, 'pngGetSize 读出 IHDR 尺寸');
 ok(meta.pngGetSize(Buffer.from('not a png')) === null, '非 PNG 返回 null');
 
+
 const svg0 = '<svg xmlns="x" width="1"><rect/></svg>';
 const svg1 = meta.svgWithMeta(svg0, json1);
 const svg2 = meta.svgWithMeta(svg1, json2);
 ok(meta.svgExtractWaveJSON(svg1) === json1, 'SVG 插入后可提取');
 ok(meta.svgExtractWaveJSON(svg2) === json2 && (svg2.match(/data-wavedrom/g) || []).length === 1, 'SVG 重复嵌入自动替换为单个 metadata');
+/* 导出来源标记与识别（wavedrom / editor） */
+ok(meta.svgDetectExportKind(meta.svgWithMeta(svg0, json1, 'editor')) === 'editor', 'SVG data-export 标记：editor');
+ok(meta.svgDetectExportKind(meta.svgWithMeta(svg0, json1, 'wavedrom')) === 'wavedrom', 'SVG data-export 标记：wavedrom');
+ok(meta.svgWithMeta(svg0, json1).indexOf('data-export') < 0, '不带 kind 时维持旧格式（与 skill 导出互通）');
+ok(meta.svgDetectExportKind('<svg><metadata data-wavedrom="1">eHg=</metadata><g id="waves_0"/></svg>') === 'wavedrom', '无标记旧 SVG：waves_0 指纹判官方渲染');
+ok(meta.svgDetectExportKind('<svg xmlns:xlink="u"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'wavedrom', '无标记旧 SVG：xlink 命名空间归官方风格（现代模式 skill 导出）');
+ok(meta.svgDetectExportKind('<svg data-editor-export="1"><metadata data-wavedrom="1">eHg=</metadata></svg>') === 'editor', '无标记旧 SVG：根元素 data-editor-export 指纹判编辑区');
+ok(meta.svgDetectExportKind('<svg><metadata data-wavedrom="1">eHg=</metadata><rect/></svg>') === 'editor', '无标记旧 SVG：无任何官方特征判编辑区导出');
+const pngMark = meta.pngInsertITXt(meta.pngInsertITXt(skeleton, meta.WD_PNG_KEYWORD, json1), meta.WD_EXPORT_KEYWORD, 'export=editor');
+ok(meta.pngDetectExportKind(pngMark) === 'editor', 'PNG WaveDromGui iTXt 标记可识别');
+ok(meta.pngDetectExportKind(png1) === null, '无标记 PNG 返回 null（写回按 wavedrom 默认）');
+const pngReplaced = meta.pngReplaceITXt(pngMark, meta.WD_PNG_KEYWORD, json2);
+
 
 /* ---- 2. probeImagePath ---- */
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wdvscode-'));
@@ -435,6 +449,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     const timers = [];
     const posted = [];
     const canvas = { width: 0, height: 0, getContext: () => ({ fillRect() {}, drawImage() {} }), toBlob: cb => cb({}) };
+    const calls = { getExportSvg: 0, buildEditorSvg: 0, fill: '' };
     let tick = null;
     const sandbox = {
       JSON, Math, console,
@@ -444,7 +459,13 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
       setTimeout: fn => { timers.push(fn); return timers.length; },
       setInterval: fn => { tick = fn; return 2; },
       document: { querySelector: () => preview, createElement: () => canvas },
-      getExportSvg: () => ({ str: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', w: 100, h: 40 }),
+      getExportSvg: () => { calls.getExportSvg++; return { str: '<svg xmlns="http://www.w3.org/2000/svg"></svg>', w: 100, h: 40 }; },
+      buildEditorSvg: () => {
+        calls.buildEditorSvg++;
+        return { getAttribute: k => (k === 'width' ? 120 : k === 'height' ? 88 : null) };
+      },
+      XMLSerializer: class { serializeToString() { return '<svg data-editor-export="1"></svg>'; } },
+      cssVar: name => (name === '--bg' ? '#101418' : ''),
       Image: class { set src(v) { if (this.onload) this.onload(); } },
       URL: { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} },
       Blob: class { constructor(parts, opts) { this.parts = parts; this.type = opts && opts.type; } },
@@ -456,7 +477,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     store[keyA] = JSON.stringify(nextDoc);
     tick();                                      // 改动 → save 消息 + sendPixels
     while (timers.length) timers.shift()();      // 排队的宏任务（画面渲染的 setTimeout(0)）
-    return { posted, canvas };
+    return { posted, canvas, calls };
   };
 
   const pxRun = runPollerImg({ ext: 'png', pxW: 150 }, {});
@@ -470,6 +491,15 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const pxSvg = runPollerImg({ ext: 'svg' }, {});
   ok(pxSvg.posted.length === 2 && pxSvg.posted[1].svg === '<svg xmlns="http://www.w3.org/2000/svg"></svg>' && pxSvg.posted[1].png === undefined, 'SVG 目标：直接上报矢量文本，不经光栅化');
   ok(runPollerImg({ ext: 'png' }, null).posted.length === 1, '预览还没内容（空文档）时静默跳过，不误触 getExportSvg 的提示');
+
+  /* 6c-2. 原图是哪种导出（wavedrom / editor）就按哪种重绘 */
+  const edRun = runPollerImg({ ext: 'png', pxW: 150, kind: 'editor' }, {});
+  ok(edRun.calls.buildEditorSvg === 1 && edRun.calls.getExportSvg === 0, 'kind=editor：走 buildEditorSvg（编辑区矢量重建），不碰官方渲染');
+  ok(edRun.canvas.width === 150 && edRun.canvas.height === 110, '编辑区导出同样按原图宽对齐比例（120×88 → 150×110）');
+  const edSvgRun = runPollerImg({ ext: 'svg', kind: 'editor' }, {});
+  ok(edSvgRun.posted[1].svg === '<svg data-editor-export="1"></svg>', '编辑区导出的矢量文本来自 buildEditorSvg 序列化');
+  const wdRun = runPollerImg({ ext: 'png', pxW: 150, kind: 'wavedrom' }, {});
+  ok(wdRun.calls.getExportSvg === 1 && wdRun.calls.buildEditorSvg === 0, 'kind=wavedrom（默认）：维持官方渲染路径');
 
   /* ---- 7. 界面格式化钩子与打包副本同步（VSIX 里的 editor.html 由 index.html 拷贝而来） ---- */
   ok(/window\.wdFormatDoc = function \(jsonStr\)/.test(editorSrc), 'index.html 暴露写回格式化钩子（复用 fmtJSON）');

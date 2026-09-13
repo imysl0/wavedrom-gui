@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const {
   svgWithMeta, svgExtractWaveJSON,
   pngReplaceITXt, pngExtractWaveJSON, pngGetSize,
+  svgDetectExportKind, pngDetectExportKind,
 } = require('./lib/meta-embed.js');
 
 /* 界面文案：源语言英文，中文表自带一份（l10n/bundle.l10n.zh-cn.json）。
@@ -253,7 +254,7 @@ async function placePanel(panel, cmd) {
 }
 
 function openEditor(target) {
-  let jsonText, imgPxW = null;
+  let jsonText, imgPxW = null, imgKind = null;
   try {
     if (target.kind === 'fence') jsonText = target.fenceRaw;
     else {
@@ -264,6 +265,9 @@ function openEditor(target) {
         : pngExtractWaveJSON(bytes);
       /* 原图像素宽：像素写回时按它定栅格化比例，避免重绘后 Markdown 里的布局跳动 */
       if (!isSvg) { const dim = pngGetSize(bytes); imgPxW = dim ? dim.width : null; }
+      /* 原图的导出来源（wavedrom 官方渲染 / editor 编辑区矢量重建）：
+         写回重绘时选同一种，编辑区导出的图才不会在保存后被重绘成官方样式 */
+      imgKind = (isSvg ? svgDetectExportKind(bytes.toString('utf8')) : pngDetectExportKind(bytes)) || 'wavedrom';
     }
   } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to read the diagram — {0}', e.message)); return; }
   if (!jsonText) { vscode.window.showErrorMessage(t('WaveDrom: No editable WaveJSON in this target')); return; }
@@ -274,6 +278,7 @@ function openEditor(target) {
     html = buildEditorHtml(jsonText, panelDocKey(target), target.kind === 'image' && {
       ext: /\.svg$/i.test(target.imgPath) ? 'svg' : 'png',
       pxW: imgPxW,
+      kind: imgKind || 'wavedrom',
     });
   }
   catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Failed to load the editor UI — {0}', e.message)); return; }
@@ -306,8 +311,10 @@ function openEditor(target) {
     if (!pendingPx || pendingPx.json !== saveTarget.lastSaved) { pendingPx = null; return; }
     const px = pendingPx; pendingPx = null;
     try {
+      /* SVG 写回时把来源标记一并重新嵌入（webview 上报的矢量文本不含 metadata），
+         下次打开才能继续按同一种导出风格重绘 */
       const out = px.svg != null
-        ? Buffer.from(svgWithMeta(px.svg, saveTarget.lastSaved), 'utf8')
+        ? Buffer.from(svgWithMeta(px.svg, saveTarget.lastSaved, imgKind), 'utf8')
         : pngReplaceITXt(px.png, 'WaveJSON', saveTarget.lastSaved);
       /* 写临时文件再改名：整文件重写像素后，半途崩溃不能再留下坏图 */
       const tmp = saveTarget.imgPath + '.wdtmp';
@@ -441,7 +448,16 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
     setTimeout(function () { /* 让出本轮：先把已到手的编辑渲染完，再取画面 */
       try {
         if (!document.querySelector('#wv0 svg')) { rasterDone(); return; } /* 空文档无预览，直接跳过（getExportSvg 会弹提示） */
-        var ex = getExportSvg();
+        /* 原图是哪种导出就按哪种重绘：编辑区导出走 buildEditorSvg（矢量重建，所见即所得），
+           其余（默认）走 getExportSvg（官方 WaveDrom 渲染）。编辑区版本无 w/h 返回值，
+           从序列化前的元素属性上取 */
+        var ex = null;
+        if (IMG.kind === 'editor' && typeof buildEditorSvg === 'function') {
+          var es = buildEditorSvg();
+          if (es) ex = { str: new XMLSerializer().serializeToString(es), w: +es.getAttribute('width'), h: +es.getAttribute('height') };
+        } else {
+          ex = getExportSvg();
+        }
         if (!ex) { rasterDone(); return; }
         if (IMG.ext === 'svg') { postPixels({ svg: ex.str }); rasterDone(); return; }
         /* PNG 尺寸对齐原图宽度：比例 = 原图宽 ÷ 当前自然宽，夹在 1–4 之间。
@@ -457,7 +473,10 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
             cv.width = Math.max(1, Math.round(ex.w * scale));
             cv.height = Math.max(1, Math.round(ex.h * scale));
             var ctx = cv.getContext('2d');
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+            /* 编辑区导出的底色随主题（cssVar('--bg')），官方渲染维持白底（与导出按钮一致） */
+            var fill = '#ffffff';
+            try { if (IMG.kind === 'editor') { var bg = cssVar('--bg'); if (bg) fill = bg; } } catch (e) {}
+            ctx.fillStyle = fill; ctx.fillRect(0, 0, cv.width, cv.height);
             ctx.drawImage(img, 0, 0, cv.width, cv.height);
             cv.toBlob(function (b) {
               try {

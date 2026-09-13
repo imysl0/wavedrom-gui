@@ -29,9 +29,11 @@ function crc32(buf) {
 
 const META_RE = /<metadata[^>]*data-wavedrom[^>]*>([\s\S]*?)<\/metadata>/;
 
-function svgWithMeta(svgStr, json) {
+function svgWithMeta(svgStr, json, kind) {
   try {
-    const meta = '<metadata data-wavedrom="1">' + Buffer.from(json, 'utf8').toString('base64') + '</metadata>';
+    /* kind：导出来源（'wavedrom'|'editor'），写进 data-export 供下次打开时识别 */
+    const mark = kind ? ` data-export="${kind === 'editor' ? 'editor' : 'wavedrom'}"` : '';
+    const meta = `<metadata data-wavedrom="1"${mark}>` + Buffer.from(json, 'utf8').toString('base64') + '</metadata>';
     if (META_RE.test(svgStr)) return svgStr.replace(META_RE, meta); // 替换已有，避免重复
     const i = svgStr.indexOf('<svg');
     if (i < 0) return svgStr;
@@ -154,11 +156,56 @@ function pngExtractWaveJSON(buf) {
   return null;
 }
 
+/* 导出来源标记：编辑器导出时写入（SVG 是 metadata 上的 data-export 属性，PNG 是
+   关键字 WaveDromGui 的 iTXt 块，内容 export=editor|wavedrom）。插件写回重绘时据此
+   选同一种渲染。旧文件无标记时按 SVG 结构指纹兜底（官方渲染必带 waves_<n> 组） */
+const WD_EXPORT_KEYWORD = 'WaveDromGui';
+
+function svgDetectExportKind(text) {
+  const m = /<metadata[^>]*data-export="(editor|wavedrom)"[^>]*>/.exec(text)
+    || /<metadata[^>]*data-export="(editor|wavedrom)"[^>]*data-wavedrom[^>]*>/.exec(text);
+  if (m) return m[1];
+  if (/<metadata[^>]*data-wavedrom[^>]*>/.test(text)) {
+    /* 无来源标记的旧文件：编辑区导出的根元素带 data-editor-export（若有） */
+    const m2 = /<svg[^>]*data-editor-export="1"/.exec(text);
+    if (m2) return 'editor';
+    /* 官方渲染器（编辑器 WaveDrom 标签 / 传统模式 skill 导出）的 SVG 必带 waves_<n> 组 */
+    if (/id="waves_\d+"/.test(text)) return 'wavedrom';
+    /* 剩下的是无标记且无官方特征的旧 SVG：无 xlink 命名空间、无 <style> 的按编辑区导出
+       认定（编辑区矢量重建没有这两样）；现代模式 skill 导出带 xmlns:xlink，归 wavedrom
+       （插件暂无该风格的精确重绘，维持官方渲染这一现状行为） */
+    if (!/xmlns:xlink/.test(text) && !/<style[ >]/.test(text)) return 'editor';
+  }
+  return 'wavedrom';
+}
+
+function pngDetectExportKind(buf) {
+  if (buf.length < 8 || !buf.subarray(0, 8).equals(PNG_SIG)) return null;
+  let off = 8;
+  while (off + 8 <= buf.length) {
+    const len = buf.readUInt32BE(off);
+    const type = buf.toString('latin1', off + 4, off + 8);
+    if (type === 'IEND') break;
+    if ((type === 'iTXt' || type === 'tEXt' || type === 'zTXt') && len > 0) {
+      const body = buf.subarray(off + 8, off + 8 + len);
+      const z = body.indexOf(0);
+      if (z > 0 && body.toString('latin1', 0, z) === WD_EXPORT_KEYWORD) {
+        const val = body.toString('latin1', z + 1);
+        const m = /export=(editor|wavedrom)/.exec(val);
+        if (m) return m[1];
+      }
+    }
+    off += 12 + len;
+  }
+  return null;
+}
+
 module.exports = {
   svgWithMeta, svgExtractWaveJSON,
   pngInsertITXt, pngReplaceITXt, pngExtractWaveJSON, pngGetSize,
+  svgDetectExportKind, pngDetectExportKind,
   pngMakeFenceSkeleton,
-  WD_PNG_KEYWORD, crc32,
+  WD_PNG_KEYWORD, WD_EXPORT_KEYWORD, crc32,
 };
 
 /* 测试辅助：构造仅含 IHDR+IEND 的最小合法 PNG */

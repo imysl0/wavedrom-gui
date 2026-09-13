@@ -5306,7 +5306,7 @@ function utf8FromB64(b64) {
   return new TextDecoder().decode(bytes);
 }
 /* SVG：把 base64(JSON) 写进根元素紧后的 <metadata data-wavedrom>；渲染器一律忽略该元素 */
-function svgWithMeta(svgStr, json) {
+function svgWithMeta(svgStr, json, kind) {
   try {
     const i = svgStr.indexOf('<svg');
     if (i < 0) return svgStr;
@@ -5318,7 +5318,10 @@ function svgWithMeta(svgStr, json) {
       else if (ch === '>') break;
       j++;
     }
-    const meta = '<metadata data-wavedrom="1">' + b64FromUTF8(json) + '</metadata>';
+    /* kind：导出来源（'wavedrom' 官方渲染 / 'editor' 编辑区矢量重建）。写进 data-export，
+       VS Code 插件写回重绘时据此选同一种渲染，避免「编辑区导出的图被重绘成官方样式」 */
+    const mark = kind ? ` data-export="${kind === 'editor' ? 'editor' : 'wavedrom'}"` : '';
+    const meta = `<metadata data-wavedrom="1"${mark}>` + b64FromUTF8(json) + '</metadata>';
     return svgStr.slice(0, j + 1) + meta + svgStr.slice(j + 1);
   } catch (e) { return svgStr; }
 }
@@ -5437,10 +5440,12 @@ function bindDropImport() {
   });
 }
 
-async function pngWithMeta(blob, json) {
+async function pngWithMeta(blob, json, kind) {
   try {
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    return new Blob([pngInsertITXt(bytes, WD_PNG_KEYWORD, json)], { type: 'image/png' });
+    let bytes = new Uint8Array(await blob.arrayBuffer());
+    bytes = pngInsertITXt(bytes, WD_PNG_KEYWORD, json);
+    if (kind) bytes = pngInsertITXt(bytes, 'WaveDromGui', 'export=' + (kind === 'editor' ? 'editor' : 'wavedrom'));
+    return new Blob([bytes], { type: 'image/png' });
   } catch (e) { return blob; } /* 嵌入失败不阻断下载 */
 }
 
@@ -5529,7 +5534,7 @@ function buildEditorSvg() {
   const fsStripT = fsOf(inner.querySelector('.strip-text'), 15);
   const fsStripN = fsOf(inner.querySelector('.strip-num'), 12);
 
-  const svg = el('svg', { xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}` });
+  const svg = el('svg', { xmlns: NS, width: W, height: H, viewBox: `0 0 ${W} ${H}`, 'data-editor-export': '1' });
   /* 波形背景跟随「波形背景」配色组（默认组解析为主题底色）；同色开关时名称列同底色 */
   const waveBg = () => { const v = cssVar('--wave-bg'); return (!v || v === 'transparent') ? cssVar('--bg') : v; };
   const headBg = () => document.documentElement.dataset.headSame !== undefined ? waveBg() : cssVar('--panel');
@@ -5757,7 +5762,7 @@ function handleAct(act, btn) {
       break;
     case 'export-svg': {
       const ex = getExportSvg(); if (!ex) return;
-      download(exportBaseName() + '.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
+      download(exportBaseName() + '.svg', new Blob([svgWithMeta(ex.str, fmtJSON(buildJSON(), 0, codeCompact), 'wavedrom')], { type: 'image/svg+xml' }));
       break;
     }
     case 'export-png': {
@@ -5771,7 +5776,7 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast(i18n('PNG 生成失败'), true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json, 'wavedrom') ); else toast(i18n('PNG 生成失败'), true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast(i18n('PNG 生成失败'), true); URL.revokeObjectURL(url); };
@@ -5780,7 +5785,7 @@ function handleAct(act, btn) {
     }
     case 'export-editor-svg': {
       const es = buildEditorSvg(); if (!es) return;
-      download(exportBaseName() + '.svg', new Blob([svgWithMeta(new XMLSerializer().serializeToString(es), fmtJSON(buildJSON(), 0, codeCompact))], { type: 'image/svg+xml' }));
+      download(exportBaseName() + '.svg', new Blob([svgWithMeta(new XMLSerializer().serializeToString(es), fmtJSON(buildJSON(), 0, codeCompact), 'editor')], { type: 'image/svg+xml' }));
       break;
     }
     case 'export-editor-png': {
@@ -5795,7 +5800,7 @@ function handleAct(act, btn) {
         const ctx = cv.getContext('2d');
         ctx.fillStyle = cssVar('--bg'); ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json)); else toast(i18n('PNG 生成失败'), true); }, 'image/png');
+        cv.toBlob(async b => { if (b) download(exportBaseName() + '.png', await pngWithMeta(b, json, 'editor') ); else toast(i18n('PNG 生成失败'), true); }, 'image/png');
         URL.revokeObjectURL(url);
       };
       img.onerror = () => { toast(i18n('PNG 生成失败'), true); URL.revokeObjectURL(url); };

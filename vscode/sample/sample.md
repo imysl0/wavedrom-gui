@@ -25,6 +25,9 @@
 
 ![内嵌 WaveJSON 的示例图](./assets/embedded.png)
 
+
+![内嵌 WaveJSON 的示例图](./assets/wavdrom_gui_DDR读时序.png)
+
 ## 3. 不会被打扰的普通内容
 
 ```json
