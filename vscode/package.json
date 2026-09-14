@@ -2,8 +2,9 @@
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
   "description": "%extension.description%",
-  "version": "260913.7.0",
+  "version": "260914.3.0",
   "publisher": "wavedrom-gui",
+  "icon": "icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",

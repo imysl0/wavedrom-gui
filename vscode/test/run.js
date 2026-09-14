@@ -752,6 +752,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(openImageDecl && openImageDecl.when === 'resourceExtname == .png || resourceExtname == .svg', 'package.json：右键菜单挂在 PNG/SVG 上');
   ok((pkgJson.contributes.menus.commandPalette || []).some(mi => mi.command === 'wavedrom-gui.openImage' && mi.when === 'false'), 'openImage 不出现在命令面板（依赖 uri 参数）');
   ok(!pkgJson.contributes.customEditors, 'package.json：不再注册自定义编辑器（改走右键菜单 + 临时面板）');
+  ok(pkg.icon === 'icon.png' && fs.existsSync(path.join(__dirname, '..', 'icon.png')), '扩展图标已声明且文件存在');
   ok(fakeRegisteredCommands['wavedrom-gui.openImage'], 'openImage 命令已注册');
   // 有内嵌 WaveJSON 的 PNG：走 openEditor 临时面板（与 md 预览同一路径）
   const withData = path.join(tmp, 'open-with.png');
