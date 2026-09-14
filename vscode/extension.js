@@ -950,7 +950,7 @@ async function editImageCommand(target) {
  * VS Code 没有悬浮窗 API，悬浮形态只有 hover（不可交互、不可钉住）。所以点击
  * CodeLens「预览」开的是 Beside 分栏的轻量只读面板：不遮挡代码，再点同一条镜头
  * 关闭，面板里也有关闭按钮；编辑写回引起的文档变更会自动刷新这里的渲染。 */
-let pinnedPreview = null; // { key, docPath, line, panel, timer }
+let pinnedPreview = null; // { key, docPath, line, fenceRaw, panel, timer }
 const previewKey = (docPath, line) => docPath + '#' + line;
 
 async function previewFenceCommand(target) {
@@ -973,14 +973,17 @@ async function openPinnedPreview(target) {
     vscode.ViewColumn.Beside,
     { enableScripts: true },
   );
-  pinnedPreview = { key: previewKey(target.docPath, target.line), docPath: target.docPath, line: target.line, panel, timer: null };
+  pinnedPreview = { key: previewKey(target.docPath, target.line), docPath: target.docPath, line: target.line, fenceRaw: hit[1], panel, timer: null };
   panel.webview.html = previewWebviewHtml(renderSvg(hit[1]));
   panel.webview.onDidReceiveMessage(msg => { if (msg && msg.type === 'close') panel.dispose(); });
   panel.onDidDispose(() => { if (pinnedPreview && pinnedPreview.panel === panel) pinnedPreview = null; });
 }
 
 /* 编辑写回 → 文档变更 → 这里重建面板 HTML。debounce 与编辑面板的连续保存节奏对齐，
-   避免逐键重渲染；行号漂移找不到块时如实提示，不静默留在旧画面 */
+   避免逐键重渲染。定位走「行号优先、内容兜底」（findFence，与 editFence 同策略）：
+   文档前部插行导致行号漂移时，按打开时记录的围栏内容跟随到新位置，定位成功后把
+   行号/内容/key 演进到最新，链条持续；行号与内容都对不上（块被改得面目全非）才
+   如实提示，绝不按旧行号硬渲染造成静默错位 */
 function pinRefresh() {
   if (!pinnedPreview) return;
   if (pinnedPreview.timer) clearTimeout(pinnedPreview.timer);
@@ -990,8 +993,16 @@ function pinRefresh() {
     pin.timer = null;
     try {
       const doc = await vscode.workspace.openTextDocument(pin.docPath);
-      const hit = findFenceAtLine(doc.getText(), pin.line);
-      pin.panel.webview.html = previewWebviewHtml(hit ? renderSvgCached(hit[1]) : { err: t('WaveDrom: Cannot find this code block (has the document changed?)') });
+      const text = doc.getText();
+      const hit = findFence(text, [pin.fenceRaw].filter(Boolean), pin.line);
+      if (!hit) {
+        pin.panel.webview.html = previewWebviewHtml({ err: t('WaveDrom: Cannot find this code block (has the document changed?)') });
+        return;
+      }
+      pin.fenceRaw = hit[1];
+      pin.line = lineOfIndex(text, hit.index);
+      pin.key = previewKey(pin.docPath, pin.line);
+      pin.panel.webview.html = previewWebviewHtml(renderSvgCached(hit[1]));
     } catch (e) { /* 文档已关闭等：留着旧画面 */ }
   }, 250);
 }
@@ -1167,7 +1178,7 @@ module.exports = {
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
     findFence, findFenceAtLine, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
     parseLoose, rendererModule, renderSvg, previewFenceCommand, makeHoverProvider, previewWebviewHtml,
-    readImageTarget, setupEditorPanel, openImageCommand, imageExportTheme,
+    readImageTarget, setupEditorPanel, openImageCommand, imageExportTheme, pinRefresh,
   },
 };
 

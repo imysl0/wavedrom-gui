@@ -874,6 +874,44 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(/data-export="wavedrom"/.test(svgAfter), 'SVG 元数据更新保留来源标记');
   ok(meta.svgExtractWaveJSON(svgAfter) === editedJson, 'SVG 元数据更新为编辑后的内容');
 
+  /* ---- 8g-3. 预览面板跟随行号漂移（行号优先、内容兜底，定位后演进记录） ---- */
+  const { pinRefresh } = ext.__test;
+  fakePanels.forEach(p => { if (!p.disposed) p.dispose(); }); // 清掉 8g 遗留的预览面板（dispose 同步清 pinnedPreview）
+  fakePanels.length = 0;
+  setDoc('# t\n\n```wavedrom\n' + A2 + '\n```\n\n正文\n');
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 2 }); // 关闭 8g 遗留的预览面板（遗留对象可能已不在数组，只能 toggle）
+  fakePanels.length = 0; fakeMessages.length = 0;
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 2 }); // 打开待测面板
+  const driftPanel = fakePanels[0];
+  ok(driftPanel && driftPanel.webview.html.includes('data:image/svg+xml;base64,'), '预览面板正常打开');
+  // 文档前部插 2 行：围栏漂到 line 5（旧行号 2 处已是正文）
+  setDoc('# t\n\n新插入的一行\n再插一行\n\n```wavedrom\n' + A2 + '\n```\n\n正文\n');
+  pinRefresh();
+  await new Promise(r => setTimeout(r, 400));
+  ok(!driftPanel.disposed && /data:image\/svg\+xml;base64,/.test(driftPanel.webview.html) && !/Cannot find/.test(driftPanel.webview.html), '前部插行后按内容跟随渲染，不显示「找不到」');
+  ok(fakeMessages.length === 0, '跟随成功时不弹警告');
+  // toggle key 已演进：再点新位置（line 5）的预览镜头 = 关闭同一面板
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 5 });
+  ok(driftPanel.disposed, '定位演进后 toggle 按新行号关闭同一面板');
+  // 行号与内容都变化：打开时文档就位（记录 fenceRaw=B、line=2），随后 B 内容消失且 line 2 不再是围栏
+  setDoc('# t\n\n```wavedrom\n' + B + '\n```\n\n正文\n');
+  fakePanels.length = 0;
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 2 });
+  const p2 = fakePanels[0];
+  setDoc('# t\n\n正文挪动\n\n```wavedrom\n' + A2 + '\n```\n');
+  pinRefresh();
+  await new Promise(r => setTimeout(r, 400));
+  ok(/Cannot find this code block/.test(p2.webview.html), '行号与内容都对不上时提示找不到（不静默错位）');
+  // 内容兜底：旧行号找不到、但记录的内容仍在文档另一处（多围栏按内容区分）
+  setDoc('# t\n\n前置段落\n\n```wavedrom\n' + B + '\n```\n\n后置\n\n```wavedrom\n' + A2 + '\n```\n');
+  fakePanels.length = 0;
+  await previewFenceCommand({ kind: 'fence', docPath: mdPath, line: 14 }); // A2 的新位置（B 是 5 行多行 JSON，A2 围栏在 0 基 line 14）
+  const p3 = fakePanels[0];
+  setDoc('# t\n\n前部\n插了几行\n\n\n```wavedrom\n' + B + '\n```\n\n后置\n\n```wavedrom\n' + A2 + '\n```\n'); // 前部插行，A2 继续后漂
+  pinRefresh();
+  await new Promise(r => setTimeout(r, 400));
+  ok(/data:image\/svg\+xml;base64,/.test(p3.webview.html) && !/Cannot find/.test(p3.webview.html), '行号漂移后内容兜底仍跟随（多围栏按内容区分）');
+
   /* ---- 8e. 宿主渲染与宽松解析 ---- */
   const svg1 = renderSvg('{ signal: [{ name: "clk", wave: "p..." }] }');
   ok(svg1.svg && svg1.svg.includes('<svg'), 'renderSvg：渲染出 SVG');
