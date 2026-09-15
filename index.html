@@ -1626,6 +1626,8 @@ const I18N_EN = {
   '没有可撤销的操作': 'Nothing to undo', '已撤销': 'Undone',
   '没有可重做的操作': 'Nothing to redo', '已重做': 'Redone',
   '节点字母（a–Z 共 52 个）已用完': 'Node letters (a–Z, 52 total) are used up',
+  '已清理 ': 'Cleaned up ', ' 条悬空连线（指向已删除的节点）': ' dangling link(s) to removed nodes',
+  '已移除节点（连带 ': 'Node removed (along with ', ' 条连线）': ' link(s))',
   '只有点选单元格才会启动自动连续模式': 'Click a cell to start auto-chain mode',
   '上方没有分组': 'No group above', '这条通道不在任何分组里': 'This lane is not inside any group',
   '分组已删除，组内成员上移保留': 'Group deleted — members moved up and kept',
@@ -3452,7 +3454,9 @@ let nodeLinkLetter = null; // 弹窗聚焦的节点字母
 function openNodeLinks(lane, t) {
   let letter = lane.nodeByT[t];
   if (!letter) {
+    const pruned = pruneBeforeAddNode(); // 先清掉积压的悬空连线，把它们的字母还给字母池
     const L = nextNodeLetter();
+    if (pruned) toast(i18n('已清理 ') + pruned + i18n(' 条悬空连线（指向已删除的节点）'));
     if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; }
     lane.nodeByT[t] = L;
     update(true);
@@ -4029,10 +4033,12 @@ function clearCell(lane, t) {
   commitTag = 'paint';
   const wave0 = laneWaveStr(lane), len0 = laneLen(lane), hadNode = !!lane.nodeByT[t];
   const wasReal = !!(lane.slots[t] && lane.slots[t].glyph !== '.');
-  if (lane.slots[t]) { lane.slots[t] = null; delete lane.nodeByT[t]; }
+  const nEdges = removeNodeMark(lane, t); // 清格连同节点标记：引用它的连线一并清理，不留悬空边占字母
+  if (lane.slots[t]) lane.slots[t] = null;
   while (lane.slots.length && !lane.slots[lane.slots.length - 1]) lane.slots.pop();
   lane.len = null;
-  update();
+  if (nEdges) update(true); else update(); // 清理了连线才需要重建箭头列表/叠加层
+  if (nEdges) toast(i18n('已移除节点（连带 ') + nEdges + i18n(' 条连线）'));
   if (t >= len0 || hadNode) return; // 通道外空区或删了节点标记：不提示
   if (laneWaveStr(lane) === wave0 && laneLen(lane) === len0) {
     // 点了延续格且无任何可见变化
@@ -4043,6 +4049,35 @@ function clearCell(lane, t) {
     const src = extendSource(lane, t);
     cellTip(i18n('已清除第 ') + t + i18n(' 拍') + ' · ' + (src >= 0 ? i18n('该拍现延续第 ') + src + i18n(' 拍') : i18n('该拍变为延续')), lane, t);
   }
+}
+/* 清理悬空连线：引用已不存在节点的边。返回清理条数。
+   这类边在 WaveJSON 里是无效数据，而且会让被引用的字母永久占位——
+   nextNodeLetter() 把 edges 的 from/to 也算作已占用，死字母积压会让
+   「节点字母已用完」远早于实际节点数（用户实测：删节点不清理边，
+   反复「放节点→连线→删节点」几十次后 52 个字母耗尽，画布上却没几个节点）。 */
+function pruneDanglingEdges() {
+  const alive = new Set();
+  eachLane(l => Object.values(l.nodeByT).forEach(x => alive.add(x)));
+  const before = state.edges.length;
+  state.edges = state.edges.filter(e => alive.has(e.from) && alive.has(e.to));
+  return before - state.edges.length;
+}
+/* 删除某格的节点标记，并连带清理引用它的连线（否则留下悬空边占位）。
+   返回被清理的连线条数。 */
+function removeNodeMark(lane, t) {
+  const letter = lane.nodeByT[t];
+  if (!letter) return 0;
+  delete lane.nodeByT[t];
+  const before = state.edges.length;
+  state.edges = state.edges.filter(e => e.from !== letter && e.to !== letter);
+  return before - state.edges.length;
+}
+/* 放置节点前调用：先把积压的悬空连线清掉，让它们的字母回到字母池。
+   返回清理条数（调用方负责提示）。 */
+function pruneBeforeAddNode() {
+  const n = pruneDanglingEdges();
+  if (n) update(true); // 边数变了：重建箭头列表与网格叠加层
+  return n;
 }
 function nextNodeLetter() {
   const used = new Set();
@@ -4287,8 +4322,17 @@ function openPop(lane, t, anchor) {
     const nodeBtn = h('button', { class: 'btn ghost', style: 'flex:none;height:28px' }, letter ? (i18n('节点') + ' ' + letter + ' ✕') : i18n('⊕ 节点'));
     nodeBtn.title = letter ? i18n('移除节点标记') : i18n('放置节点（可连箭头）');
     nodeBtn.addEventListener('click', () => {
-      if (letter) { delete lane.nodeByT[t]; update(); }
-      else { const L = nextNodeLetter(); if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; } lane.nodeByT[t] = L; update(true); }
+      if (letter) {
+        const n = removeNodeMark(lane, t);
+        if (n) toast(i18n('已移除节点（连带 ') + n + i18n(' 条连线）'));
+        update(true);
+      } else {
+        const pruned = pruneBeforeAddNode();
+        const L = nextNodeLetter();
+        if (pruned) toast(i18n('已清理 ') + pruned + i18n(' 条悬空连线（指向已删除的节点）'));
+        if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; }
+        lane.nodeByT[t] = L; update(true);
+      }
       openPop(lane, t, anchor);
     });
     row.appendChild(nodeBtn);
@@ -4342,14 +4386,21 @@ function openPop(lane, t, anchor) {
     nodeRow.appendChild(h('span', { class: 'badge' }, letter));
     nodeRow.appendChild(h('span', null, i18n('节点标记')));
     const rm = h('button', { class: 'btn ghost', style: 'margin-left:auto;height:26px' }, i18n('移除'));
-    rm.addEventListener('click', () => { delete lane.nodeByT[t]; update(); openPop(lane, t, anchor); });
+    rm.addEventListener('click', () => {
+      const n = removeNodeMark(lane, t);
+      if (n) toast(i18n('已移除节点（连带 ') + n + i18n(' 条连线）'));
+      update(true);
+      openPop(lane, t, anchor);
+    });
     nodeRow.appendChild(rm);
   } else {
     /* 说明文字独占一行，两个按钮第二行靠右：272px 弹窗一行放不下三者 */
     nodeRow.appendChild(h('span', { style: 'flex-basis:100%' }, i18n('放置节点后可连箭头')));
     const add = h('button', { class: 'btn ghost', style: 'height:26px;margin-left:auto' }, i18n('⊕ 放置节点'));
     add.addEventListener('click', () => {
+      const pruned = pruneBeforeAddNode(); // 先清掉积压的悬空连线，把它们的字母还给字母池
       const L = nextNodeLetter();
+      if (pruned) toast(i18n('已清理 ') + pruned + i18n(' 条悬空连线（指向已删除的节点）'));
       if (!L) { toast(i18n('节点字母（a–Z 共 52 个）已用完'), true); return; }
       lane.nodeByT[t] = L;
       update(true);
