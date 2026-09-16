@@ -143,12 +143,47 @@
     + '<path d="M6.6 4.4h2.8"/>'
     + '</g></svg>';
 
+  /* 把 wavedrom 上下文烙到某个节点（通常是右键真正命中的 <img>）：与节点上已有的
+     data-vscode-context 合并——保留预览自己写的键，覆盖上我们的 webviewSection/k，并删掉
+     preventDefaultContextMenuItems（否则预览的「图片专属」右键菜单会吞掉「编辑波形」）。 */
+  function stampWdContext(node, wdContext) {
+    if (!node || !wdContext || typeof node.setAttribute !== 'function') return;
+    let merged = {};
+    try {
+      const cur = node.getAttribute('data-vscode-context');
+      if (cur) merged = JSON.parse(cur);
+    } catch (e) { merged = {}; }
+    try { Object.assign(merged, JSON.parse(wdContext)); } catch (e) { /* 保留已合并内容 */ }
+    delete merged.preventDefaultContextMenuItems;
+    node.setAttribute('data-vscode-context', JSON.stringify(merged));
+  }
+
+  /* 收尾：图形（.wd-figure）挂进块容器；block 模式下整块套一层深链接锚点，
+     点任意处即进编辑器。fence 与 image 共用。 */
+  function finalizeBlock(div, figure, blockMode, editUri) {
+    div.innerHTML = '';
+    if (blockMode && editUri) {
+      /* 没有按钮，整块就是入口：锚点原生可聚焦、Enter 可激活，不必再手写键盘处理 */
+      const link = el('a', 'wd-blocklink');
+      link.setAttribute('href', editUri);
+      link.title = i18nText('editTitle', 'Edit (opens in the visual editor)');
+      link.setAttribute('aria-label', i18nText('editLabel', 'Edit'));
+      link.appendChild(figure);
+      div.appendChild(link);
+      return;
+    }
+    div.appendChild(figure);
+  }
+
   function initBlock(div) {
     if (div.dataset.wdInit) return;
     div.dataset.wdInit = '1';
 
+    const isImage = div.dataset.wd === 'image';
     let jsonText = '';
-    try { jsonText = B64.dec(div.dataset.json || ''); } catch (e) { /* 保持为空 */ }
+    if (!isImage) {
+      try { jsonText = B64.dec(div.dataset.json || ''); } catch (e) { /* 保持为空 */ }
+    }
 
     /* 深链接由扩展渲染时给出（含产品 scheme 与 k）。没有它说明这个块没有可写回的文件
        （例如未保存的 untitled 文档），此时不渲染任何入口，只渲染波形 */
@@ -156,12 +191,12 @@
 
     /* 右键菜单的上下文：VS Code 会把这段 JSON 作为命令的第一个参数传给我们，
        扩展由此得知「右键的是哪一个块」。preventDefaultContextMenuItems 不设，
-       预览原本的右键项（复制等）继续保留。 */
-    if (editUri) {
-      div.setAttribute('data-vscode-context', JSON.stringify({
-        webviewSection: 'wavedrom',
-        k: div.dataset.k || '',
-      }));
+       预览原本的右键项（复制等）继续保留。图片与代码块都要，故提到分支之前统一挂 */
+    const wdContext = editUri
+      ? JSON.stringify({ webviewSection: 'wavedrom', k: div.dataset.k || '' })
+      : '';
+    if (wdContext) {
+      div.setAttribute('data-vscode-context', wdContext);
     }
 
     /* 入口形式由扩展写在 data-edit-mode（设置项 wavedrom-gui.previewEditAffordance）：
@@ -185,6 +220,22 @@
       figure.appendChild(actions);
     }
 
+    /* 含 WaveJSON 的图片：直接显示扩展渲染的原图 <img>（保持导出时的原生主题），
+       不拿元数据重绘。旧实现恒用现代渲染器重画，会把传统/官方风格的图在预览里改掉风格 */
+    if (isImage) {
+      const holder = el('div', 'wd-svg');
+      const img = div.querySelector('img');
+      if (img) {
+        holder.appendChild(img);
+        /* VS Code 对 <img> 的右键有专属处理，祖先块上的 data-vscode-context 不再驱动
+           webview/context，故把上下文直接烙到实际命中目标的 <img> 上 */
+        stampWdContext(img, wdContext);
+      }
+      if (holder.firstChild) figure.appendChild(holder);
+      finalizeBlock(div, figure, blockMode, editUri);
+      return;
+    }
+
     const holder = el('div', 'wd-svg');
     try {
       const r = renderModern(jsonText);
@@ -197,27 +248,19 @@
     }
     if (holder.firstChild) figure.appendChild(holder);
 
-    div.innerHTML = '';
-    if (blockMode && editUri) {
-      /* 没有按钮，整块就是入口：锚点原生可聚焦、Enter 可激活，不必再手写键盘处理 */
-      const link = el('a', 'wd-blocklink');
-      link.setAttribute('href', editUri);
-      link.title = i18nText('editTitle', 'Edit (opens in the visual editor)');
-      link.setAttribute('aria-label', i18nText('editLabel', 'Edit'));
-      link.appendChild(figure);
-      div.appendChild(link);
-      return;
-    }
-    div.appendChild(figure);
+    finalizeBlock(div, figure, blockMode, editUri);
   }
 
   function scan() {
-    /* 渲染库还没到就先别动块（否则每块都会渲染成「渲染库未加载」），等就绪事件再扫。
-       VS Code 用 <script async> 注入预览脚本，执行顺序不保证——这里必须能等。 */
-    if (!rendererReady()) return;
+    /* 渲染库还没到就先别动代码块（否则每块都会渲染成「渲染库未加载」），等就绪事件再扫。
+       VS Code 用 <script async> 注入预览脚本，执行顺序不保证——这里必须能等。
+       图片块不依赖渲染库（只显示原图），渲染库未就绪时也能先挂好编辑入口，不被卡住 */
+    const ready = rendererReady();
     const blocks = document.querySelectorAll('.wavedrom-block:not([data-wd-init])');
     for (let i = 0; i < blocks.length; i++) {
-      try { initBlock(blocks[i]); } catch (e) { /* 单块失败不影响其他 */ }
+      const b = blocks[i];
+      if (!ready && b.dataset.wd !== 'image') continue;
+      try { initBlock(b); } catch (e) { /* 单块失败不影响其他 */ }
     }
   }
 
@@ -225,4 +268,15 @@
   new MutationObserver(function () { scan(); }).observe(document.body, { childList: true, subtree: true });
   /* preview.js 先于渲染库跑完时（async 注入，顺序不保证）在这里补扫一次 */
   whenRendererReady(scan);
+
+  /* 兜底：预览可能在右键瞬间往 <img> 上盖它自己的 data-vscode-context，冲掉我们那份。
+     捕获阶段监听器在菜单构建前，从所属图片块读回上下文重新烙到命中目标上。
+     只处理含 WaveJSON 的图片块；代码块走既有的祖先合并机制，无需干预。 */
+  document.addEventListener('contextmenu', function (e) {
+    const t = e.target;
+    if (!t || typeof t.closest !== 'function') return;
+    const block = t.closest('.wavedrom-block[data-wd="image"]');
+    if (!block) return;
+    stampWdContext(t, block.getAttribute('data-vscode-context'));
+  }, true);
 })();

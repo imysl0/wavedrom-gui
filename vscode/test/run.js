@@ -122,7 +122,7 @@ Module._load = function (request) {
 
 const meta = require('../lib/meta-embed.js');
 const ext = require('../extension.js');
-const { probeImagePath, makePlugin, findFence, FENCE_RE, saveBack } = ext.__test;
+const { probeImagePath, makePlugin, findFence, FENCE_RE, saveBack, withCacheBust } = ext.__test;
 
 let passed = 0;
 function ok(cond, label) {
@@ -192,6 +192,14 @@ ok(probeImagePath(docFs, 'https://a.com/x.png') === null, '跳过 http 图片');
 ok(probeImagePath(docFs, './nofile.png') === null, '不存在的文件返回 null');
 const probeSvg = probeImagePath(docFs, 'wave.svg');
 ok(probeSvg && probeSvg.text === json2, 'SVG 探测');
+ok(probe1 && Number.isFinite(probe1.mtimeMs) && probe1.mtimeMs > 0, 'PNG 探测返回文件 mtimeMs（供预览缓存破除用）');
+
+/* ---- 2b. withCacheBust（预览刷新破缓存的 URL 版本参数） ---- */
+ok(withCacheBust('./a.png', 12345.6) === './a.png?wdv=12346', '无查询串时追加 ?wdv=<四舍五入 mtime>');
+ok(withCacheBust('./a.png?wdv=1', 999) === './a.png?wdv=1', '已有 wdv= 时幂等、不重复追加');
+ok(withCacheBust('./a.png?x=1', 50) === './a.png?x=1&wdv=50', '已有查询串用 & 追加');
+ok(withCacheBust('./a.png#frag', 7) === './a.png?wdv=7#frag', '保留结尾 #fragment');
+ok(withCacheBust('', 7) === '', '空 src 原样返回');
 
 /* ---- 3. findFence（写回定位） ---- */
 const mdText = '# t\n\n```wavedrom\n{"signal":[{}]}\n```\n\ntext\n\n```wavedrom\n{"signal":[{"name":"b","wave":"1."}]}\n```\n';
@@ -258,8 +266,9 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(htmlImg.includes('data-wd="image"'), '带元数据图片被识别包装');
   ok(/data-edit-mode="menu"/.test(htmlImg), '图片块同样携带入口形式设置');
   ok(/data-edit-uri="vscodium:\/\/wavedrom-gui\.wavedrom-gui-vscode\/edit\?k=[0-9a-f]{12}"/.test(htmlImg), '图片块同样携带深链接');
-  const mI = /data-json="([^"]+)"/.exec(htmlImg);
-  ok(mI && Buffer.from(mI[1], 'base64').toString('utf8') === json2, '图片元数据 JSON 完整携带');
+  ok(!/data-json=/.test(htmlImg), '图片块不再携带 data-json（预览显示原图，不再拿元数据重绘）');
+  ok(/<img[^>]*src="\.\/embedded\.png\?wdv=\d+"/.test(htmlImg), '图片 src 追加随 mtime 的缓存破除参数，写回后刷新能拿到新图');
+  ok(/<img[^>]*src="\.\/embedded\.png\?wdv=\d+"[^>]*alt="波形"/.test(htmlImg), '原图 <img> 保留在包装块内（显示图片本身）');
 
   /* ---- 4c. URI 处理器：深链接回来落到正确的编辑目标 ---- */
   const { editTargets, handleUri } = ext.__test;
@@ -568,6 +577,17 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
       appendChild(c) { this.children.push(c); return c; },
       setAttribute(k, v) { this.attrs[k] = v; },
       getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; },
+      querySelector(sel) {
+        const want = String(sel).trim().toUpperCase();
+        const walk = n => {
+          for (const c of n.children) {
+            if (c.tagName === want) return c;
+            const hit = walk(c); if (hit) return hit;
+          }
+          return null;
+        };
+        return walk(this);
+      },
       addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); },
       classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c), toggle() {} },
       remove() {},
@@ -596,18 +616,25 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const runPreview = (renderModern, editMode, editUri, opts) => {
     const o = opts || {};
     const block = fakeEl('div');
-    block.dataset.wd = 'fence';
+    block.dataset.wd = o.wd || 'fence';
     if (editMode) block.dataset.editMode = editMode;
     if (editUri !== null) {
       block.dataset.editUri = editUri === undefined ? testUri : editUri;
       block.dataset.k = testUri.replace(/^.*k=/, ''); // 真渲染里 data-k 与 data-edit-uri 同时存在
     }
-    block.dataset.json = Buffer.from(JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), 'utf8').toString('base64');
+    if (block.dataset.wd === 'image') {
+      const img = fakeEl('img');
+      if (o.imgContext) img.setAttribute('data-vscode-context', o.imgContext);
+      block.appendChild(img); // 扩展渲染出的 <img> 直接是块的子节点
+    } else {
+      block.dataset.json = Buffer.from(JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), 'utf8').toString('base64');
+    }
     const doc = {
       createElement: fakeEl,
       body: fakeEl('body'),
       getElementById: id => (id === 'wd-i18n' ? fakeI18nNode : null),
       querySelectorAll: sel => (String(sel).indexOf('.wavedrom-block') === 0 ? [block] : []),
+      addEventListener() {}, // 预览脚本在捕获阶段注册 contextmenu 兜底监听器
     };
     lastWin = makeWin(renderModern, o.noRenderer);
     const ctx = {
@@ -626,6 +653,24 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const menuCtx = menuBlock.getAttribute('data-vscode-context');
   ok(menuCtx && JSON.parse(menuCtx).webviewSection === 'wavedrom' && JSON.parse(menuCtx).k, 'menu 模式：右键菜单上下文仍在（这模式下唯一的预览入口）');
   ok(!menuBlock.listeners.click, 'menu 模式：块本身不带点击处理');
+
+  /* ---- 图片块：直接显示原图 <img>（不重绘），编辑上下文烙到命中目标 <img> 上 ---- */
+  const shouldNotRender = () => { throw new Error('图片不该走渲染器重绘'); };
+  const imgBlock = runPreview(shouldNotRender, 'menu', undefined, { wd: 'image' });
+  const imgNode = imgBlock.querySelector('img');
+  ok(imgNode, '图片块保留原图 <img>（不拿元数据重绘）');
+  const imgCtx = imgNode.getAttribute('data-vscode-context');
+  ok(imgCtx && JSON.parse(imgCtx).webviewSection === 'wavedrom' && JSON.parse(imgCtx).k,
+    '图片：编辑上下文烙到实际命中的 <img> 上（绕开预览对 img 的专属处理）');
+  const imgBlock2 = runPreview(shouldNotRender, 'menu', undefined, {
+    wd: 'image',
+    imgContext: JSON.stringify({ href: 'keep-me', preventDefaultContextMenuItems: true }),
+  });
+  const merged = JSON.parse(imgBlock2.querySelector('img').getAttribute('data-vscode-context'));
+  ok(merged.href === 'keep-me' && merged.webviewSection === 'wavedrom' && merged.k,
+    '图片：与预览已写的上下文合并，保留其键并补上 wavedrom 键');
+  ok(!('preventDefaultContextMenuItems' in merged),
+    '图片：去掉 preventDefaultContextMenuItems，避免「编辑波形」被预览图片菜单吞掉');
 
   const block = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button');
   ok(block.children.length === 1 && block.children[0].className === 'wd-figure', '块内只有一层 .wd-figure');

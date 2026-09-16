@@ -79,6 +79,13 @@ a.wd-blocklink:focus-visible {
   display: block;
 }
 
+/* 含 WaveJSON 的图片直接显示原图 <img>，同样限宽避免宽图溢出、窄图保持原尺寸 */
+.wd-figure .wd-svg img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
 .wd-figure .wd-code {
   max-height: 320px;
   overflow: auto;

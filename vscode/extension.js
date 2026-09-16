@@ -176,15 +176,24 @@ function makePlugin() {
     const prevImage = md.renderer.rules.image;
     md.renderer.rules.image = (tokens, idx, options, env, self) => {
       const token = tokens[idx];
-      const imgHtml = prevImage
+      const renderImg = () => prevImage
         ? prevImage(tokens, idx, options, env, self)
         : self.renderToken(tokens, idx, options);
       const docFs = docFsPath(env);
-      if (!docFs) return imgHtml;
-      const probe = probeImagePath(docFs, token.attrGet('src'));
-      if (!probe) return imgHtml;
+      const src = token.attrGet('src');
+      if (!docFs || !src) return renderImg();
+      const probe = probeImagePath(docFs, src);
+      if (!probe) return renderImg();
+      /* 含 WaveJSON 的图片：预览直接显示图片本身（保持导出时的原生主题），编辑走右键/深链接；
+         不再塞 data-json、也不再拿元数据重绘（旧实现恒用现代渲染器，会把传统图改风格）。
+         编辑写回后靠 markdown.preview.refresh 重取图，但 webview 按 URI 缓存像素，故给命中的
+         图 URL 追加随 mtime 变化的版本参数，确保刷新拿到新像素。 */
       const k = registerKey({ kind: 'image', docPath: docFs, imgPath: probe.absPath });
-      return `<span class="wavedrom-block" data-wd="image" data-json="${b64(probe.text)}" data-edit-mode="${editAffordance()}" data-k="${k}" data-edit-uri="${escapeAttr(editLink(k))}">${imgHtml}</span>\n`;
+      const busted = withCacheBust(src, probe.mtimeMs);
+      if (busted !== src) token.attrSet('src', busted);
+      const imgHtml = renderImg();
+      if (busted !== src) token.attrSet('src', src); // 复原，避免影响该 token 的后续渲染
+      return `<span class="wavedrom-block" data-wd="image" data-edit-mode="${editAffordance()}" data-k="${k}" data-edit-uri="${escapeAttr(editLink(k))}">${imgHtml}</span>\n`;
     };
   };
 }
@@ -198,6 +207,19 @@ function docFsPath(env) {
 
 function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* 给命中的图片 URL 追加随文件 mtime 变化的版本参数。编辑写回后靠 markdown.preview.refresh
+   重取图片，但 webview 按 URI 缓存像素，src 不带区分时刷新可能仍拿到旧图，故用它破除缓存。
+   幂等（已有 wdv= 就不再动），并保留结尾 #fragment。 */
+function withCacheBust(src, mtimeMs) {
+  if (typeof src !== 'string' || !src) return src;
+  if (/[?&]wdv=/i.test(src)) return src;
+  const hashIdx = src.indexOf('#');
+  const hash = hashIdx >= 0 ? src.slice(hashIdx) : '';
+  const base = hashIdx >= 0 ? src.slice(0, hashIdx) : src;
+  const sep = base.indexOf('?') >= 0 ? '&' : '?';
+  return base + sep + 'wdv=' + Math.round(mtimeMs || 0) + hash;
 }
 
 /* 图片探测结果按 mtime+size 缓存：CodeLens 在每次击键后都会重跑，逐图同步读文件
@@ -217,14 +239,14 @@ function probeImagePath(docFs, src) {
     const st = fs.statSync(abs);
     const key = st.mtimeMs + ':' + st.size;
     const hit = probeCache.get(abs);
-    if (hit && hit.key === key) return hit.text ? { absPath: abs, relSrc: src, text: hit.text } : null;
+    if (hit && hit.key === key) return hit.text ? { absPath: abs, relSrc: src, text: hit.text, mtimeMs: hit.mtimeMs } : null;
     const bytes = fs.readFileSync(abs);
     const text = /\.svg$/i.test(abs)
       ? svgExtractWaveJSON(bytes.toString('utf8'))
       : pngExtractWaveJSON(bytes);
     if (probeCache.size > 400) probeCache.clear();
-    probeCache.set(abs, { key, text });
-    return text ? { absPath: abs, relSrc: src, text } : null;
+    probeCache.set(abs, { key, text, mtimeMs: st.mtimeMs });
+    return text ? { absPath: abs, relSrc: src, text, mtimeMs: st.mtimeMs } : null;
   } catch (e) { return null; }
 }
 
@@ -442,8 +464,10 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   const isImage = saveTarget.kind === 'image';
   /* 图片目标的像素写回：webview 在轮询里把当前画面光栅化后随 pixels 消息上报，这里
-     暂存内存，停手 5s 或面板关闭/切走时落盘。webview 销毁后就渲染不出新图了，所以
-     「关闭即写回」依赖宿主手里始终有最新一份像素——这正是渲染提前到轮询里的原因。 */
+     暂存内存，停手约 1s 或面板关闭/切走时落盘。webview 销毁后就渲染不出新图了，所以
+     「关闭即写回」依赖宿主手里始终有最新一份像素——这正是渲染提前到轮询里的原因。
+     1s 是「编辑手感近实时」与「别在拖拽时每帧刷盘」的折中：每来一帧新像素就重置计时，
+     连续改动期间不落盘，停手 1s 后写一次（hover / md 预览随即能读到新图）。 */
   let pendingPx = null;   // { png?: Buffer, svg?: string, json } —— 与像素同源的文档 JSON
   let flushTimer = null;
 
@@ -470,7 +494,7 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
   };
   const armFlush = () => {
     if (flushTimer) clearTimeout(flushTimer);
-    flushTimer = setTimeout(() => { flushTimer = null; flushPixels(); }, 5000);
+    flushTimer = setTimeout(() => { flushTimer = null; flushPixels(); }, 1000);
   };
 
   panel.webview.onDidReceiveMessage(msg => {
@@ -768,7 +792,7 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
       vs.postMessage({ type: 'save', json: v, text: displayText(v) });
       if (IMG) sendPixels();
     }
-  }, 500);
+  }, 250);
 })();
 </script>
 `;
@@ -1174,6 +1198,7 @@ module.exports = {
   deactivate,
   __test: {
     FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel,
+    withCacheBust,
     languageSetting, uiLang, zhStrings, t, editLink, handleUri,
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
     findFence, findFenceAtLine, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
