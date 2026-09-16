@@ -144,8 +144,17 @@
     + '</g></svg>';
 
   /* 把 wavedrom 上下文烙到某个节点（通常是右键真正命中的 <img>）：与节点上已有的
-     data-vscode-context 合并——保留预览自己写的键，覆盖上我们的 webviewSection/k，并删掉
-     preventDefaultContextMenuItems（否则预览的「图片专属」右键菜单会吞掉「编辑波形」）。 */
+     data-vscode-context 合并——预览自己写的键（含 webviewSection、id、resource、
+     imageSource 与 preventDefaultContextMenuItems）一律保留，只补上我们自己的键。
+
+     为什么图片用 wdImage 而不是 webviewSection：webview 侧收集上下文是「从命中元素沿
+     祖先链合并、近者覆盖」，而预览脚本会给每个 <img> 写 webviewSection: 'localImage'。
+     我们若覆盖成 'wavedrom'，VS Code 自带的「复制图片」（when: image|localImage）与
+     「打开图片」（when: localImage）就不匹配了；删掉 preventDefaultContextMenuItems 更会
+     让内置的剪切/复制/粘贴冒出来（它只 gating 那三项，与「编辑波形」是否出现无关）。
+     用自己的键后两者共存：图片 = 编辑波形 + 复制图片 + 打开图片。
+     注意：图片块从 span 到 img 都不能出现 webviewSection——合并是键的并集，祖先带上它
+     同样会把预览的 localImage 顶掉。 */
   function stampWdContext(node, wdContext) {
     if (!node || !wdContext || typeof node.setAttribute !== 'function') return;
     let merged = {};
@@ -154,7 +163,6 @@
       if (cur) merged = JSON.parse(cur);
     } catch (e) { merged = {}; }
     try { Object.assign(merged, JSON.parse(wdContext)); } catch (e) { /* 保留已合并内容 */ }
-    delete merged.preventDefaultContextMenuItems;
     node.setAttribute('data-vscode-context', JSON.stringify(merged));
   }
 
@@ -189,11 +197,15 @@
        （例如未保存的 untitled 文档），此时不渲染任何入口，只渲染波形 */
     const editUri = div.dataset.editUri || '';
 
-    /* 右键菜单的上下文：VS Code 会把这段 JSON 作为命令的第一个参数传给我们，
-       扩展由此得知「右键的是哪一个块」。preventDefaultContextMenuItems 不设，
-       预览原本的右键项（复制等）继续保留。图片与代码块都要，故提到分支之前统一挂 */
+    /* 右键菜单的上下文：VS Code 会把这段 JSON 作为命令的第一个参数传给我们（扩展只读 k），
+       菜单项由 package.json 的 webview/context 按 webviewSection / wdImage 匹配。
+       代码块没有别的 context 与它竞争，用 webviewSection: 'wavedrom'；
+       图片必须换用自己的键，否则会顶掉预览给 <img> 写的 webviewSection（复制/打开图片
+       两项就没了），细节见 stampWdContext 的注释 */
     const wdContext = editUri
-      ? JSON.stringify({ webviewSection: 'wavedrom', k: div.dataset.k || '' })
+      ? JSON.stringify(isImage
+        ? { wdImage: '1', k: div.dataset.k || '' }
+        : { webviewSection: 'wavedrom', k: div.dataset.k || '' })
       : '';
     if (wdContext) {
       div.setAttribute('data-vscode-context', wdContext);
@@ -227,8 +239,10 @@
       const img = div.querySelector('img');
       if (img) {
         holder.appendChild(img);
-        /* VS Code 对 <img> 的右键有专属处理，祖先块上的 data-vscode-context 不再驱动
-           webview/context，故把上下文直接烙到实际命中目标的 <img> 上 */
+        /* 菜单匹配靠块上的 wdImage（祖先合并就够），这里额外烙到实际命中的 <img> 上让目标
+           自洽：万一某个 VS Code 版本的上下文收集不再沿祖先链合并，命中元素自己带着键仍能用。
+           合并保留预览写的 webviewSection / preventDefaultContextMenuItems 与 id / resource /
+           imageSource——「复制图片」「打开图片」正是靠这几个键工作的 */
         stampWdContext(img, wdContext);
       }
       if (holder.firstChild) figure.appendChild(holder);
@@ -269,8 +283,9 @@
   /* preview.js 先于渲染库跑完时（async 注入，顺序不保证）在这里补扫一次 */
   whenRendererReady(scan);
 
-  /* 兜底：预览可能在右键瞬间往 <img> 上盖它自己的 data-vscode-context，冲掉我们那份。
-     捕获阶段监听器在菜单构建前，从所属图片块读回上下文重新烙到命中目标上。
+  /* 兜底：预览脚本会在初始化时给每个 <img> 重写 data-vscode-context（`$e()`），可能落在
+     我们之后、冲掉上面的烙写。菜单项本身还靠祖先块上的 wdImage 命中，但这里在捕获阶段
+     （VS Code 自己的监听器在 window 的冒泡阶段，晚于我们）补烙一次，让命中目标重新自洽。
      只处理含 WaveJSON 的图片块；代码块走既有的祖先合并机制，无需干预。 */
   document.addEventListener('contextmenu', function (e) {
     const t = e.target;

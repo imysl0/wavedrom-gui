@@ -655,23 +655,33 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(menuCtx && JSON.parse(menuCtx).webviewSection === 'wavedrom' && JSON.parse(menuCtx).k, 'menu 模式：右键菜单上下文仍在（这模式下唯一的预览入口）');
   ok(!menuBlock.listeners.click, 'menu 模式：块本身不带点击处理');
 
-  /* ---- 图片块：直接显示原图 <img>（不重绘），编辑上下文烙到命中目标 <img> 上 ---- */
+  /* ---- 图片块：直接显示原图 <img>（不重绘）；上下文用 wdImage 而非 webviewSection ---- */
   const shouldNotRender = () => { throw new Error('图片不该走渲染器重绘'); };
+  /* 预览脚本给每个 <img> 写的上下文（`$e()`，按 data-src 判 image/localImage） */
+  const previewImgCtx = JSON.stringify({
+    webviewSection: 'localImage', id: 'image-0', preventDefaultContextMenuItems: true,
+    resource: { fsPath: '/tmp/a.md' }, imageSource: './embedded.png',
+  });
   const imgBlock = runPreview(shouldNotRender, 'menu', undefined, { wd: 'image' });
   const imgNode = imgBlock.querySelector('img');
   ok(imgNode, '图片块保留原图 <img>（不拿元数据重绘）');
-  const imgCtx = imgNode.getAttribute('data-vscode-context');
-  ok(imgCtx && JSON.parse(imgCtx).webviewSection === 'wavedrom' && JSON.parse(imgCtx).k,
-    '图片：编辑上下文烙到实际命中的 <img> 上（绕开预览对 img 的专属处理）');
-  const imgBlock2 = runPreview(shouldNotRender, 'menu', undefined, {
-    wd: 'image',
-    imgContext: JSON.stringify({ href: 'keep-me', preventDefaultContextMenuItems: true }),
-  });
+  const blockCtx = JSON.parse(imgBlock.getAttribute('data-vscode-context'));
+  ok(blockCtx.wdImage === '1' && blockCtx.k, '图片：块上下文带 wdImage + k（菜单 when 认它）');
+  ok(!('webviewSection' in blockCtx),
+    '图片：块上不许出现 webviewSection——合并是键的并集，祖先带上它会顶掉预览的 localImage');
+  const imgCtx = JSON.parse(imgNode.getAttribute('data-vscode-context'));
+  ok(imgCtx.wdImage === '1' && imgCtx.k, '图片：上下文同时烙到实际命中的 <img> 上（目标自洽）');
+  const imgBlock2 = runPreview(shouldNotRender, 'menu', undefined, { wd: 'image', imgContext: previewImgCtx });
   const merged = JSON.parse(imgBlock2.querySelector('img').getAttribute('data-vscode-context'));
-  ok(merged.href === 'keep-me' && merged.webviewSection === 'wavedrom' && merged.k,
-    '图片：与预览已写的上下文合并，保留其键并补上 wavedrom 键');
-  ok(!('preventDefaultContextMenuItems' in merged),
-    '图片：去掉 preventDefaultContextMenuItems，避免「编辑波形」被预览图片菜单吞掉');
+  ok(merged.wdImage === '1' && merged.k, '图片：与预览已写的上下文合并，补上我们自己的键');
+  ok(merged.webviewSection === 'localImage' && merged.preventDefaultContextMenuItems === true &&
+    merged.imageSource === './embedded.png',
+    '图片：保留预览的 webviewSection / preventDefaultContextMenuItems / imageSource（复制、打开图片靠它们）');
+  /* 菜单 when 必须同时认两种键：只改一边就会静默丢掉右键入口 */
+  const menuWhen = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'))
+    .contributes.menus['webview/context'][0].when;
+  ok(/webviewSection == 'wavedrom'/.test(menuWhen) && /wdImage == '1'/.test(menuWhen),
+    'package.json：菜单 when 同时匹配代码块（webviewSection）与图片（wdImage）');
 
   const block = runPreview(() => ({ svg: '<svg width="10" height="10"><g/></svg>' }), 'button');
   ok(block.children.length === 1 && block.children[0].className === 'wd-figure', '块内只有一层 .wd-figure');

@@ -59,7 +59,7 @@
       "webview/context": [
         {
           "command": "wavedrom-gui.editFromPreview",
-          "when": "webviewSection == 'wavedrom' && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor')",
+          "when": "(webviewSection == 'wavedrom' || wdImage == '1') && (webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor')",
           "group": "navigation@1"
         }
       ],
