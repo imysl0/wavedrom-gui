@@ -58,7 +58,7 @@ Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks (mode
 - Embeds the official [WaveDrom](https://wavedrom.com/) v3.5.0 renderer with the default/narrow skins (sourced from wavedrom.com)
 - The editor's mini waveforms are self-drawn SVG; the generation logic follows the official sources (`gen-wave-brick.js` etc.): paired state transitions, half-cycle transition marks, level-clock half-brick fusion (xclude table), `.`/`|` repeaters, period/phase/hscale scaling — all per official semantics
 - Exported images embed WaveJSON metadata: SVG `<metadata>` / PNG `iTXt` text chunk (pure JS, zero dependencies, hand-written CRC32); import sniffs the file header and reads it back automatically, without affecting how the image displays. They also store an **export-source marker** (`data-export` attribute / `WaveDromGui` iTXt keyword) so importers can redraw in the same style
-- Fonts: LXGW WenKai Mono is loaded on demand in slices from the npmmirror CDN (fast in mainland China), with automatic fallback to system fonts offline; exported SVG/PNG are unaffected by UI font and theme
+- Fonts: LXGW WenKai Mono is loaded on demand in slices from the npmmirror CDN (fast in mainland China), with automatic fallback to system fonts offline; **official-render** exports are always light-on-white and independent of the UI font and theme, while **editor vector-rebuild** exports follow the current theme background and font settings (what you see is what you get)
 
 ## Credits
 

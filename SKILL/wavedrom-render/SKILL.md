@@ -86,7 +86,7 @@ AI 或人工编写 / 修改 WaveJSON 时遵守以下规则与速查表。
 | `data` | 数据标签数组，供 `=` / `2`–`9` 数据框按出现顺序取用 |
 | `node` | 与 `wave` 等长的节点字母串（如 `".a....."`），供 `edge` 连线引用 |
 | `period` | 周期倍数：该信号每个字符占 `period` 格宽（时钟一个完整周期占 `period` 格，如 DDR 的 CK 用 `2`） |
-| `phase` | 相位偏移：波形整体右移，`0.5` = 半个本信号周期 |
+| `phase` | 相位偏移：波形整体**左移**，`0.5` = 半个本信号周期 |
 
 **文档骨架（其余顶层字段）：**
 
@@ -149,13 +149,13 @@ node render.js -              # 从 stdin 读取 WaveJSON
 |---|---|---|---|
 | `--mode` | `modern` \| `traditional` | `modern` | 渲染风格 |
 | `--format` | `svg` \| `png` \| `both` | `png` | 输出格式 |
-| `--out` / `-o` | 路径 | 跟随输入名 | 输出路径（扩展名自动补） |
+| `--out` / `-o` | 路径 | 自动命名（`wavdrom_gui_*`） | 输出路径（扩展名自动补）。不给时按与网页版同一套约定命名：有标题用 `wavdrom_gui_标题`，否则 `wavdrom_gui_日期_序号`；**目录**跟随输入文件（stdin 输入时为当前目录）。父目录需已存在，脚本不会创建它 |
 | `--scale` | 数字 | `2` | PNG 缩放倍数（2 = 2×，更清晰） |
-| `--skin` | `default` \| `narrow` | `default` | **仅传统模式**：官方皮肤 |
+| `--skin` | `default` \| `narrow` | 先用文档里的 `config.skin`，缺省 `default` | **仅传统模式**：官方皮肤 |
 | `--node-pos` | `lt tm rt lm c rm lb bm rb` | `lm` | **仅现代模式**：节点圆标位置 |
 | `--node-scale` | 数字 | `1` | **仅现代模式**：节点圆标缩放 |
 | `--node-inset` | `0`–`9` | `4` | **仅现代模式**：节点圆标相对连线端点的内缩像素（0 = 贴住端点） |
-| `--node-mode` | `letter` \| `bare` \| `dot` | `bare` | **仅现代模式**：节点标记形态——字母 / 空心圆 / 实心点 |
+| `--node-mode` | `letter` \| `bare` \| `dot` | `bare` | **仅现代模式**：节点标记形态——`letter` 描边圆 + 字母 / `bare` 字母 + 半透明白底（无描边）/ `dot` 实心小圆点 |
 | `--no-meta` | — | 默认内嵌 | 关闭 WaveJSON 元数据内嵌 |
 | `--strict` | — | 宽松解析 | **只接受严格 JSON**：渲染来源不明的文件时务必加上，禁用宽松求值回退 |
 | `-h` / `--help` | — | — | 打印用法 |
@@ -175,6 +175,8 @@ node render.js wave.json --mode traditional --skin narrow --format svg
 # 从 stdin 读入，写到指定 PNG，3× 清晰度
 cat wave.json | node render.js - --out out/w.png --scale 3
 ```
+
+> `--out` 的父目录需要已存在（脚本不创建目录）；上面的 `out/` 请先 `mkdir -p out`。
 
 ### WaveJSON 元数据内嵌（默认开启）
 
@@ -205,7 +207,7 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 "appearance": {
   "fontFamily": {
     "mono": "\"LXGW WenKai Mono\",\"Cascadia Code\",Consolas,...,monospace",
-    "ui":   "\"LXGW WenKai\",\"LXGW WenKai Mono\",...,sans-serif"
+    "ui":   "\"LXGW WenKai Mono\",\"PingFang SC\",...,sans-serif"
   },
   "size": {
     "dataLabel": 14, "signalName": 16, "groupName": 16, "title": 16,
@@ -217,7 +219,7 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 | 键 | 作用 | 默认字号 | 字体栈 |
 |---|---|---|---|
 | `fontFamily.mono` | 等宽字体栈 | — | 首选霞鹜文楷等宽 |
-| `fontFamily.ui` | UI 字体栈 | — | 首选霞鹜文楷 |
+| `fontFamily.ui` | UI 字体栈 | — | 首选霞鹜文楷等宽 |
 | `size.dataLabel` | 数据框标签（0x18 / D0…） | **14** | mono |
 | `size.signalName` | 信号名（clk / req…） | **16** | mono |
 | `size.groupName` | 分组名（▸ ctrl） | **16** | ui |

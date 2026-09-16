@@ -25,7 +25,7 @@
 2. **预览里的铅笔按钮**（设置成 `button`）或**点波形任意处**（设置成 `block`）；
 3. **源码里每个 wavedrom 代码块上方的 CodeLens**（`预览` + `编辑波形` 两颗，完全不经预览）。
 
-点开后是可视化编辑器（面板内即仓库的 `index.html`）；**编辑结果实时写回 Markdown 中的这个代码块**，写回格式跟随编辑器的代码显示模式（舒缓 / 紧凑）。
+点开后是可视化编辑器（面板里加载的就是这个单文件编辑器界面：仓库内调试时直接读 `../index.html`，装 VSIX 后读随包安装的构建拷贝 `media/editor.html`，两者内容一致）；**编辑结果实时写回 Markdown 中的这个代码块**，写回格式跟随编辑器的代码显示模式（舒缓 / 紧凑）。
 
 铅笔按钮与 VS Code 工具栏图标同风格：单色描边、无边框无底色，常显 60% 不透明度，悬停浮现底色。
 
@@ -38,7 +38,7 @@
 Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，预览会自动识别，编辑入口与代码块完全一致（同一套设置：默认同样是右键菜单，也可切成铅笔按钮或整块点击）：
 
 - **编辑**：进入可视化编辑器；保存分两层写回——**元数据实时更新**（PNG `iTXt` / SVG `<metadata>`：界面停手约 0.4 秒后落 localStorage，再经最多 250ms 的轮询写回文件），**画面由编辑器重绘写回**：停手约 1 秒后落盘（界面自动保存 0.4 秒 + 轮询 + 重绘 + 250ms 去抖），关闭编辑面板或切走面板标签时立即落盘
-- **原图是哪种导出就按哪种重绘**：编辑器导出菜单里的「WaveDrom 渲染」与「编辑区矢量重建」两种来源都会被识别，保存写回时保持同一种风格（编辑区导出的图不会被重绘成官方渲染样式）；出自 wavedrom-render skill 的现代 / 传统导出同样认得出。检测与兜底规则见 [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)
+- **原图是哪种导出就按哪种重绘**：编辑器导出菜单里的「下载 WaveDrom SVG / PNG（2×）」与「下载编辑区 SVG / PNG（2×）」两种来源都会被识别，保存写回时保持同一种风格（编辑区导出的图不会被重绘成官方渲染样式）；出自 wavedrom-render skill 的现代 / 传统导出同样认得出。检测与兜底规则见 [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)
 - **PNG** 按原图像素宽对齐重绘（比例 = 原图宽 ÷ 当前自然宽，夹在 1×–4×，原图读不到时退回 2×），避免重绘后 Markdown 里的布局跳动；编辑区来源的底色随当前主题，官方渲染保持白底；**SVG 整文件重绘**（文件里手工做的图形改动会被覆盖）；需要别的尺寸用编辑器自己的导出按钮
 - 像素落盘只采用与最新元数据**同源**的画面（渲染没跟上时维持「元数据新、像素旧」），写入走临时文件 + rename，半途崩溃不会留下坏图
 - **源码入口**：图片引用上方同样有「编辑波形」CodeLens（与代码块共用 `wavedrom-gui.showCodeLens` 开关），完全不经预览；每次点击前都会重新探测文件，图被移动或元数据被去掉时会提示而不是打开错图。行内写法与引用式定义（`![说明][标签]`，标签定义写在引用之后也行）都识别
@@ -75,8 +75,8 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
 - **`wavedrom-gui.showCodeLens`**（默认 `true`）— 在 Markdown **源码**里每个 ```` ```wavedrom ```` 代码块上方显示 CodeLens（`预览` + `编辑波形`）。这条入口不经过预览，与预览安全级别无关，是不想用预览按钮（或预览被限制）时的稳定入口。
 
 - **`wavedrom-gui.editorViewMode`** — 编辑器面板打开时用哪种布局，以及右侧「实时预览 / WaveJSON 代码」窗口的初始显隐：
-  - `auto`（默认）：**沿用编辑器界面自己记住的布局偏好**；同时把右侧两个窗口默认**收起**——编辑面板通常是一个窄分栏，右侧窗只会挤占空间。需要看预览时在面板内从编辑器设置 → 视图 → 窗口显示恢复；另外与这一项无关：面板视口高度不足 600px（或宽度不足 800px）时，界面会自动按简约布局排布
   - `simple`：每次打开面板都把界面设为**简约模式**（手机版紧凑布局）
+  - `auto`（默认）：**沿用编辑器界面自己记住的布局偏好**；同时把右侧两个窗口默认**收起**——编辑面板通常是一个窄分栏，右侧窗只会挤占空间。需要看预览时在面板内从编辑器设置 → 视图 → 窗口显示恢复；另外与这一项无关：面板视口高度不足 600px（或宽度 ≤800px）时，界面会自动按简约布局排布
 
 - **`wavedrom-gui.editorSidePanel`** — 「通道与分组」左栏的初始显隐（只在简约 / 手机布局下生效）：
   - `shown`（默认）：每次打开面板都**展开**它。编辑器界面自身的默认是隐藏，而面板里这一栏常要用（＋信号/时钟/总线/占位/分组、节点、图表都在这里）
@@ -155,7 +155,7 @@ Three ways into the editor — pick any:
 2. **The pencil button inside the preview** (with the setting on `button`) or **clicking anywhere on the waveform** (with `block`);
 3. **The CodeLens above every wavedrom code block in the source** (`Preview` + `Edit waveform`, bypassing the preview entirely).
 
-Clicking through opens the visual editor (the panel loads the repository's own `index.html`); **edits are written back into that Markdown code block as you go**, in the code display mode the editor is using (comfortable / compact).
+Clicking through opens the visual editor (the panel loads that single-file editor UI: inside the repo it reads `../index.html` directly, and with the installed VSIX it reads the packaged copy `media/editor.html` — same content); **edits are written back into that Markdown code block as you go**, in the code display mode the editor is using (comfortable / compact).
 
 The pencil button matches VS Code's own toolbar icons: monochrome stroke, no border or background, 60% opacity at rest and a background on hover.
 
@@ -168,7 +168,7 @@ Which entry point is shown is decided by the `wavedrom-gui.previewEditAffordance
 If a **PNG / SVG image** referenced from Markdown has WaveJSON metadata embedded, the preview recognizes it automatically, and the entry points are exactly the same as for code blocks (same settings: right-click menu by default, switchable to the pencil button or click-the-image):
 
 - **Editing**: opens the visual editor; saving writes back on two levels — the **metadata is updated in real time** (PNG `iTXt` / SVG `<metadata>`: the UI persists it about 0.4 s after you stop, then the ≤250 ms poll writes it to the file), while the **picture is redrawn and written back by the editor**: about 1 s after you stop (UI autosave 0.4 s + poll + redraw + 250 ms debounce), or immediately when the panel closes or its tab loses focus
-- **An image is redrawn in the style it was exported with**: both sources in the editor's export menu — "WaveDrom render" and "editor vector rebuild" — are recognized, and write-back keeps the same style (an editor-exported image is never redrawn in the official style); modern / traditional exports from the wavedrom-render skill are recognized too. Detection and fallback rules: see [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)
+- **An image is redrawn in the style it was exported with**: both sources in the editor's export menu — "Download WaveDrom SVG / PNG (2×)" and "Download editor SVG / PNG (2×)" — are recognized, and write-back keeps the same style (an editor-exported image is never redrawn in the official style); modern / traditional exports from the wavedrom-render skill are recognized too. Detection and fallback rules: see [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)
 - **PNG** is redrawn at the original image's pixel width (ratio = original width ÷ current natural width, clamped to 1×–4×, falling back to 2× when the width cannot be read), so the Markdown layout does not jump after a redraw; editor-sourced images take the current theme's background while official renders stay white; **SVG is redrawn as a whole file** (hand-made graphic edits in the file are overwritten) — for other sizes use the editor's own export buttons
 - Pixels are only flushed when they come from the **same revision** as the latest metadata (if rendering lags, "new metadata, old pixels" is kept); writes go through a temp file + rename, so a crash mid-way never leaves a corrupt image
 - **Source entry point**: image references also get an "Edit waveform" CodeLens above them (sharing the `wavedrom-gui.showCodeLens` switch), entirely without the preview; every click re-probes the file first, so a moved image or removed metadata produces a message instead of opening the wrong file. Both inline images and reference-style definitions (`![alt][label]`, with the label defined after the reference) are recognized
@@ -205,8 +205,8 @@ Where to change them (three options):
 - **`wavedrom-gui.showCodeLens`** (default `true`) — shows a CodeLens (`Preview` + `Edit waveform`) above every ```` ```wavedrom ```` code block in the Markdown **source**. This entry point bypasses the preview, is independent of the preview security level, and is a stable fallback when you do not want the preview buttons (or the preview is restricted).
 
 - **`wavedrom-gui.editorViewMode`** — which layout the editor panel opens with, and the initial visibility of the right-side "Live preview / WaveJSON" windows:
-  - `auto` (default): **uses the editor UI's own remembered layout preference**; at the same time the two right-side windows start **hidden** — the panel is usually a narrow column and those windows only crowd it. Restore them inside the panel via the editor's settings → view → window visibility; also, independently of this setting, the UI lays itself out compactly when its viewport is under 600px tall (or under 800px wide)
   - `simple`: sets the UI to **simplified mode** (the compact mobile layout) every time the panel opens
+  - `auto` (default): **uses the editor UI's own remembered layout preference**; at the same time the two right-side windows start **hidden** — the panel is usually a narrow column and those windows only crowd it. Restore them inside the panel via the editor's settings → view → window visibility; also, independently of this setting, the UI lays itself out compactly when its viewport is under 600px tall (or 800px wide or less)
 
 - **`wavedrom-gui.editorSidePanel`** — the initial visibility of the "Lanes & groups" left column (only takes effect in the simplified/mobile layout):
   - `shown` (default): **expands** it every time the panel opens. The editor UI itself hides it by default, yet this column is used constantly inside the panel (＋signal/clock/bus/spacer/group, nodes, chart all live there)

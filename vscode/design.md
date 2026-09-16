@@ -5,7 +5,7 @@
 ## 1. 预览渲染管线
 
 - `markdown.markdownItPlugins`：拦截 ` ```wavedrom ` / ` ```wavejson ` 围栏，替换为占位块；渲染期通过 markdown-it 的 `env.currentDocument` 拿到文档路径，同步读取本地 png/svg 并用 `lib/meta-embed.js` 提取内嵌 WaveJSON（命中才包编辑入口）。
-- 图片走 `md.renderer.rules.image` 包装：先调原生渲染拿到 `<img>`，再用 `probeImagePath` 判断引用目标——跳过 `http:` / `data:` / `#` / `//` 等协议与非 `.png`/`.svg` 扩展名，解析相对路径与 URL 转义，最后读文件提取元数据。探测结果按 `mtime + size` 缓存（含**否定结果**：CodeLens 每次击键都会重跑，不缓存会让多图文档卡输入）。
+- 图片走 `md.renderer.rules.image` 包装：先用 `probeImagePath` 判断引用目标（跳过 `http:` / `data:` / `#` / `//` 等协议与非 `.png`/`.svg` 扩展名，解析相对路径与 URL 转义，读文件提取元数据），**命中后**才调原生渲染拿 `<img>` 并包上编辑入口；未命中直接原样输出。探测结果按 `mtime + size` 缓存（含**否定结果**：CodeLens 每次击键都会重跑，不缓存会让多图文档卡输入）。
 - 命中的图片**不塞 `data-json`、也不重绘**：预览里直接显示原图 `<img>`，保持导出时的主题与配色（早期实现恒用现代渲染器按元数据重画，会把传统/官方风格的图在预览里改掉风格）。编辑入口照旧（右键 / 铅笔 / 整块点击），要改内容进可视化编辑器改。
 - 写回后要让预览拿到**新像素**：`markdown.preview.refresh` 会重渲染整篇，但 webview 按 URI 缓存图片，所以给命中图片的 `src` 追加随 mtime 变化的 `?wdv=<mtimeMs>` 破除缓存（幂等，保留 `#fragment`）。这条链路是安全的：VS Code 的 image 规则只在 `file:` / 工作区根 `/` 开头时才改写成 webview URI，相对路径原样保留；预览用 `<base href="asWebviewUri(文档 uri)">` 解析相对图；webview 的 service worker 以**含 query 的完整 URL** 作 Cache API 键、并把 query 透传给宿主读文件——既破缓存，也不会 404，CSP 的 `img-src … https:` 同样命中。
 - `markdown.previewScripts`：`media/preview.js` 在预览内对**代码块**做现代主题渲染（`render-modern.js` 的浏览器包装层 `media/modern-render.browser.js`），并给两类块挂编辑入口；图片块只做入口与上下文，不渲染（因此渲染库未就绪时也能先挂好，`scan()` 对图片块不等就绪）。
@@ -39,7 +39,7 @@
 - 预览是 webview、拿不到 `vscode.l10n`，所以那一小段文案（编辑入口的 `aria-label` 与悬停提示）由扩展按当前语言渲染进一个隐藏的 `#wd-i18n`，`preview.js` 读它的 `data-*`（缺失则回退英文）——翻译仍只有语言包一处。
 - 命令标题与设置说明属于 VS Code 的**清单本地化**，由宿主在加载时替换，运行时改不了。
 - 排查：Output 面板选 **Extension Host**，激活时会打印一行
-  `[wavedrom-gui] i18n {"setting":"auto","envLanguage":"zh-cn","effective":"zh","l10nApi":true,"zhTableKeys":24}`。
+  `[wavedrom-gui] i18n {"setting":"auto","envLanguage":"zh-cn","effective":"zh","l10nApi":true,"zhTableKeys":38}`。
 - ⚠️ **F5 扩展开发宿主下命令标题与设置说明显示英文**：VS Code 在开发模式下直接跳过 `package.nls.<locale>.json`（工作台代码里是 `if (t.devMode || t.pseudo || !t.language) return { localized: package.nls.json }`），这是宿主行为、扩展无法绕过；消息、CodeLens 与预览文案不受此限。
 
 ## 6. 编辑器面板的加载与隔离
@@ -66,7 +66,7 @@ CodeLens 的「预览」与悬停里的「固定预览」都走 `wavedrom-gui.pr
 - 标记与指纹都识别不出来时（如无标记的旧 PNG）按 **skill-modern** 兜底——新工具链默认导出的就是现代风格。
 - `wavedrom-gui.imageExportTheme` 在面板建立时覆盖这个结论：`modern` → `skill-modern`、`traditional` → `wavedrom`。
 
-**像素写回**：轮询脚本在图片目标上按来源分派渲染——官方渲染走 `getExportSvg`、编辑区导出走 `buildEditorSvg`、skill-modern 走面板内联的无浏览器渲染器；PNG 走 canvas 光栅化（比例 = 原图宽 ÷ 当前自然宽，夹在 1×–4×，读不到宽度退回 2×，skill-modern 保持透明底），SVG 直接上报矢量文本（剥掉 XML 声明）。消息里除 `k` 之外新增 `pixels`（含 base64 PNG 或 SVG 文本 + 渲染完成后的文档 JSON），宿主暂存内存。
+**像素写回**：轮询脚本在图片目标上按来源分派渲染——官方渲染走 `getExportSvg`、编辑区导出走 `buildEditorSvg`、skill-modern 走面板内联的无浏览器渲染器；PNG 走 canvas 光栅化（比例 = 原图宽 ÷ 当前自然宽，夹在 1×–4×，读不到宽度退回 2×，skill-modern 保持透明底），SVG 直接上报矢量文本（剥掉 XML 声明）。面板 → 宿主共有三类消息：`save`（`{json, text}`）、`pixels`（`{json, png|svg}`，含渲染完成后的文档 JSON）、`export`（`{name, b64}`）——都不带 `k`，宿主靠 `setupEditorPanel` 闭包里的 `saveTarget` 认目标。宿主把 `pixels` 暂存内存。
 
 **落盘时机与延迟预算**（写回分两条路，各自的预算不同）：
 
@@ -91,4 +91,3 @@ CodeLens 的「预览」与悬停里的「固定预览」都走 `wavedrom-gui.pr
 - `scripts/build.js` 在 `vscode:prepublish` 时跑（零依赖）：把 skill 的 `lib/render-modern.js` 包成浏览器 IIFE 到 `media/modern-render.browser.js`，把仓库根 `index.html` 拷成 `media/editor.html`，并把 `package.json` 的 version 按最新 git tag（`vYYMMDD.N` → `YYMMDD.N.0`）对齐。清理检出即可打包，无需 `npm install`。
 - 发布流水线（`.cnb.yml` 的 tag_push 与 `.github/workflows/release.yml`）在打 tag 后写版本号、打包 VSIX、发 Release 附件。
 - `vsce package` 的 `--baseContentUrl`（内容链接基址）应为 `…/-/blob/main/vscode`，`--baseImagesUrl`（图片）为 `…/-/raw/main/vscode`：README 里一旦出现**相对链接**，不带这两个参数且仓库无法自动识别时 vsce 会因「链接会失效」**直接报错、不产出 VSIX**；带上则会把相对链接改写成绝对地址。本仓库的 README 目前用的都是绝对链接，因此裸 `vsce package` 也能过。
-- 别在会被 vsce 打包扫描的文档（README 等）里放**字面量图片示例**：vsce 会把它当成坏图解析并导致打包失败。
