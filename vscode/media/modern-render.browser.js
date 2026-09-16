@@ -152,7 +152,9 @@ function parseDoc(j) {
   sig.forEach(e => st.tree.push(parseEntry(e)));
   if (Array.isArray(j.edge)) j.edge.forEach(s => { const e = parseEdge(s); if (e) st.edges.push(e); });
   const rd = hf => (typeof hf === 'object' && hf) ? {
-    text: hf.text != null && typeof hf.text === 'string' ? hf.text : '',
+    /* text 可能是 JsonML 富文本数组（官方高级特性，如 tspan 树）——原样保留，
+       渲染时按 tspan 展开；早前非字符串一律置空会让富文本标题/底部整段消失 */
+    text: hf.text != null ? hf.text : '',
     tick: hf.tick != null ? hf.tick : null,
     tock: hf.tock != null ? hf.tock : null,
     every: hf.every != null ? hf.every : null,
@@ -527,6 +529,76 @@ function textW(s, size = FONTS.signalName) {
   return w;
 }
 
+/* ---- head/foot 的 JsonML 富文本（官方 tspan 树）→ SVG tspan 段 ----
+   官方皮肤 class 的等价样式：error #f60000→#DC2626、warning #f6b900→warnInk、
+   info #0041c4→info、success #00ab00→accText、muted #aaa→muted；
+   h1..h6 官方 33/27/20/14/11/8pt 粗体，这里按 title 字号的层级倍率映射。
+   C 输出固定浅色 SVG，所以用具体色值而非 CSS 变量（与编辑器网格那套映射语义一致）。 */
+const JSONML_CLASS_ATTRS = {
+  error: { fill: '#DC2626' }, warning: { fill: C.warnInk },
+  info: { fill: C.info }, success: { fill: C.accText }, muted: { fill: C.muted },
+  h1: { 'font-size': FONTS.title * 1.35, 'font-weight': 700 },
+  h2: { 'font-size': FONTS.title * 1.2, 'font-weight': 700 },
+  h3: { 'font-size': FONTS.title * 1.1, 'font-weight': 700 },
+  h4: { 'font-size': FONTS.title, 'font-weight': 700 },
+  h5: { 'font-size': FONTS.title * .95, 'font-weight': 700 },
+  h6: { 'font-size': FONTS.title * .9, 'font-weight': 700 },
+};
+const JSONML_ATTRS = ['fill', 'font-size', 'font-weight', 'font-style', 'text-decoration'];
+
+/* 把 JsonML 树压平成段序列（每段 { text, dy, attrs }）。dy 与编辑器网格同语义：
+   SVG/CSS 的纵向都是 y 轴向下为正，同层累积、孩子继承进入时的位移。 */
+function flattenJsonMl(node, dyAcc, attrsAcc, out) {
+  if (typeof node === 'string' || typeof node === 'number') {
+    const text = String(node);
+    if (text) out.push({ text, dy: dyAcc, attrs: attrsAcc });
+    return;
+  }
+  if (!Array.isArray(node) || typeof node[0] !== 'string') return;
+  const rest = node.slice(1);
+  const at = (rest.length && rest[0] && typeof rest[0] === 'object' && !Array.isArray(rest[0])) ? rest.shift() : {};
+  let attrs = attrsAcc;
+  if (at.class) String(at.class).split(/\s+/).forEach(c => { if (JSONML_CLASS_ATTRS[c]) attrs = Object.assign({}, attrs, JSONML_CLASS_ATTRS[c]); });
+  JSONML_ATTRS.forEach(k => { if (at[k] !== undefined) attrs = Object.assign({}, attrs, { [k]: at[k] }); });
+  const own = parseFloat(at.dy);
+  let myDy = dyAcc + (Number.isFinite(own) ? own : 0);
+  /* SVG 没有 vertical-align：baseline-shift 折算成相对位移（sub 下移、super 上移） */
+  if (at['baseline-shift'] !== undefined) {
+    const v = String(at['baseline-shift']);
+    const fs = +(attrs['font-size'] || FONTS.title);
+    myDy += (v === 'sub' ? .25 : v === 'super' ? -.35 : 0) * fs;
+  }
+  let curDy = myDy;
+  rest.forEach(child => {
+    flattenJsonMl(child, curDy, attrs, out);
+    if (Array.isArray(child) && child[1] && typeof child[1] === 'object') {
+      const d = parseFloat(child[1].dy);
+      if (Number.isFinite(d)) curDy += d;
+    }
+  });
+}
+
+/* 富文本 head/foot → <text> + 若干 <tspan>（按各段字号手算宽度做整体居中） */
+function jsonMlSvgText(text, cx, cy) {
+  const segs = [];
+  flattenJsonMl(text, 0, {}, segs);
+  if (!segs.length) return '';
+  const sizeOf = s => +(s.attrs['font-size'] || FONTS.title);
+  const total = segs.reduce((a, s) => a + textW(s.text, sizeOf(s)), 0);
+  let x = cx - total / 2;
+  let body = '';
+  for (const s of segs) {
+    const fs = sizeOf(s);
+    const a = { x: +x.toFixed(2), y: +(cy + 4.5 + s.dy).toFixed(2), 'font-size': fs, fill: s.attrs.fill || C.muted };
+    if (s.attrs['font-weight'] !== undefined) a['font-weight'] = s.attrs['font-weight'];
+    if (s.attrs['font-style'] !== undefined) a['font-style'] = s.attrs['font-style'];
+    if (s.attrs['text-decoration'] !== undefined) a['text-decoration'] = s.attrs['text-decoration'];
+    body += tag('tspan', a, esc(s.text));
+    x += textW(s.text, fs);
+  }
+  return tag('text', { 'font-family': FONT_UI }, body);
+}
+
 function computeCols(tree) {
   let max = 0; eachLane(tree, l => { max = Math.max(max, laneUnits(l)); });
   return max === 0 ? 8 : max;
@@ -657,8 +729,11 @@ function renderModern(source, opts = {}) {
     if (r.type === 'headtext' || r.type === 'foottext') {
       const t = r.type === 'headtext' ? H.text : F.text;
       content += tag('rect', { x: namew, y: r.y, width: colsW, height: r.h, fill: C.bg });
-      content += tag('text', { x: namew + colsW / 2, y: r.y + r.h / 2 + 4.5, 'text-anchor': 'middle',
-        'font-size': FONTS.title, 'font-weight': 600, fill: C.muted, 'font-family': FONT_UI }, esc(t));
+      /* 富文本（tspan 树）按段展开成 tspan；纯文本仍是单个居中 text */
+      content += Array.isArray(t)
+        ? jsonMlSvgText(t, namew + colsW / 2, r.y + r.h / 2)
+        : tag('text', { x: namew + colsW / 2, y: r.y + r.h / 2 + 4.5, 'text-anchor': 'middle',
+            'font-size': FONTS.title, 'font-weight': 600, fill: C.muted, 'font-family': FONT_UI }, esc(t));
     } else if (r.type === 'time') {
       content += tag('rect', { x: 0, y: r.y, width: W, height: r.h, fill: C.bg });
       content += tag('line', { x1: 0, y1: r.y + r.h, x2: W, y2: r.y + r.h, stroke: C.line });

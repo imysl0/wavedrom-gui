@@ -2320,6 +2320,81 @@ function buildLaneObj(lane) {
   Object.assign(o, lane.extras);
   return o;
 }
+/* head/foot 的 text 允许是 JsonML 富文本数组（官方高级特性，如 tspan 树带 class/fill/dy）。
+   数据本身由 parseDoc 原样保留（交给官方引擎渲染），编辑器自绘、网格、文件名这些
+   只认纯文本的地方用本函数递归取出其中的文字。 */
+function headFootTextOf(text) {
+  if (Array.isArray(text)) {
+    let out = '';
+    for (let i = 1; i < text.length; i++) out += headFootTextOf(text[i]);
+    return out;
+  }
+  return typeof text === 'string' ? text : '';
+}
+/* 官方皮肤里这些 class 的具体定义（fill/字号），映射到编辑器主题：
+   error #f60000→--danger、warning #f6b900→--amber、info #0041c4→--info、
+   success #00ab00→--acc、muted #aaa→--muted；h1..h6 官方 33/27/20/14/11/8pt 粗体，
+   网格 strip 有自己的字号体系，按「逐级递减」的相对层级映射（不是照搬 pt 值）。 */
+const JSONML_CLASS_STYLE = {
+  error: 'color:var(--danger)', warning: 'color:var(--amber)',
+  info: 'color:var(--info)', success: 'color:var(--acc)', muted: 'color:var(--muted)',
+  h1: 'font-size:1.35em;font-weight:700', h2: 'font-size:1.2em;font-weight:700',
+  h3: 'font-size:1.1em;font-weight:700', h4: 'font-size:1em;font-weight:700',
+  h5: 'font-size:.95em;font-weight:700', h6: 'font-size:.9em;font-weight:700',
+};
+const JSONML_ATTR_STYLE = {
+  fill: v => 'color:' + v,
+  'font-size': v => 'font-size:' + v + 'px',
+  'font-weight': v => 'font-weight:' + v,
+  'font-style': v => 'font-style:' + v,
+  'text-decoration': v => 'text-decoration:' + v,
+};
+/* JsonML（[tag, attrs?, ...children]）→ DOM 片段：编辑器网格是 DOM 渲染，
+   tspan 天然对应 span，class 与内联属性都能落到 CSS 上。
+   dyAcc 是进入本节点时的基线位移（SVG dy 语义：负值上移；同层累积，偏移带到后续内容）。
+   CSS 的 top 与 SVG dy 同向（都是 y 轴向下为正），所以直接取用、不要取反——
+   取反会把上标做成下标（foot 的 E=mc2 就踩过）。 */
+function jsonMlToHtml(node, dyAcc = 0) {
+  if (typeof node === 'string') return document.createTextNode(node);
+  if (typeof node === 'number') return document.createTextNode(String(node));
+  if (!Array.isArray(node) || typeof node[0] !== 'string') return null;
+  const rest = node.slice(1);
+  const attrs = (rest.length && rest[0] && typeof rest[0] === 'object' && !Array.isArray(rest[0])) ? rest.shift() : {};
+  const span = document.createElement('span');
+  const styles = [];
+  if (attrs.class) String(attrs.class).split(/\s+/).forEach(c => { if (JSONML_CLASS_STYLE[c]) styles.push(JSONML_CLASS_STYLE[c]); });
+  let myDy = dyAcc;
+  const ownDy = parseFloat(attrs.dy);
+  if (Number.isFinite(ownDy)) myDy += ownDy;
+  Object.keys(attrs).forEach(k => {
+    if (k === 'class' || k === 'dy') return;
+    if (k === 'baseline-shift') {
+      const v = String(attrs[k]);
+      styles.push('vertical-align:' + (v === 'sub' ? 'sub' : v === 'super' ? 'super' : v));
+      return;
+    }
+    if (JSONML_ATTR_STYLE[k]) styles.push(JSONML_ATTR_STYLE[k](attrs[k]));
+  });
+  if (myDy !== 0) styles.push('position:relative;top:' + myDy + 'px');
+  if (styles.length) span.setAttribute('style', styles.join(';'));
+  /* 同层兄弟依次累积 dy（官方语义：位移带到后续内容），孩子继承进入时的位移 */
+  let curDy = dyAcc;
+  rest.forEach(child => {
+    const c = jsonMlToHtml(child, curDy);
+    if (c) span.appendChild(c);
+    if (Array.isArray(child) && child[1] && typeof child[1] === 'object') {
+      const d = parseFloat(child[1].dy);
+      if (Number.isFinite(d)) curDy += d;
+    }
+  });
+  return span;
+}
+/* 网格 head/foot strip 用：富文本 → DOM 片段（带样式）；纯文本 → 原字符串 */
+function headFootRenderable(text) {
+  if (!Array.isArray(text)) return headFootTextOf(text);
+  const node = jsonMlToHtml(text);
+  return node || headFootTextOf(text);
+}
 function buildHeadFoot(hf) {
   const o = {};
   if (hf.text) o.text = hf.text;
@@ -2486,7 +2561,7 @@ function parseDoc(j) {
   });
   ['head', 'foot'].forEach(k => {
     const src = j[k]; if (!src || typeof src !== 'object') return;
-    if (src.text !== undefined) st[k].text = String(src.text);
+    if (src.text !== undefined) st[k].text = Array.isArray(src.text) ? src.text : String(src.text);
     ['tick', 'tock', 'every'].forEach(f => { if (src[f] !== undefined && src[f] !== null && src[f] !== '') st[k][f] = src[f]; });
   });
   const c = j.config || {};
@@ -2960,7 +3035,7 @@ function renderGrid() {
   if (H.text) {
     inner.appendChild(h('div', { class: 'strip head-strip' },
       h('div', { class: 'strip-corner' }),
-      h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, H.text)));
+      h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, headFootRenderable(H.text))));
   }
   const timeRow = h('div', { class: 'time-row' },
     h('div', { class: 'time-corner' }, state.hb ? `${i18n('信号 \\ 拍')} ${win.a}–${win.b - 1}` : i18n('信号 \\ 拍'),
@@ -3021,7 +3096,7 @@ function renderGrid() {
   if (F.text) {
     inner.appendChild(h('div', { class: 'strip foot-text' },
       h('div', { class: 'strip-corner' }),
-      h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, F.text)));
+      h('div', { class: 'strip-text', style: `width:${colCount * gridCellW()}px` }, headFootRenderable(F.text))));
   }
   bindNameSplit(h('div', { class: 'name-split', title: i18n('拖动调整信号列宽 · 双击恢复自动') }), inner);
   renderMiniEdges();
@@ -3546,10 +3621,17 @@ function renderNodeLinks() {
 
 /* ---------- 渲染：设置 / 代码 / 预览 ---------- */
 function renderSettings() {
-  $('#headText').value = state.head.text; $('#headTick').value = fmtTick(state.head.tick);
+  /* 富文本标题（tspan 数组）不在输入框里展开成 [object Object]：留空并给出提示，
+     内容本身在代码区里按 JSON 原样编辑 */
+  const headIsRich = Array.isArray(state.head.text), footIsRich = Array.isArray(state.foot.text);
+  $('#headText').value = headIsRich ? '' : state.head.text;
+  $('#headText').placeholder = headIsRich ? i18n('富文本标题（tspan）：请到代码区编辑') : i18n('如：DDR 读时序');
+  $('#headTick').value = fmtTick(state.head.tick);
   $('#headTock').value = fmtTick(state.head.tock);
   $('#headEvery').value = state.head.every ?? '';
-  $('#footText').value = state.foot.text; $('#footTick').value = fmtTick(state.foot.tick);
+  $('#footText').value = footIsRich ? '' : state.foot.text;
+  $('#footText').placeholder = footIsRich ? i18n('富文本底部文字（tspan）：请到代码区编辑') : i18n('备注、说明');
+  $('#footTick').value = fmtTick(state.foot.tick);
   $('#footTock').value = fmtTick(state.foot.tock);
   $('#hscale').value = state.hscale; $('#hscaleVal').textContent = state.hscale;
   const skinSel = $('#skin');
@@ -3596,6 +3678,37 @@ function fmtTick(v) {
 /* 智能格式化：短数组和全基本类型的短对象保持单行（预算 128 列），其余展开；
    compact：根对象与含容器的数组（signal/分组）保持逐行骨架，其余对象（通道/head 等）连同内部数组拍平成单行 */
 let codeCompact = tryGet('wdgui-code-compact') === '1';
+/* 紧凑模式用的「试单行」：整棵子树都能塞进预算才返回单行文本，否则 null 交给调用方展开。
+   数组里只要含【子数组】就直接放弃单行——JsonML 这类树结构因此稳定地「外层展开、
+   每个子 tspan 单行」，不受长度影响；扁平的原子/纯对象列表才按预算压成一行
+   （旧的紧凑规则只看元素是否原子、对象还无条件单行，会把嵌套数组层层摊开） */
+function jsonTryInline(v, budget) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  const parts = [];
+  if (Array.isArray(v)) {
+    if (!v.length) return '[]';
+    /* 树结构（JsonML）：含子数组 → 展开，由调用方按子项逐行排 */
+    if (v.some(Array.isArray)) return null;
+    /* 记录列表（signal 的通道数组这类：元素全是对象）→ 展开，一条记录一行 */
+    if (v.every(x => x && typeof x === 'object')) return null;
+    for (const x of v) {
+      const s = jsonTryInline(x, budget);
+      if (s === null) return null;
+      parts.push(s);
+      if (parts.join(', ').length > budget) return null;
+    }
+    return '[' + parts.join(', ') + ']';
+  }
+  const keys = Object.keys(v);
+  if (!keys.length) return '{}';
+  for (const k of keys) {
+    const s = jsonTryInline(v[k], budget);
+    if (s === null) return null;
+    parts.push(JSON.stringify(k) + ': ' + s);
+    if (parts.join(', ').length > budget) return null;
+  }
+  return '{ ' + parts.join(', ') + ' }';
+}
 function fmtJSON(v, ind = 0, compact = false, depth = 0) {
   const pad = '  '.repeat(ind), pad2 = '  '.repeat(ind + 1);
   const budget = 128 - pad.length;
@@ -3603,16 +3716,25 @@ function fmtJSON(v, ind = 0, compact = false, depth = 0) {
   const flatObj = o => '{ ' + Object.keys(o).map(k => JSON.stringify(k) + ': ' + JSON.stringify(o[k])).join(', ') + ' }';
   const allFlat = o => Array.isArray(o) ? o.every(x => x === null || typeof x !== 'object' || (Array.isArray(x) && x.every(y => y === null || typeof y !== 'object'))) : Object.values(o).every(x => x === null || typeof x !== 'object');
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (compact) {
+    /* 顶层仍展开（整份文档单行没有可读性），其下的容器按预算决定单行 / 展开 */
+    if (depth > 0) { const s = jsonTryInline(v, budget); if (s !== null) return s; }
+    if (Array.isArray(v)) {
+      if (!v.length) return '[]';
+      return '[\n' + v.map(x => pad2 + fmtJSON(x, ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + ']';
+    }
+    const ckeys = Object.keys(v);
+    if (!ckeys.length) return '{}';
+    return '{\n' + ckeys.map(k => pad2 + JSON.stringify(k) + ': ' + fmtJSON(v[k], ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + '}';
+  }
   if (Array.isArray(v)) {
     if (!v.length) return '[]';
-    if (compact && v.every(x => x === null || typeof x !== 'object')) return '[' + v.map(x => JSON.stringify(x)).join(', ') + ']';
-    if (!compact && allFlat(v)) { const s = flatArr(v); if (s.length <= budget) return s; }
+    if (allFlat(v)) { const s = flatArr(v); if (s.length <= budget) return s; }
     return '[\n' + v.map(x => pad2 + fmtJSON(x, ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + ']';
   }
   const keys = Object.keys(v);
   if (!keys.length) return '{}';
-  if (compact && depth > 0) return '{ ' + keys.map(k => JSON.stringify(k) + ': ' + fmtJSON(v[k], 0, true, depth + 1)).join(', ') + ' }';
-  if (!compact && allFlat(v)) { const s = flatObj(v); if (s.length <= budget) return s; }
+  if (allFlat(v)) { const s = flatObj(v); if (s.length <= budget) return s; }
   return '{\n' + keys.map(k => pad2 + JSON.stringify(k) + ': ' + fmtJSON(v[k], ind + 1, compact, depth + 1)).join(',\n') + '\n' + pad + '}';
 }
 /* VS Code 插件写回代码块时取用这里的文本，让写回风格与代码页显示模式（紧凑/舒缓）一致；
@@ -5746,7 +5868,7 @@ function exportBaseName() {
     const clean = importSourceName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, ' ').slice(0, 60).trim().replace(/[. ]+$/, '');
     if (clean) return clean;
   }
-  const title = (state.head.text || '').trim()
+  const title = headFootTextOf(state.head.text).trim()
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
     .replace(/\s+/g, ' ').slice(0, 40).trim().replace(/[. ]+$/, '');
   if (title) return 'wavdrom_gui_' + title;
@@ -5786,6 +5908,7 @@ function buildEditorSvg() {
   const win = gridWindow();
   const winX = win.a * gw, winW = (win.b - win.a) * gw;
   let usedPx = 0;
+  let textOverflow = 0; // 富文本标题/底部的文字可能超出网格内容底边（大字号、下标），导出前据此加高画布
   const visibleLanes = new Set([...inner.querySelectorAll('.lane-row[data-lane]')].map(r => +r.dataset.lane));
   eachLane(l => {
     if (!visibleLanes.has(l.id)) return; // 折叠的分组子泳道不计入
@@ -5836,7 +5959,51 @@ function buildEditorSvg() {
     if (r.classList.contains('strip')) {
       const st = r.querySelector('.strip-text');
       el('rect', { x: nameW, y, width: colsW, height: h, fill: waveBg() }, svg);
-      if (st) txt(svg, nameW + colsW / 2, y + h / 2 + fsStripT * 0.35, st.textContent, { 'text-anchor': 'middle', 'font-size': fsStripT, 'font-weight': 600, fill: cssVar('--muted'), 'font-family': uiFont });
+      /* 富文本标题/底部（JsonML → 网格里的多段 span）：递归到【文本节点】逐段导出，
+         每段用最近的 span 祖先的计算样式 + Range 量的实际盒（relative 位移/上下标都在里面）。
+         不能直接遍历 span：外层 span 裹着整段文本，会与内层各段重复画一遍（无色的那遍），
+         而且不在 span 里的纯文本节点会漏掉。纯文本仍走单 text 居中。 */
+      const isRich = st && st.querySelector('span');
+      if (isRich) {
+        const base = st.getBoundingClientRect();
+        /* 各段共用该行的基线：SVG 的 y 是基线，不能拿"文字盒 top 差"当偏移——
+           大字号段（h1 那类）盒顶天然更靠上，按盒顶画会把它整体画高 */
+        const lineBase = y + h / 2 + fsStripT * 0.35;
+        const innerBottom = inner.getBoundingClientRect().bottom;
+        const txtEl = el('text', { 'font-family': uiFont }, svg);
+        const walk = (node, owner) => {
+          if (node.nodeType === 3) {
+            const raw = node.textContent;
+            if (!raw) return;
+            const rg = document.createRange(); rg.selectNodeContents(node);
+            const rr = rg.getBoundingClientRect();
+            const cs = getComputedStyle(owner);
+            const fs = parseFloat(cs.fontSize) || fsStripT;
+            /* 只有真正的纵向位移才偏离基线：relative top（我们实现 dy 用的）与上下标 */
+            const topOff = parseFloat(cs.top) || 0;
+            const va = cs.verticalAlign;
+            const vaOff = va === 'sub' ? fs * 0.25 : va === 'super' ? -fs * 0.35 : 0;
+            const attrs = {
+              x: +(nameW + (rr.left - base.left)).toFixed(2),
+              y: +(lineBase + topOff + vaOff).toFixed(2),
+              fill: cs.color,
+              'font-size': fs,
+              'font-weight': cs.fontWeight,
+            };
+            if (cs.fontStyle && cs.fontStyle !== 'normal') attrs['font-style'] = cs.fontStyle;
+            if (cs.textDecorationLine && cs.textDecorationLine !== 'none') attrs['text-decoration'] = cs.textDecorationLine;
+            const tsp = el('tspan', attrs, txtEl);
+            tsp.textContent = raw;
+            /* 大字号/下标可能超出网格内容底边，记下最大溢出，导出前据此加高画布 */
+            const over = rr.bottom - innerBottom;
+            if (over > textOverflow) textOverflow = over;
+            return;
+          }
+          if (node.nodeType !== 1) return;
+          for (const c of [...node.childNodes]) walk(c, node); // 元素只向下递归：样式归属交给它
+        };
+        for (const c of [...st.childNodes]) walk(c, st);
+      } else if (st) txt(svg, nameW + colsW / 2, y + h / 2 + fsStripT * 0.35, st.textContent, { 'text-anchor': 'middle', 'font-size': fsStripT, 'font-weight': 600, fill: cssVar('--muted'), 'font-family': uiFont });
       else r.querySelectorAll('.strip-num').forEach((n, i) => {
         if (n.textContent) txt(svg, nameW + i * gw + gw / 2, y + h / 2 + fsStripN * 0.35, n.textContent, { 'text-anchor': 'middle', 'font-size': fsStripN, 'font-weight': 500, fill: cssVar('--acc-text'), 'font-family': mono });
       });
@@ -5919,6 +6086,15 @@ function buildEditorSvg() {
       txt(svg, (lb || head).offsetLeft, cy + fsS * 0.35, i18n('空白占位'), { 'font-size': fsS, fill: cssVar('--faint'), 'font-family': uiFont });
     }
   });
+  /* 富文本标题/底部按网格尺寸排版，若文字（大字号、下标）超出网格内容底边，
+     导出图底部会被裁掉一截——按实测溢出量加高画布，并把底色矩形一起加高 */
+  if (textOverflow > 0.5) {
+    const H2 = Math.ceil(H + textOverflow);
+    svg.setAttribute('height', H2);
+    svg.setAttribute('viewBox', `0 0 ${W} ${H2}`);
+    const bgRect = svg.querySelector('rect');
+    if (bgRect) bgRect.setAttribute('height', H2);
+  }
   return svg;
 }
 
