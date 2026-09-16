@@ -468,13 +468,13 @@ body.row-resizing { cursor: row-resize; }
 html[data-view="below"] .main-col { flex-direction: column; }
 html[data-view="below"] .editor-col { flex: 1 1 58%; min-height: 0; }
 html[data-view="below"] .right-col { width: auto; flex: none; height: 42%; border-left: none; border-top: 1px solid var(--line); }
-html[data-show-preview="0"] .right-tabs .tab[data-tab="preview"],
-html[data-show-preview="0"] #pane-preview,
-html[data-show-preview="0"] #previewTools,
-html[data-show-code="0"] .right-tabs .tab[data-tab="code"],
-html[data-show-code="0"] #pane-code { display: none; }
-html[data-show-preview="0"][data-show-code="0"] .right-col,
-html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
+html:not([data-mobile])[data-show-preview="0"] .right-tabs .tab[data-tab="preview"],
+html:not([data-mobile])[data-show-preview="0"] #pane-preview,
+html:not([data-mobile])[data-show-preview="0"] #previewTools,
+html:not([data-mobile])[data-show-code="0"] .right-tabs .tab[data-tab="code"],
+html:not([data-mobile])[data-show-code="0"] #pane-code { display: none; }
+html:not([data-mobile])[data-show-preview="0"][data-show-code="0"] .right-col,
+html:not([data-mobile])[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .editor-toolbar {
   flex: none; display: flex; align-items: center; gap: 8px;
   padding: 8px 12px;
@@ -1048,12 +1048,10 @@ html[data-mobile] {
   } /* sticky：内容短时紧跟笔刷，内容长滚动时吸底可点 */
   .mobile-pane-btns .btn { min-height: 36px; }
   .right-tabs .rt-close { display: inline-flex; margin-left: 4px; }
-  &[data-show-preview="0"][data-show-code="0"] .mobile-pane-btns { display: none; }
   /* 左栏停靠时：预览 / 代码入口挪进左栏（简写 W 预览 / W 代码），底部那排让位；
      没停靠时左栏是悬浮抽屉，入口仍留在页面底部那排 */
   &:not([data-side-dock]) .side-pane-btns { display: none; }
   &[data-side-dock] .mobile-pane-btns { display: none; }
-  &[data-show-preview="0"][data-show-code="0"] .side-pane-btns { display: none; }
   .preview-stage { min-height: 320px; }
   .code-wrap textarea { min-height: 240px; }
   #brushCol.on { position: fixed; right: 8px; top: 56px; bottom: 12px; z-index: 40; border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
@@ -6665,7 +6663,10 @@ function init() {
     /* 手机：浮层开着才算「打开」；桌面：两个窗口就在布局里，看当前激活的那个是否可见 */
     const open = isMobile() ? (!!paneCol && paneCol.classList.contains('mobile-open')) : true;
     const active = document.querySelector('.right-tabs .tab.active')?.dataset.tab;
-    const shown = active === 'preview' ? root.dataset.showPreview !== '0'
+    /* 手机：浮层开着且当前 tab 就那个窗口 → 高亮（show-* 偏好只管桌面右栏）；
+       桌面：看该窗口是否处于显示状态 */
+    const shown = isMobile() ? (open && !!active)
+      : active === 'preview' ? root.dataset.showPreview !== '0'
       : active === 'code' ? root.dataset.showCode !== '0' : false;
     root.dataset.paneOpen = (open && shown && active) ? active : '';
   };
