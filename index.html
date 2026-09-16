@@ -1583,7 +1583,7 @@ const I18N_EN = {
   'phase 相位 —— 左移 0～1 拍（0.5 = 半拍）': 'phase — shift left 0–1 cycle (0.5 = half cycle)',
   '典型用法（DDR 类时序）：CK 设 period=2，命令/地址设 phase=0.5。': 'Typical DDR use: CK with period=2, command/address with phase=0.5.',
   '信号': 'Signal',
-  '通道已添加，已预填 8 拍': ' lane added, pre-filled with 8 cycles',
+  '通道已添加，已预填 {n} 拍': ' lane added, pre-filled with {n} cycles',
   '不是 PNG 文件': 'Not a PNG file', 'PNG 结构不完整（缺少 IEND）': 'Broken PNG (missing IEND)',
   'PNG 里没有内嵌 WaveJSON（可能已被转存剥离）': 'No embedded WaveJSON in the PNG (may have been stripped)',
   'SVG 里没有内嵌 WaveJSON': 'No embedded WaveJSON in the SVG',
@@ -5283,18 +5283,29 @@ function dropNode(srcId, tgtId, pos) {
   list.splice(index, 0, node);
   update(true);
 }
+/* 新通道的预填长度：与现有波形对齐——文档里最宽的一条有多少拍就补多少，
+   这样新通道不会比别的通道短一截；文档还没有波形时用默认 8 拍。
+   按「列」而不是「字符数」取（period/phase 的通道占多列），与网格宽度一致 */
+const LANE_LEN_DEF = 8;
+function defaultLaneLen() {
+  let max = 0;
+  eachLane(l => { max = Math.max(max, laneUnits(l)); });
+  return max > 0 ? max : LANE_LEN_DEF;
+}
 function addLane(type) {
   const n = allLanes().length;
   const lane = newLane(type === 'clock' ? 'clk' : type === 'bus' ? 'bus' : 'signal_' + n);
-  // 预填 8 拍：首拍落定基调字符，其余 7 拍用延续符（.）——时钟 p / 信号 0 / 总线 x
+  /* 预填：首拍落定基调字符（时钟 p / 信号 0 / 总线 x），其余拍用延续符（.）；
+     长度跟随现有波形，空文档才用默认 8 拍 */
   const head = type === 'clock' ? 'p' : type === 'bus' ? 'x' : '0';
+  const len = defaultLaneLen();
   lane.slots.push({ glyph: head });
-  for (let i = 1; i < 8; i++) lane.slots.push({ glyph: '.' });
+  for (let i = 1; i < len; i++) lane.slots.push({ glyph: '.' });
   state.tree.push(lane);
   animateLanes = new Set([lane.id]);
   update(true);
   animateLanes = null;
-  toast(i18n(type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + i18n('通道已添加，已预填 8 拍'));
+  toast(i18n(type === 'clock' ? '时钟' : type === 'bus' ? '总线' : '信号') + i18n('通道已添加，已预填 {n} 拍').replace('{n}', len));
 }
 
 /* ---------- 菜单 / 示例 / 导入导出 ---------- */
