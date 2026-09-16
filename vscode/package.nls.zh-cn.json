@@ -1,5 +1,5 @@
 {
-  "extension.description": "在 Markdown 预览中渲染 ```wavedrom 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。",
+  "extension.description": "在 Markdown 预览中渲染 ```wavedrom 代码块（现代主题）与内嵌 WaveJSON 的图片（直接显示原图，保持导出时的风格），并一键进入可视化编辑器，编辑结果写回原文件。",
   "command.editActive.title": "WaveDrom: 编辑当前 Markdown 中的图表",
   "command.editFromPreview.title": "编辑波形",
   "config.previewEditAffordance.menu": "不加可见入口，在波形上右键 →「编辑波形」（默认）",

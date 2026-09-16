@@ -2,7 +2,7 @@
 
 **简体中文** · [English ↓](#wavedrom-gui-vs-code-extension)
 
-在 VS Code 内置 Markdown 预览里直接使用 wavedrom-gui：` ```wavedrom ` 代码块与内嵌 WaveJSON 的 PNG / SVG 图片会**就地渲染成波形图**，一键进入可视化编辑器，改动写回原文件。
+在 VS Code 内置 Markdown 预览里直接使用 wavedrom-gui：` ```wavedrom ` 代码块与内嵌 WaveJSON 的 PNG / SVG 图片都会在预览里**就地显示波形图**（代码块用现代渲染器重画，图片直接显示原图以保持导出时的风格），一键进入可视化编辑器，改动写回原文件。
 
 本文件是使用指南（中文在前、英文在后，上方链接可直达英文部分）。实现原理、内部机制与排错方法见 [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)。
 
@@ -37,7 +37,7 @@
 
 Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，预览会自动识别，编辑入口与代码块完全一致（同一套设置：默认同样是右键菜单，也可切成铅笔按钮或整块点击）：
 
-- **编辑**：进入可视化编辑器；保存分两层写回——**元数据实时更新**（PNG `iTXt` / SVG `<metadata>`），**画面由编辑器重绘写回**：停手 5 秒后落盘，关闭编辑面板或切走面板标签时立即落盘
+- **编辑**：进入可视化编辑器；保存分两层写回——**元数据实时更新**（PNG `iTXt` / SVG `<metadata>`：界面停手约 0.4 秒后落 localStorage，再经最多 250ms 的轮询写回文件），**画面由编辑器重绘写回**：停手约 1 秒后落盘（界面自动保存 0.4 秒 + 轮询 + 重绘 + 250ms 去抖），关闭编辑面板或切走面板标签时立即落盘
 - **原图是哪种导出就按哪种重绘**：编辑器导出菜单里的「WaveDrom 渲染」与「编辑区矢量重建」两种来源都会被识别，保存写回时保持同一种风格（编辑区导出的图不会被重绘成官方渲染样式）；出自 wavedrom-render skill 的现代 / 传统导出同样认得出。检测与兜底规则见 [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)
 - **PNG** 按原图像素宽对齐重绘（比例 = 原图宽 ÷ 当前自然宽，夹在 1×–4×，原图读不到时退回 2×），避免重绘后 Markdown 里的布局跳动；编辑区来源的底色随当前主题，官方渲染保持白底；**SVG 整文件重绘**（文件里手工做的图形改动会被覆盖）；需要别的尺寸用编辑器自己的导出按钮
 - 像素落盘只采用与最新元数据**同源**的画面（渲染没跟上时维持「元数据新、像素旧」），写入走临时文件 + rename，半途崩溃不会留下坏图
@@ -122,7 +122,7 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
 
 - 编辑器 webview 首选霞鹜文楷经 CDN 加载，离线时自动回退系统字体（与网页版一致）。
 - 图片重绘写回的是「编辑器当前状态」的重新导出：SVG 整文件重绘会覆盖文件里手工做的图形改动；PNG 重绘比例夹在 1×–4×。
-- 像素落盘去抖 5 秒：期间强杀 VS Code 的话像素保持上次落盘版本（元数据最多落后 500ms，编辑内容不丢）；正常关闭面板不受影响。
+- 像素落盘发生在停手约 1 秒后（界面自动保存 0.4 秒 + 轮询 ≤250ms + 重绘 + 250ms 去抖；去抖窗口内继续改则整体后移，不会逐次写盘）：期间强杀 VS Code 的话像素保持上次落盘版本（元数据最多落后约 0.65 秒 = 界面 400ms 自动保存去抖 + 250ms 轮询，未写回文件的那部分编辑会丢——面板重开时以文件内容为准）；正常关闭面板不受影响。
 - 预览里的编辑入口依赖产品 URL scheme 的深链接：桌面版（VS Code / VSCodium / Insiders）可用；web 版（vscode.dev）不支持 URI 处理器，那边请用源码里的 CodeLens。
 - 预览过期（例如扩展重载后没重开预览）时点入口会提示「已过期」，重开预览即可；源码里的 CodeLens 不受此影响。
 
@@ -132,7 +132,7 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
 
 **English** · [中文 ↑](#wavedrom-gui-vs-code-扩展)
 
-Use wavedrom-gui right inside VS Code's built-in Markdown preview: ` ```wavedrom ` code blocks and PNG / SVG images with embedded WaveJSON are **rendered as waveform diagrams in place**, with one click into the visual editor and edits written back to the source file.
+Use wavedrom-gui right inside VS Code's built-in Markdown preview: ` ```wavedrom ` code blocks and PNG / SVG images with embedded WaveJSON **show the waveform in place** (code blocks are redrawn with the modern renderer, images are shown as-is to keep the exported style), with one click into the visual editor and edits written back to the source file.
 
 This file is the user guide (Chinese first, English after — the link above jumps straight to the Chinese part). Implementation notes, internals and troubleshooting live in [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md) (Chinese).
 
@@ -167,7 +167,7 @@ Which entry point is shown is decided by the `wavedrom-gui.previewEditAffordance
 
 If a **PNG / SVG image** referenced from Markdown has WaveJSON metadata embedded, the preview recognizes it automatically, and the entry points are exactly the same as for code blocks (same settings: right-click menu by default, switchable to the pencil button or click-the-image):
 
-- **Editing**: opens the visual editor; saving writes back on two levels — the **metadata is updated in real time** (PNG `iTXt` / SVG `<metadata>`), while the **picture is redrawn and written back by the editor**: 5 seconds after you stop, or immediately when the panel closes or its tab loses focus
+- **Editing**: opens the visual editor; saving writes back on two levels — the **metadata is updated in real time** (PNG `iTXt` / SVG `<metadata>`: the UI persists it about 0.4 s after you stop, then the ≤250 ms poll writes it to the file), while the **picture is redrawn and written back by the editor**: about 1 s after you stop (UI autosave 0.4 s + poll + redraw + 250 ms debounce), or immediately when the panel closes or its tab loses focus
 - **An image is redrawn in the style it was exported with**: both sources in the editor's export menu — "WaveDrom render" and "editor vector rebuild" — are recognized, and write-back keeps the same style (an editor-exported image is never redrawn in the official style); modern / traditional exports from the wavedrom-render skill are recognized too. Detection and fallback rules: see [design.md](https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode/design.md)
 - **PNG** is redrawn at the original image's pixel width (ratio = original width ÷ current natural width, clamped to 1×–4×, falling back to 2× when the width cannot be read), so the Markdown layout does not jump after a redraw; editor-sourced images take the current theme's background while official renders stay white; **SVG is redrawn as a whole file** (hand-made graphic edits in the file are overwritten) — for other sizes use the editor's own export buttons
 - Pixels are only flushed when they come from the **same revision** as the latest metadata (if rendering lags, "new metadata, old pixels" is kept); writes go through a temp file + rename, so a crash mid-way never leaves a corrupt image
@@ -252,6 +252,6 @@ Where to change them (three options):
 
 - The editor webview prefers LXGW WenKai, loaded from a CDN, and falls back to system fonts offline (same as the web app).
 - Image redraws write back a re-export of "the editor's current state": an SVG is redrawn as a whole file, overwriting hand-made graphic edits; PNG redraw ratios are clamped to 1×–4×.
-- Pixel flushing is debounced by 5 seconds: killing VS Code during that window leaves the last flushed pixels (metadata lags at most 500ms; edits themselves are not lost). Closing the panel normally is unaffected.
+- Pixel flushing happens about 1 s after you stop (UI autosave 0.4 s + poll ≤250 ms + redraw + 250 ms debounce; further edits inside that debounce window push the whole write back rather than writing once per change): killing VS Code during that window leaves the last flushed pixels (metadata lags at most ~0.65 s = the UI's 400 ms autosave debounce + the 250 ms poll; edits not yet written back to the file are lost, since a reopened panel takes the file as the source of truth). Closing the panel normally is unaffected.
 - The preview entry points rely on the product URL scheme's deep links: available on desktop (VS Code / VSCodium / Insiders); the web version (vscode.dev) has no URI handler, so use the source CodeLens there.
 - When the preview is stale (e.g. after an extension reload without reopening it), clicking an entry point reports "stale" — reopen the preview; the source CodeLens is unaffected.

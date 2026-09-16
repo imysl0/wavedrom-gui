@@ -1,5 +1,5 @@
 {
-  "extension.description": "Render ```wavedrom code blocks and images with embedded WaveJSON (modern theme) inside the built-in Markdown preview, and open them in a visual editor that writes the result back to the file.",
+  "extension.description": "Render ```wavedrom code blocks (modern theme) and images with embedded WaveJSON (shown as-is, keeping their exported style) inside the built-in Markdown preview, and open them in a visual editor that writes the result back to the file.",
   "command.editActive.title": "WaveDrom: Edit a diagram in the current Markdown file",
   "command.editFromPreview.title": "Edit waveform",
   "config.previewEditAffordance.menu": "No visible entry point — right-click the waveform → \"Edit waveform\" (default)",

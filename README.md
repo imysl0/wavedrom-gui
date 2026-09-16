@@ -43,11 +43,11 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 
 > 🧪 **已发布测试版本（beta），欢迎测试与反馈**。从 [Releases](https://cnb.cool/linshi-2026/wavedrom-gui/-/releases) 下载最新版的 `wavedrom-gui-vscode.vsix`，在 VS Code / VSCodium 里执行命令面板的「Extensions: Install from VSIX...」选中它即可；也可以本地打包：`cd vscode && npx @vscode/vsce package`。仍在快速迭代，接口与行为可能调整，遇到问题欢迎提 issue。
 
-把 wavedrom-gui 的能力带进 VS Code：在内置 Markdown 预览里直接渲染 ```` ```wavedrom ```` 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。
+把 wavedrom-gui 的能力带进 VS Code：在内置 Markdown 预览里直接渲染 ```` ```wavedrom ```` 代码块（现代主题）与内嵌 WaveJSON 的图片（直接显示原图，保持导出时的风格），并一键进入可视化编辑器，编辑结果写回原文件。
 
-- **预览内渲染**：Markdown 预览中把 wavedrom 代码块和内嵌 WaveJSON 的 SVG/PNG 图片渲染为波形图，**在波形上右键「编辑波形」**即进入编辑（严格预览安全级别下即可用，无需放宽安全设置；设置 `wavedrom-gui.previewEditAffordance` 可改成右上角铅笔按钮或点波形即编辑）
+- **预览内渲染**：Markdown 预览中把 wavedrom 代码块渲染为波形图（用现代渲染器重画），内嵌 WaveJSON 的 SVG/PNG 图片则**直接显示原图**（不按元数据重绘，保持导出时的主题与配色），**在波形上右键「编辑波形」**即进入编辑（严格预览安全级别下即可用，无需放宽安全设置；设置 `wavedrom-gui.previewEditAffordance` 可改成右上角铅笔按钮或点波形即编辑）
 - **源码与资源管理器入口**：源码里每个 wavedrom 代码块上方有 `预览` + `编辑波形` 两颗 CodeLens（前者在侧边开预览面板，再点收起），鼠标停在代码块行上还会浮出内联预览；任意 PNG / SVG 在资源管理器里右键即可「使用 WaveDrom-Gui 编辑器打开」——**不限于 md 引用的图**，打开前先探测内嵌 WaveJSON，普通图片只给一条警告
-- **可视化编辑写回**：打开可视化编辑器（复用 `index.html`）进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则元数据实时更新，画面停手 5 秒后由编辑器重绘写回（关闭或切走编辑面板时立即落盘）；**重绘按原图风格保真**（设置 `wavedrom-gui.imageExportTheme` 默认 auto：官方渲染 / 编辑区矢量重建 / 现代渲染各按各的重绘，编辑迭代不会把风格洗掉）
+- **可视化编辑写回**：打开可视化编辑器（复用 `index.html`）进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则元数据更新（界面停手约 0.4 秒后落 localStorage，再经最多 250ms 的轮询写回文件），画面在停手约 1 秒后由编辑器重绘写回（界面自动保存 0.4 秒 + 轮询 + 重绘 + 250ms 去抖；关闭或切走编辑面板时立即落盘）；**重绘按原图风格保真**（设置 `wavedrom-gui.imageExportTheme` 默认 auto：官方渲染 / 编辑区矢量重建 / 现代渲染各按各的重绘，编辑迭代不会把风格洗掉）
 - **与前两者互通**：同一套 WaveJSON 元数据规格与导出来源标记，Skill / 编辑器导出的图片在插件里可直接识别、编辑并按原风格写回
 - **中英双语**：界面文案默认跟随 VS Code 的显示语言（判断不出语言时按中文），也可用设置 `wavedrom-gui.language` 固定中文或英文
 
