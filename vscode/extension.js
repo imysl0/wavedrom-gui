@@ -463,15 +463,24 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   const isImage = saveTarget.kind === 'image';
-  /* 图片目标的像素写回：webview 在轮询里把当前画面光栅化后随 pixels 消息上报，这里
-     暂存内存，停手约 1s 或面板关闭/切走时落盘。webview 销毁后就渲染不出新图了，所以
-     「关闭即写回」依赖宿主手里始终有最新一份像素——这正是渲染提前到轮询里的原因。
-     1s 是「编辑手感近实时」与「别在拖拽时每帧刷盘」的折中：每来一帧新像素就重置计时，
-     连续改动期间不落盘，停手 1s 后写一次（hover / md 预览随即能读到新图）。 */
+  /* 图片目标的像素写回：webview 在轮询里（250ms 一次）把当前画面光栅化后随 pixels 消息
+     上报，这里暂存内存，停手 250ms 后或面板关闭/切走时落盘。webview 销毁后就渲染不出新图
+     了，所以「关闭即写回」依赖宿主手里始终有最新一份像素——这正是渲染提前到轮询里的原因。
+
+     去抖只需 250ms：「用户停手了吗」这件事界面已经判断过了——所有改动都汇到 update()，它把
+     localStorage 的落盘推迟 400ms（persist 去抖），所以到达宿主的改动天生就是「停手 400ms
+     之后」的，连续拖动期间根本不会有消息。宿主侧因此只要一个小合并窗口：每条新消息重置计时器
+     （突发编辑自然合并成一次写盘），并略大于一次光栅化往返，避免计时器先于最后一帧像素到期、
+     同源校验把这一轮丢掉（丢一轮不会写坏，只是把写盘推迟到下一轮）。
+     去抖先是 5 秒、后改成 1 秒，当时的假设是「拖动每帧都会上报像素、得靠去抖压住」——假设不
+     成立：上游 persist 去抖已经把连续拖动挡在门外，宿主这里只剩「合并一次写盘」这点活儿。 */
+  const FLUSH_MS = 250;   // 与一次光栅化往返同量级：合并 save/pixels，等最后一帧像素到手
   let pendingPx = null;   // { png?: Buffer, svg?: string, json } —— 与像素同源的文档 JSON
   let flushTimer = null;
 
-  const flushPixels = () => {
+  /* showToast = 是否弹状态栏提示：面板可见时画面本身就在变，去抖那一轮不必打扰；
+     切走 / 关闭那次提示「已重绘并保存」才有信息量（那时用户已经看不到面板里的画面） */
+  const flushPixels = (showToast) => {
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
     /* 只写与当前元数据同源的像素；渲染没跟上时宁可维持「元数据新、像素旧」的现状语义，
        也不能把旧画面连同旧 JSON 一起盖掉刚写回的元数据 */
@@ -487,14 +496,14 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
       const tmp = saveTarget.imgPath + '.wdtmp';
       try { fs.writeFileSync(tmp, out); fs.renameSync(tmp, saveTarget.imgPath); }
       finally { try { fs.unlinkSync(tmp); } catch (e) { /* 改名成功后本就不存在 */ } }
-      vscode.window.setStatusBarMessage(t('WaveDrom: Image re-rendered and saved'), 3000);
+      if (showToast) vscode.window.setStatusBarMessage(t('WaveDrom: Image re-rendered and saved'), 3000);
       try { Promise.resolve(vscode.commands.executeCommand('markdown.preview.refresh')).catch(() => {}); }
       catch (e) { /* 预览没开或命令不可用：重开预览即可 */ }
     } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Image write-back failed — {0}', e.message)); }
   };
   const armFlush = () => {
     if (flushTimer) clearTimeout(flushTimer);
-    flushTimer = setTimeout(() => { flushTimer = null; flushPixels(); }, 1000);
+    flushTimer = setTimeout(() => { flushTimer = null; flushPixels(false); }, FLUSH_MS);
   };
 
   panel.webview.onDidReceiveMessage(msg => {
@@ -512,11 +521,11 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
       exportFromPanel(saveTarget, msg.name, msg.b64);
     }
   });
-  /* 切走面板标签：先把画面落盘，回来时预览就是新的（placePanel 搬动面板也会触发，
-     此时 pendingPx 多半为空，自然跳过） */
-  panel.onDidChangeViewState(ev => { if (!ev.webviewPanel.visible) flushPixels(); });
+  /* 切走面板标签：先把画面落盘（这次弹提示——面板看不见了），回来时预览就是新的
+     （placePanel 搬动面板也会触发，此时 pendingPx 多半为空，自然跳过） */
+  panel.onDidChangeViewState(ev => { if (!ev.webviewPanel.visible) flushPixels(true); });
   /* 关闭面板：onDidDispose 时 webview 已销毁，落盘宿主手里的最后一份像素 */
-  panel.onDidDispose(() => flushPixels());
+  panel.onDidDispose(() => flushPixels(true));
 }
 
 /* 面板导出的落盘：系统保存框默认定位到来源文件所在目录（图片 = 原图路径，

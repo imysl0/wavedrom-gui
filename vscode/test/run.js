@@ -27,6 +27,7 @@ const fakeConfig = {}; // 单测里临时改设置用；键不存在时走扩展
 const fakeCommands = []; // 记录 executeCommand 的调用
 const fakePanels = []; // 记录 createWebviewPanel 的入参
 const fakeMessages = []; // 记录 showWarningMessage / showErrorMessage
+const statusMessages = []; // 记录 setStatusBarMessage（图片像素落盘的提示时机）
 let fakeNewPanelActive = true; // 新建面板是否立即成为活动编辑器（用于测「始终没拿到焦点」）
 let fakeUriHandler = null; // registerUriHandler 注册进来的处理器
 let fakeCodeLensProvider = null;
@@ -46,7 +47,7 @@ const fakeVscode = {
     showErrorMessage(m) { fakeMessages.push(['error', m]); },
     showWarningMessage(m) { fakeMessages.push(['warn', m]); },
     showInformationMessage(m) { fakeMessages.push(['info', m]); },
-    setStatusBarMessage() {},
+    setStatusBarMessage(m) { statusMessages.push(m); },
     showQuickPick: async p => p[0],
     showSaveDialog: async opts => {
       fakeSaveDialogOpts = opts;
@@ -1122,6 +1123,46 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern'),
     meta.WD_PNG_KEYWORD, pxDoc3)), '切走标签：像素立即落盘（含固化的来源标记）');
   ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDoc3, '落盘内容内嵌的元数据与像素同源');
+
+  /* 去抖落盘与提示时机：停手 250ms 后自动写盘，且这一轮不弹状态栏提示（面板可见时画面本身
+     就在变）；提示只在切走 / 关闭那次弹。去抖窗口内的第二次改动会把写盘整体后移（合并成一次），
+     这正是突发编辑不被放大成多次写盘的机制 */
+  const pxDoc4 = JSON.stringify({ signal: [{ name: 'p4', wave: '1.' }] });
+  const pxDoc5 = JSON.stringify({ signal: [{ name: 'p5', wave: '0.' }] });
+  const pxPixels = () => fs.readFileSync(pxPath);
+  const pxWritten = (doc) => pxPixels().equals(meta.pngReplaceITXt(
+    meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern'), meta.WD_PNG_KEYWORD, doc));
+  const FLUSH_MS = 250; // 与 extension.js 的 FLUSH_MS 对齐（这里只用来摆等待时间的余量）
+  const toastBase = statusMessages.length;
+  pxPanel = openImg();
+  pxPanel.webview._onMsg({ type: 'save', json: pxDoc4, text: null });
+  const toastAfterSave4 = statusMessages.length; // 元数据写回自己会提示一条（saveBack，与本次改动无关）
+  const pxAfterSave4 = pxPixels(); // save 只动元数据，像素要等去抖
+  pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc4, png: png1.toString('base64') });
+  ok(pxPixels().equals(pxAfterSave4), '去抖到期前只更新元数据，像素保持上一版');
+  /* 窗口内再来一次改动：计时器重置，第一次的到期时间（FLUSH_MS）已过也不该落盘 */
+  await new Promise(r => setTimeout(r, FLUSH_MS / 2));
+  pxPanel.webview._onMsg({ type: 'save', json: pxDoc5, text: null });
+  const toastAfterSave5 = statusMessages.length;
+  const pxAfterSave5 = pxPixels();
+  pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc5, png: png1.toString('base64') });
+  await new Promise(r => setTimeout(r, FLUSH_MS * 3 / 4)); // 已越过第一次的到期点，仍未到第二次
+  ok(pxPixels().equals(pxAfterSave5), '去抖窗口内的第二次改动把写盘整体后移（合并成一次，不中途落盘）');
+  await new Promise(r => setTimeout(r, FLUSH_MS * 3 / 4)); // > 第二次的到期点
+  ok(pxWritten(pxDoc5), '停手后去抖自动落盘并写入最后一次的像素（不必关闭面板）');
+  ok(statusMessages.length === toastAfterSave5, '去抖那一轮不弹「已重绘并保存」（面板可见，画面自己就在变）');
+  pxPanel.fireViewState(false); // 切走面板：本轮已落盘、pendingPx 为空，自然跳过（也证明不会重复写）
+  ok(pxWritten(pxDoc5), '切走标签：无待写内容时不重复落盘，文件内容不变');
+  ok(statusMessages.length === toastAfterSave5, '没有实际写盘就不弹提示（提示与写盘同源）');
+  /* 又改一次再切走：这次有待写内容 → 立即落盘 + 提示一次 */
+  const pxDoc6 = JSON.stringify({ signal: [{ name: 'p6', wave: '1.' }] });
+  pxPanel.webview._onMsg({ type: 'save', json: pxDoc6, text: null });
+  const toastAfterSave6 = statusMessages.length;
+  pxPanel.webview._onMsg({ type: 'pixels', json: pxDoc6, png: png1.toString('base64') });
+  pxPanel.fireViewState(false);
+  ok(pxWritten(pxDoc6), '切走标签立即落盘（不等去抖）');
+  ok(statusMessages.length === toastAfterSave6 + 1, '「已重绘并保存」只在切走 / 关闭那次弹');
+  ok(toastBase >= 0 && toastAfterSave4 > toastBase, '（前提）图片元数据写回本身会提示一条，基线取在它之后');
 
   /* ---- 10. 中英双语：扩展宿主 l10n 包 + package.nls 包 ---- */
   const readJson = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));
