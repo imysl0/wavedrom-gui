@@ -515,8 +515,10 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .time-row {
   display: flex; position: sticky; top: 0; z-index: 5;
   background: var(--bg);
-  border-bottom: 1px solid var(--line);
 }
+/* 行底分隔线挂在两段子元素上（名称列角格 + 刻度格），画到网格区右端为止；
+   挂在整行上会一路拖到容器右缘——波形/节拍已经结束的空白处也多一条线 */
+.time-corner, .time-cells { border-bottom: 1px solid var(--line); }
 .time-corner .ha-toggle { display: none; } /* 桌面无此按钮，≤800 由媒体查询打开 */
 .time-corner {
   position: sticky; left: 0; z-index: 6;
@@ -539,10 +541,14 @@ html[data-show-preview="0"][data-show-code="0"] #splitMain { display: none; }
 .strip { display: flex; }
 .strip-corner { width: var(--namew, 196px); flex: none; }
 .strip-text { flex: none; text-align: center; color: var(--muted); font: 600 15px var(--font-ui); padding: 5px 8px; white-space: nowrap; }
-.foot-nums { border-top: 1px solid var(--line-soft); padding: 3px 0; }
+/* 底部刻度行：内边距从行上移到刻度格内，名称列角格才能与整行等高——
+   分界线是一整条（与上面的波形行连起来），而不是行内被切短的一截悬空短线；
+   行上边框挂在刻度格这层，画到网格区右端为止（同 .time-row 的处理） */
+.foot-nums { padding: 0; }
+.foot-nums .strip-cells { border-top: 1px solid var(--line-soft); }
+.foot-nums .strip-corner { border-right: 1px solid var(--line); margin-top: -1px; /* 顶到行上沿，和上一行名称列的分界线接上 */ }
 .strip-cells { display: flex; }
-.strip-num { width: 36px; flex: none; text-align: center; font: 500 12px var(--font-mono); color: var(--acc-text); }
-.foot-text { border-top: 1px solid var(--line-soft); }
+.strip-num { width: 36px; flex: none; align-self: center; padding: 3px 0; text-align: center; font: 500 12px var(--font-mono); color: var(--acc-text); }
 .head-strip { border-bottom: none; }
 
 .lane-row.row-active .lane-head { background: var(--head-hover); box-shadow: inset 3px 0 0 var(--acc); }
@@ -2975,7 +2981,7 @@ function gridWindow() {
 function gridWidth() { const w = gridWindow(); return (w.b - w.a) * gridCellW(); }
 
 /* ---------- 信号列宽：canvas 按实际字体测量 + 最长名自适应，手动值（state.sizes.namew）优先 ---------- */
-const NAMEW_MIN = 120, NAMEW_MAX = 480;      // 自适应列宽的下限 / 整列上限（超长名到此封顶，悬停可看全名）
+const NAMEW_MIN = 96, NAMEW_MAX = 480;       // 自适应列宽的下限 / 整列上限（超长名到此封顶，悬停可看全名）
 const NAMEW_DRAG_MIN = 80, NAMEW_DRAG_MAX = 900; // 手动拖拽允许的范围
 function clampNameW(v) { return Math.max(NAMEW_DRAG_MIN, Math.min(NAMEW_DRAG_MAX, Math.round(+v) || 196)); }
 function textPx(s, group) {
@@ -2997,7 +3003,9 @@ function calcNamew() {
       extra = 14 + label.length * 6; // period/phase 徽标
     }
     const nameW = n.name ? textPx(n.name, n.kind === 'group') : 0;
-    namew = Math.max(namew, Math.min(NAMEW_MAX, 70 + d * 14 + nameW + extra));
+    /* 基础偏移 = 色点列 + 文字起点（44）+ 右侧留白；留白此前给到 26px，导出图里
+       名称与分界线之间空得明显，收到 12px */
+    namew = Math.max(namew, Math.min(NAMEW_MAX, 56 + d * 14 + nameW + extra));
   });
   return Math.min(NAMEW_MAX, namew);
 }
@@ -5958,7 +5966,7 @@ function buildEditorSvg() {
     const y = rowY.get(r), h = r.offsetHeight;
     if (r.classList.contains('strip')) {
       const st = r.querySelector('.strip-text');
-      el('rect', { x: nameW, y, width: colsW, height: h, fill: waveBg() }, svg);
+      el('rect', { x: 0, y, width: W, height: h, fill: waveBg() }, svg);
       /* 富文本标题/底部（JsonML → 网格里的多段 span）：递归到【文本节点】逐段导出，
          每段用最近的 span 祖先的计算样式 + Range 量的实际盒（relative 位移/上下标都在里面）。
          不能直接遍历 span：外层 span 裹着整段文本，会与内层各段重复画一遍（无色的那遍），
@@ -6042,9 +6050,19 @@ function buildEditorSvg() {
     svg.appendChild(c);
   }
 
-  /* 名称列最后绘制，盖住穿过的边线（对齐屏幕上的 sticky 表现） */
-  el('rect', { x: 0, y: 0, width: nameW, height: H, fill: headBg() }, svg);
-  el('line', { x1: nameW, y1: 0, x2: nameW, y2: H, stroke: cssVar('--line') }, svg);
+  /* 名称列最后绘制，盖住穿过的边线（对齐屏幕上的 sticky 表现）。
+     范围 = 顶部刻度行到最末的刻度行：head/foot 的文字条（标题、底部说明）本身是整幅的一条，
+     不该被名称列底色与分界线切开；刻度行属于网格区，分界线照画。
+     底色逐行取：刻度行在屏幕上是页面底色（.time-corner），波形行才是名称列底色（.lane-head） */
+  const nameRows = rows.filter(r => !(r.classList.contains('head-strip') || r.classList.contains('foot-text')));
+  const nameTop = nameRows.length ? rowY.get(nameRows[0]) : 0;
+  const nameLast = nameRows[nameRows.length - 1];
+  const nameBot = nameRows.length ? rowY.get(nameLast) + nameLast.offsetHeight : H;
+  nameRows.forEach(r => {
+    const tick = r.classList.contains('time-row') || r.classList.contains('strip');
+    el('rect', { x: 0, y: rowY.get(r), width: nameW, height: r.offsetHeight, fill: tick ? cssVar('--bg') : headBg() }, svg);
+  });
+  el('line', { x1: nameW, y1: nameTop, x2: nameW, y2: nameBot, stroke: cssVar('--line') }, svg);
   rows.forEach(r => {
     if (!r.classList.contains('lane-row')) return;
     const y = rowY.get(r), h = r.offsetHeight, cy = y + h / 2;

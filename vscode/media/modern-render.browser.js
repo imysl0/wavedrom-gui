@@ -628,7 +628,7 @@ function renderModern(source, opts = {}) {
   }
 
   /* --- name column width (port of renderGrid auto-fit) --- */
-  let namew = 120;
+  let namew = 96;   // 最小列宽（与编辑器网格的 NAMEW_MIN 一致）
   const walk = (list, depth) => list.forEach(n => {
     const indent = depth * 14;
     let extra = 0;
@@ -637,7 +637,9 @@ function renderModern(source, opts = {}) {
       extra = 14 + label.length * 6;
     }
     const nameW = textW(n.name || '');
-    namew = Math.max(namew, Math.min(480, 70 + indent + nameW + extra));
+    /* 基础偏移 = 色点列 + 文字起点（44）+ 右侧留白（12）——与编辑器网格同一算法，
+       留白收到 12px 后名称与分界线之间不再空一大截 */
+    namew = Math.max(namew, Math.min(480, 56 + indent + nameW + extra));
     if (n.kind === 'group') walk(n.children, depth + 1);
   });
   walk(st.tree, 0);
@@ -728,7 +730,8 @@ function renderModern(source, opts = {}) {
   for (const r of rows) {
     if (r.type === 'headtext' || r.type === 'foottext') {
       const t = r.type === 'headtext' ? H.text : F.text;
-      content += tag('rect', { x: namew, y: r.y, width: colsW, height: r.h, fill: C.bg });
+      /* 整条通宽：head/foot 是独立的一条，名称列的底色与分界线不到这里 */
+      content += tag('rect', { x: 0, y: r.y, width: W, height: r.h, fill: C.bg });
       /* 富文本（tspan 树）按段展开成 tspan；纯文本仍是单个居中 text */
       content += Array.isArray(t)
         ? jsonMlSvgText(t, namew + colsW / 2, r.y + r.h / 2)
@@ -962,9 +965,14 @@ function renderModern(source, opts = {}) {
   }
 
   /* --- name column (sticky, drawn last to cover crossing edges) ---
-     名称列默认与波形区同底色（C.bg，右缘分割线保留），对齐编辑器「信号名底色 = 与波形同色」的默认 */
-  nameLayer += tag('rect', { x: 0, y: 0, width: namew, height: totalH, fill: C.bg });
-  nameLayer += tag('line', { x1: namew, y1: 0, x2: namew, y2: totalH, stroke: C.line });
+     名称列默认与波形区同底色（C.bg，右缘分割线保留），对齐编辑器「信号名底色 = 与波形同色」的默认。
+     范围 = 刻度行到最后一个刻度行：head/foot 的文字条（标题、底部说明）不该被名称列底色与
+     分界线切开（它们本身是整幅的一条），但顶部/底部刻度行属于网格区，分界线照画 */
+  const bodyRows = rows.filter(r => r.type !== 'headtext' && r.type !== 'foottext');
+  const bodyTop = bodyRows.length ? bodyRows[0].y : 0;
+  const bodyBot = bodyRows.length ? bodyRows[bodyRows.length - 1].y + bodyRows[bodyRows.length - 1].h : totalH;
+  nameLayer += tag('rect', { x: 0, y: bodyTop, width: namew, height: Math.max(0, bodyBot - bodyTop), fill: C.bg });
+  nameLayer += tag('line', { x1: namew, y1: bodyTop, x2: namew, y2: bodyBot, stroke: C.line });
   for (const r of rows) {
     if (r.type !== 'lane' && r.type !== 'group' && r.type !== 'spacer') continue;
     const cy = r.y + r.h / 2, ix = r.depth * 14;
