@@ -210,6 +210,7 @@ svg { display: block; }
   max-height: calc(100vh - 70px);
   max-height: calc(100dvh - 70px);
   overflow-y: auto;
+  overscroll-behavior: contain; /* 滚到尽头不把滚动传给页面（页面滚动会关闭菜单） */
   min-width: 190px;
   background: var(--raise);
   border: 1px solid var(--line);
@@ -288,6 +289,7 @@ svg { display: block; }
 #setPop {
   position: fixed; z-index: 90; display: none;
   min-width: 150px; max-height: calc(100vh - 80px); max-height: calc(100dvh - 80px); overflow-y: auto;
+  overscroll-behavior: contain; /* 同上：示例列表滚到尽头也不触发页面滚动 */
   padding: 5px; background: var(--raise);
   border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
 }
@@ -352,6 +354,14 @@ svg { display: block; }
 .side .add-lane-btns { grid-template-columns: 1fr; gap: 4px; margin: 0; } /* 单列纵排 */
 .side .add-lane-btns .btn { height: 24px; padding: 0 4px; font-size: 11.5px; min-height: 0; }
 .side-openers { display: grid; grid-template-columns: 1fr; gap: 4px; }
+/* 预览 / 代码入口：桌面左栏常驻（点击显示 / 隐藏对应窗口）；手机只在固定左栏时显示，
+   否则仍用页面底部那排（见 html[data-mobile] 里的两条规则） */
+.side-pane-btns { display: grid; grid-template-columns: 1fr; gap: 4px; margin-top: 2px; padding-top: 6px; border-top: 1px solid var(--line); }
+/* 与「＋信号」那组、节点/图表/清空那组同样的居中排布（漏了 justify-content 文字会被顶到最左） */
+.side-pane-btns .btn { justify-content: center; height: 24px; padding: 0 4px; font-size: 11.5px; min-height: 0; }
+/* 当前打开的是哪个窗：由 html[data-pane-open] 派生（不用在按钮上挂状态类，窗口显隐一变就同步） */
+html[data-pane-open="preview"] #sidePaneBtnPreview,
+html[data-pane-open="code"] #sidePaneBtnCode { color: var(--acc-text); border-color: var(--acc); background: var(--acc-veil); }
 .side-openers .btn { justify-content: center; height: 24px; padding: 0 4px; font-size: 11.5px; min-width: 0; min-height: 0; }
 
 /* 行拖拽排序（网格行头） */
@@ -991,7 +1001,7 @@ html[data-trace="glow"] .wtrace { filter: drop-shadow(0 0 2.5px currentColor); }
 @media (max-width: 1360px) { .right-col { width: 400px; } }
 /* 手机模式编辑工具栏的 ◫：显示/隐藏「通道与分组」面板（桌面侧栏常驻，按钮由 CSS 隐藏） */
 #sideDockBtn { display: none; }
-/* 手机布局：视口≤800px（自动模式）或强制「简约模式」时生效——由 JS 依 isMobile() 设置 html[data-mobile] */
+/* 手机（简约）布局：自动模式下视口 ≤800px 宽或 <600px 高时生效，或强制「简约模式」——由 JS 依 isMobile() 设置 html[data-mobile] */
 html[data-mobile] {
   body { overflow: auto; }
   .workspace { flex-direction: column; overflow: visible; }
@@ -1023,6 +1033,13 @@ html[data-mobile] {
     display: flex; position: fixed; left: 0; right: 0; top: 52px; bottom: 52px;
     z-index: 120; background: var(--bg); border-top: 1px solid var(--line);
   }
+  /* 左栏停靠时浮层避开它：面板里的「W预览 / W代码」保持可点（再点即收起）；
+     浮层随之变窄，标签收紧为一行（不够宽时整排可横滑，不折行） */
+  &[data-side-dock] .right-col.mobile-open { left: 84px; }
+  &[data-side-dock] .right-col.mobile-open .right-tabs { padding: 8px 6px 0; gap: 2px; overflow-x: auto; }
+  &[data-side-dock] .right-col.mobile-open .right-tabs .tab { flex: none; padding: 0 6px; font-size: 12px; white-space: nowrap; }
+  &[data-side-dock] .right-col.mobile-open .right-toolbar { gap: 2px; }
+  &[data-side-dock] .right-col.mobile-open .zoom-label { min-width: 34px; }
   .mobile-pane-btns {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
     position: sticky; bottom: 0; z-index: 30;
@@ -1032,6 +1049,11 @@ html[data-mobile] {
   .mobile-pane-btns .btn { min-height: 36px; }
   .right-tabs .rt-close { display: inline-flex; margin-left: 4px; }
   &[data-show-preview="0"][data-show-code="0"] .mobile-pane-btns { display: none; }
+  /* 左栏停靠时：预览 / 代码入口挪进左栏（简写 W 预览 / W 代码），底部那排让位；
+     没停靠时左栏是悬浮抽屉，入口仍留在页面底部那排 */
+  &:not([data-side-dock]) .side-pane-btns { display: none; }
+  &[data-side-dock] .mobile-pane-btns { display: none; }
+  &[data-show-preview="0"][data-show-code="0"] .side-pane-btns { display: none; }
   .preview-stage { min-height: 320px; }
   .code-wrap textarea { min-height: 240px; }
   #brushCol.on { position: fixed; right: 8px; top: 56px; bottom: 12px; z-index: 40; border: 1px solid var(--line-hover); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); }
@@ -1178,6 +1200,11 @@ html[data-mobile] {
       <button class="btn" data-act="clear-doc" data-i18n-title="清空所有信号，恢复为空白文档（Ctrl+Z 可撤销）">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11M6.5 4.5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1.5M4 4.5l.6 8.2A1.5 1.5 0 0 0 6.1 14h3.8a1.5 1.5 0 0 0 1.5-1.3l.6-8.2"/></svg><span data-i18n="清空">清空</span>
       </button>
+    </div>
+    <!-- 预览 / 代码入口：仅手机布局且本栏停靠时显示，替代页面底部那排按钮（无图标，简写） -->
+    <div class="side-pane-btns">
+      <button class="btn" id="sidePaneBtnPreview" data-i18n="W 预览" data-i18n-title="实时预览：点击显示 / 隐藏">W 预览</button>
+      <button class="btn" id="sidePaneBtnCode" data-i18n="W 代码" data-i18n-title="WaveJSON 代码：点击显示 / 隐藏">W 代码</button>
     </div>
   </aside>
 
@@ -1419,6 +1446,9 @@ const I18N_EN = {
   '视图': 'View', '布局方向': 'Layout', '预览在右侧': 'Right', '预览在下方': 'Below',
   '视图模式': 'View mode', '自动': 'Auto', '简约模式': 'Mobile',
   '窗口显示': 'Panels', '实时预览': 'Preview', 'WaveJSON 代码': 'Code',
+  'W 预览': 'W Preview', 'W 代码': 'W Code',
+  '实时预览：点击显示 / 隐藏': 'Live preview: click to show / hide',
+  'WaveJSON 代码：点击显示 / 隐藏': 'WaveJSON code: click to show / hide',
   '节点': 'Nodes', '节点位置': 'Position', '节点样式': 'Style', '仅字母': 'Letter only', '圈+字母': 'Circled', '点': 'Dot',
   '节点大小': 'Size', '靠边内缩': 'Edge inset',
   '笔刷': 'Brush', '笔刷栏默认样式': 'Bar style', '下横条': 'Bottom bar', '右纵条': 'Right column', '右下角': 'Corner',
@@ -1697,11 +1727,16 @@ document.documentElement.dataset.trace = tryGet('wdgui-trace') === 'glow' ? 'glo
 document.documentElement.dataset.wavebg = tryGet('wdgui-wavebg') || 'default';
 if (tryGet('wdgui-head-same') !== '0') document.documentElement.dataset.headSame = '1';
 document.documentElement.dataset.zebra = tryGet('wdgui-zebra') === '0' ? '0' : '1';
-/* ---------- 视图模式：auto=按屏宽判断桌面/手机；simple=强制手机（简约）布局 ---------- */
+/* ---------- 视图模式：auto=按视口判断桌面/手机；simple=强制手机（简约）布局 ---------- */
 const VIEWMODE_MQ = window.matchMedia('(max-width: 800px)');
+/* 矮视口（高度不足）在 auto 模式下也按简约布局排布：桌面窗口压矮时，紧凑布局
+   （工具栏收紧、左栏收成抽屉、预览/代码收成入口按钮）比硬塞桌面版实用得多。
+   用媒体查询而不是 innerHeight：与宽度那条同一套监听方式，阈值改动只在一处 */
+const VIEWMODE_MIN_H = 600;
+const VIEWMODE_HMQ = window.matchMedia(`(max-height: ${VIEWMODE_MIN_H - 1}px)`);
 function viewMode() { return tryGet('wdgui-viewmode') === 'simple' ? 'simple' : 'auto'; }
-/* 是否走手机布局：简约模式恒为真；自动模式看视口是否 ≤800px */
-function isMobile() { return viewMode() === 'simple' || VIEWMODE_MQ.matches; }
+/* 是否走手机布局：简约模式恒为真；自动模式看视口是否 ≤800px 宽、或 <600px 高 */
+function isMobile() { return viewMode() === 'simple' || VIEWMODE_MQ.matches || VIEWMODE_HMQ.matches; }
 /* 把有效手机态写到 html[data-mobile]，驱动手机 CSS 作用域 */
 function applyViewMode() {
   if (isMobile()) document.documentElement.dataset.mobile = '';
@@ -5344,6 +5379,8 @@ function selectRightTab(tabName) {
   document.querySelectorAll('.right-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tabName));
   if (tabName === 'preview') renderPreview();
+  /* 通知外部：当前显示的是哪个窗（手机左栏入口的高亮要跟着重算） */
+  document.dispatchEvent(new Event('wdgui:panes-changed'));
 }
 function applyPanes() {
   const root = document.documentElement;
@@ -5355,6 +5392,8 @@ function applyPanes() {
     else if (showCode) selectRightTab('code');
   }
   applySizes();
+  /* 通知外部：窗口显隐变了（手机左栏入口的高亮要跟着重算） */
+  document.dispatchEvent(new Event('wdgui:panes-changed'));
 }
 function setPaneVisibility(pane, visible) {
   const key = pane === 'preview' ? 'showPreview' : 'showCode';
@@ -5661,7 +5700,15 @@ function bindMenus() {
     });
   });
   document.addEventListener('click', ev => { if (!ev.target.closest('.menu-wrap')) closeMenus(); });
-  window.addEventListener('scroll', closeMenus, true); // 任意容器滚动（含顶栏横滑）即关闭菜单
+  /* 任意容器滚动（含顶栏横滑）即关闭菜单；但菜单 / 弹层**自己**的滚动不算——
+     导入菜单与示例列表条目多，要能滚着看完（配合 CSS 的 overscroll-behavior: contain，
+     滚到尽头也不会把滚动传给页面） */
+  const SCROLL_KEEP = '.menu, #setPop, #cellPop, #brushFly, .popover';
+  window.addEventListener('scroll', ev => {
+    const t = ev.target;
+    if (t && t.nodeType === 1 && t.closest && t.closest(SCROLL_KEEP)) return;
+    closeMenus();
+  }, true);
   window.addEventListener('resize', closeMenus);
   /* 菜单内的动作项：默认点完即关菜单；带二级弹层的项（如「导入示例」）要保留宿主菜单，
      否则 closeMenus 会连同刚弹出的二级层一起收掉，且需要把按钮传给 handleAct 作锚点。 */
@@ -6559,10 +6606,16 @@ function init() {
     lastHash = location.hash;
     if (loadDocFromHash()) { syncSettings(); state.autoFit = true; update(true); }
   });
-  /* 视口跨越 800px 时：重算有效手机态、修正面板显隐与笔刷栏归属、刷新笔刷 UI */
-  const onNarrowChange = () => { applyViewMode(); applySideDock(); renderBrushUI(); };
+  /* 视口跨越阈值（宽 800px / 高 600px）时：重算有效手机态、修正面板显隐与笔刷栏归属、
+     刷新笔刷 UI，并按新布局重排预览与网格 */
+  const onNarrowChange = () => {
+    applyViewMode(); applySideDock(); renderBrushUI(); applyPanes();
+    state.autoFit = true; renderPreview();
+  };
   if (VIEWMODE_MQ.addEventListener) VIEWMODE_MQ.addEventListener('change', onNarrowChange);
   else VIEWMODE_MQ.addListener(onNarrowChange);
+  if (VIEWMODE_HMQ.addEventListener) VIEWMODE_HMQ.addEventListener('change', onNarrowChange);
+  else VIEWMODE_HMQ.addListener(onNarrowChange);
 
   window.addEventListener('resize', () => { if (state_brush.mode === 'panel') layoutBrushGrid(); });
   try { state.sizes = JSON.parse(tryGet('wdgui-splits')) || {}; } catch (e) { state.sizes = {}; }
@@ -6597,10 +6650,28 @@ function init() {
     document.querySelectorAll('.right-tabs .tab').forEach(x => x.classList.toggle('active', x === t));
     document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t.dataset.tab));
     if (t.dataset.tab === 'preview') renderPreview();
+    syncPaneState(); // 面板内切了 tab，左栏入口的高亮跟上（函数声明在后面，调用发生在初始化之后）
   }));
 
-  /* 手机：预览/代码面板折叠为按钮，点击弹出浮层、再点收起 */
+  /* 手机：预览/代码面板折叠为按钮，点击弹出浮层、再点收起。
+     入口有两处：页面底部那排（未停靠左栏时）与左栏里的 W预览 / W代码（停靠时，见 CSS
+     html[data-side-dock]），两者共用这套逻辑；打开态在两处都高亮。 */
   const paneCol = document.querySelector('.right-col');
+  /* 左栏入口的高亮由 html[data-pane-open] 派生（CSS 映射），窗口显隐 / 切 tab 都只改这一处 */
+  const sidePaneBtnPrev = document.querySelector('#sidePaneBtnPreview');
+  const sidePaneBtnCode = document.querySelector('#sidePaneBtnCode');
+  const syncPaneState = () => {
+    const root = document.documentElement;
+    /* 手机：浮层开着才算「打开」；桌面：两个窗口就在布局里，看当前激活的那个是否可见 */
+    const open = isMobile() ? (!!paneCol && paneCol.classList.contains('mobile-open')) : true;
+    const active = document.querySelector('.right-tabs .tab.active')?.dataset.tab;
+    const shown = active === 'preview' ? root.dataset.showPreview !== '0'
+      : active === 'code' ? root.dataset.showCode !== '0' : false;
+    root.dataset.paneOpen = (open && shown && active) ? active : '';
+  };
+  /* 两个窗口的显隐可能从设置菜单 / 矮窗口自动收起等处变化，applyPanes 会广播，跟着同步 */
+  document.addEventListener('wdgui:panes-changed', syncPaneState);
+  syncPaneState();
   const setMobilePane = which => {
     if (!paneCol) return;
     const active = document.querySelector('.right-tabs .tab.active')?.dataset.tab;
@@ -6610,10 +6681,27 @@ function init() {
       const tab = document.querySelector(`.right-tabs .tab[data-tab="${which}"]`);
       if (tab) tab.click(); // 复用既有 tab 切换（激活 pane + renderPreview）
     }
+    syncPaneState();
   };
   document.querySelector('#mPaneBtnPreview')?.addEventListener('click', () => setMobilePane('preview'));
   document.querySelector('#mPaneBtnCode')?.addEventListener('click', () => setMobilePane('code'));
-  document.querySelector('#paneCloseBtn')?.addEventListener('click', () => paneCol.classList.remove('mobile-open'));
+  /* 左栏入口（高亮 = 当前显示的就是它），只管**它自己那个窗口**：
+     手机：点开 / 再点收起该窗口的浮层；
+     桌面：正在显示的点它 = 关掉它（另一个窗口接着显示，两个都关就整栏收起——正是自然的
+           结果，不需要额外状态）；没显示的点它 = 切过去（被关掉过则先打开）。
+     即「只改被点那个窗口的开关偏好」，另一个窗口的设置不会被顺手改掉 */
+  const paneEntry = which => {
+    if (isMobile()) { setMobilePane(which); return; }
+    const root = document.documentElement;
+    const key = which === 'preview' ? 'showPreview' : 'showCode';
+    const active = document.querySelector('.right-tabs .tab.active')?.dataset.tab;
+    if (root.dataset[key] !== '0' && active === which) { setPaneVisibility(which, '0'); return; } // 关掉它
+    if (root.dataset[key] === '0') { setPaneVisibility(which, '1'); selectRightTab(which); return; } // 打开并显示
+    selectRightTab(which);                                                                          // 开着但没显示 → 切过去
+  };
+  sidePaneBtnPrev?.addEventListener('click', () => paneEntry('preview'));
+  sidePaneBtnCode?.addEventListener('click', () => paneEntry('code'));
+  document.querySelector('#paneCloseBtn')?.addEventListener('click', () => { paneCol.classList.remove('mobile-open'); syncPaneState(); });
   $('#fileInput').addEventListener('change', ev => {
     const f = ev.target.files[0];
     if (f) importFile(f);

@@ -75,7 +75,7 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
 - **`wavedrom-gui.showCodeLens`**（默认 `true`）— 在 Markdown **源码**里每个 ```` ```wavedrom ```` 代码块上方显示 CodeLens（`预览` + `编辑波形`）。这条入口不经过预览，与预览安全级别无关，是不想用预览按钮（或预览被限制）时的稳定入口。
 
 - **`wavedrom-gui.editorViewMode`** — 编辑器面板打开时用哪种布局，以及右侧「实时预览 / WaveJSON 代码」窗口的初始显隐：
-  - `auto`（默认）：**沿用编辑器界面自己记住的布局偏好**；同时把右侧两个窗口默认**收起**——编辑面板通常是一个窄分栏，右侧窗只会挤占空间。需要看预览时在面板内从编辑器设置 → 视图 → 窗口显示恢复
+  - `auto`（默认）：**沿用编辑器界面自己记住的布局偏好**；同时把右侧两个窗口默认**收起**——编辑面板通常是一个窄分栏，右侧窗只会挤占空间。需要看预览时在面板内从编辑器设置 → 视图 → 窗口显示恢复；另外与这一项无关：面板视口高度不足 600px（或宽度不足 800px）时，界面会自动按简约布局排布
   - `simple`：每次打开面板都把界面设为**简约模式**（手机版紧凑布局）
 
 - **`wavedrom-gui.editorSidePanel`** — 「通道与分组」左栏的初始显隐（只在简约 / 手机布局下生效）：
@@ -205,7 +205,7 @@ Where to change them (three options):
 - **`wavedrom-gui.showCodeLens`** (default `true`) — shows a CodeLens (`Preview` + `Edit waveform`) above every ```` ```wavedrom ```` code block in the Markdown **source**. This entry point bypasses the preview, is independent of the preview security level, and is a stable fallback when you do not want the preview buttons (or the preview is restricted).
 
 - **`wavedrom-gui.editorViewMode`** — which layout the editor panel opens with, and the initial visibility of the right-side "Live preview / WaveJSON" windows:
-  - `auto` (default): **uses the editor UI's own remembered layout preference**; at the same time the two right-side windows start **hidden** — the panel is usually a narrow column and those windows only crowd it. Restore them inside the panel via the editor's settings → view → window visibility
+  - `auto` (default): **uses the editor UI's own remembered layout preference**; at the same time the two right-side windows start **hidden** — the panel is usually a narrow column and those windows only crowd it. Restore them inside the panel via the editor's settings → view → window visibility; also, independently of this setting, the UI lays itself out compactly when its viewport is under 600px tall (or under 800px wide)
   - `simple`: sets the UI to **simplified mode** (the compact mobile layout) every time the panel opens
 
 - **`wavedrom-gui.editorSidePanel`** — the initial visibility of the "Lanes & groups" left column (only takes effect in the simplified/mobile layout):
