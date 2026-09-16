@@ -1513,7 +1513,7 @@ const I18N_EN = {
   '双向箭头': 'Both arrows', '双向曲线': 'Both curves', '双向直转曲': 'Both line→curve',
   '直折向下': 'Bend down', '竖起尾箭头': 'Rise arrow', '直折下箭头': 'Bend down arrow',
   '直折下双箭头': 'Bend down both', '直折下再折': 'Bend down again', '双向直折下': 'Both bend down',
-  '双向直折下双箭头': 'Both bend down both', '两端圆点': 'End dots',
+  '双向直折下双箭头': 'Both bend down both', '两端短杠': 'End bars',
   /* title / aria */
   '添加一条数字信号通道': 'Add a digital signal lane', '添加时钟通道，自动填充 8 拍时钟': 'Add a clock lane pre-filled with 8 cycles',
   '添加总线通道，可填写数据标签': 'Add a bus lane with data labels', '添加空白占位通道': 'Add an empty spacer lane',
@@ -2003,7 +2003,7 @@ const EDGE_SPECS = [
   { s: '-|', name: '直折向下' }, { s: '|->', name: '竖起尾箭头' },
   { s: '-|>', name: '直折下箭头' }, { s: '-|->', name: '直折下双箭头' },
   { s: '-|-', name: '直折下再折' }, { s: '<-|>', name: '双向直折下' },
-  { s: '<-|->', name: '双向直折下双箭头' }, { s: '+', name: '两端圆点' },
+  { s: '<-|->', name: '双向直折下双箭头' }, { s: '+', name: '两端短杠' },
 ];
 const EDGE_SET = {}; EDGE_SPECS.forEach(e => EDGE_SET[e.s] = true);
 
@@ -2757,11 +2757,15 @@ function laneSVG(lane, colCount, color, cropX) {
     svg.appendChild(p);
   }
   if (gapOverlays) gapOverlays.forEach(o => svg.appendChild(o));
+  /* 只参与 `+` 连线的节点不画标记：那一端改画短杠（见 renderMiniEdges），
+     两者互斥以免「短杠被节点标记盖住」。每行算一次，边数少、成本可忽略。 */
+  const skipNodeLetters = plusOnlyLetters();
   Object.keys(lane.nodeByT).forEach(k => {
     const pk = positions[+k];
     const [nx, ny0] = nodeAnchorXY(pk ? pk.x : X(+k), pk ? pk.w : W);
     /* 窄数据框让不出横向空间时，把圆标抬到框上沿，避开标签行而不遮字 */
     const ny = nodePlan.lift.has(+k) ? liftedNodeY() : ny0;
+    if (skipNodeLetters.has(lane.nodeByT[k])) return;
     drawNodeMarker(svg, nx, ny, lane.nodeByT[k]);
   });
   return svg;
@@ -3040,6 +3044,7 @@ function renderMiniEdges() {
   svg.setAttribute('width', W); svg.setAttribute('height', H);
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   const col = cssVar('--info') || '#38BDF8';
+  const onlyPlus = plusOnlyLetters(); // + 的端点判断：这类端点画短杠、且不画节点标记
   const x0 = gridWindow().a * gridCellW();
   const planCache = new Map();
   const planOf = l => { if (!planCache.has(l)) planCache.set(l, planLaneNodes(l)); return planCache.get(l); };
@@ -3091,42 +3096,56 @@ function renderMiniEdges() {
     }
     const segs = [];        // 正交/斜线路径段
     const heads = [];       // [x, y, dx, dy] 箭头
-    const dots = [];
+    const bars = [];        // [x, y, ux, uy] 两端短杠（+ 形态）
     const r = 9;
     if (spec === '+') {
-      // 两端圆点 + 连接线
+      /* 两端短杠（垂直于边、中心在节点中心，与官方 tee 同形）+ 连接线。
+         短杠与节点标记互斥：端点是 plusOnly（只参与 + 连线、不画节点标记）→ 线体贯穿到
+         节点中心并画短杠；否则线体回缩 r、该端不画短杠（有节点标记，画了只会重叠）。 */
       const dx = B.x - A.x, dy = B.y - A.y;
       const dist = Math.hypot(dx, dy) || 1;
       const ux = dx / dist, uy = dy / dist;
-      segs.push([[A.x + ux * r, A.y + uy * r], [B.x - ux * r, B.y - uy * r]]);
-      dots.push(A, B);
+      const aOnly = onlyPlus.has(e.from), bOnly = onlyPlus.has(e.to);
+      const aEnd = aOnly ? A : { x: A.x + ux * r, y: A.y + uy * r };
+      const bEnd = bOnly ? B : { x: B.x - ux * r, y: B.y - uy * r };
+      segs.push([[aEnd.x, aEnd.y], [bEnd.x, bEnd.y]]);
+      if (aOnly) bars.push([A.x, A.y, ux, uy]);
+      if (bOnly) bars.push([B.x, B.y, ux, uy]);
     } else if (spec.includes('|')) {
       // 官方正交走线（对齐 arc-shape）：'|-' 竖直后水平、'-|' 水平后竖直、
       // '-|-'（含 -|-> / <-|> / <-|->）为 Z 形——半程水平 + 竖直 + 半程水平，
       // 竖直段落在中点而非终点，避免与以终点为折点的边（如 |->）重叠
-      /* 形状按官方 case 表显式判定：<-|> 也是 Z 形（剥箭头字符后会误判成 -|） */
-      const isZ = spec === '-|-' || spec === '-|->' || spec === '<-|>' || spec === '<-|->';
+      /* 形状按官方实测的 case 表显式判定（不能用 `|` 计数推断）：
+         Z 形（半程水平 + 竖直 + 半程水平）只有 -|- / -|-> / <-|->；
+         <-|> 官方是 L 形（水平 + 竖直），剥箭头字符后会与 -| 同形，别再当 Z */
+      const isZ = spec === '-|-' || spec === '-|->' || spec === '<-|->';
       const lead = spec === '|-' || spec === '|->';
       const dx = B.x - A.x, sx = A.x, ex = B.x, sy = A.y, ey = B.y;
       const dyv = ey > sy ? 1 : -1;
+      /* 竖直/水平方向按实际走向取号：折线两端也回缩 r（与直线/曲线族一致），
+         端点停在节点标记外——否则折线会插进节点圆圈，与直线族的观感不一致 */
+      const hxv = ex > sx ? 1 : -1;
       if (lead) {
-        segs.push([[sx, sy - r], [sx, ey]]);
-        segs.push([[sx, ey], [ex - dx > 0 ? ex : ex, ey]]);
-        if (spec.endsWith('>')) heads.push([ex - r, ey, 1, 0]);
-        if (spec.startsWith('<')) heads.push([sx, sy - r, 0, -dyv]);
+        /* 竖直段从起点朝目标行走，起点回缩要沿该方向往内让（sy + dyv*r）；
+           写成减号会让线段从节点另一侧起笔、横穿圆圈 */
+        segs.push([[sx, sy + dyv * r], [sx, ey]]);
+        segs.push([[sx, ey], [ex - hxv * r, ey]]);
+        if (spec.endsWith('>')) heads.push([ex - hxv * r, ey, hxv, 0]);
+        if (spec.startsWith('<')) heads.push([sx, sy - dyv * r, 0, -dyv]);
       } else if (isZ) {
         const mx = (sx + ex) / 2;
-        segs.push([[sx, sy], [mx, sy]]);
+        segs.push([[sx + hxv * r, sy], [mx, sy]]);
         segs.push([[mx, sy], [mx, ey]]);
-        segs.push([[mx, ey], [ex, ey]]);
-        if (spec.endsWith('>')) heads.push([ex - r, ey, 1, 0]);
-        if (spec.startsWith('<') || spec === '-|->') heads.push([sx + r, sy, -1, 0]); // 官方 -|-> 亦为双向
+        segs.push([[mx, ey], [ex - hxv * r, ey]]);
+        if (spec.endsWith('>')) heads.push([ex - hxv * r, ey, hxv, 0]);
+        if (spec.startsWith('<') || spec === '-|->') heads.push([sx + hxv * r, sy, -hxv, 0]); // 官方 -|-> 亦为双向
       } else {
-        segs.push([[sx, sy], [ex, sy]]);
-        segs.push([[ex, sy], [ex, ey]]);
-        const vdir = dyv;
-        if (spec.endsWith('>')) heads.push([ex, ey - vdir * r, 0, vdir]);
-        if (spec.startsWith('<')) heads.push([sx, sy + (sy < ey ? -r : r), 0, sy < ey ? -1 : 1]);
+        segs.push([[sx + hxv * r, sy], [ex, sy]]);
+        segs.push([[ex, sy], [ex, ey - dyv * r]]);
+        if (spec.endsWith('>')) heads.push([ex, ey - dyv * r, 0, dyv]);
+        /* 起点箭头沿【水平段】朝外（<-|> 官方是 L 形）：此前写成竖直方向，
+           与起点段所在方向不符，箭头会指向异常方向 */
+        if (spec.startsWith('<')) heads.push([sx + hxv * r, sy, -hxv, 0]);
       }
     } else {
       const dx = B.x - A.x, dy = B.y - A.y;
@@ -3176,19 +3195,19 @@ function renderMiniEdges() {
       svg.appendChild(path);
     }
     for (const [hx, hy, dx2, dy2] of heads) arrow(hx, hy, dx2, dy2);
-    for (const p of dots) {
-      const c = document.createElementNS(NS, 'circle');
-      c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 2.4);
-      c.setAttribute('fill', col); c.setAttribute('opacity', .9);
-      svg.appendChild(c);
+    for (const [bx0, by0, ux0, uy0] of bars) {
+      /* + 的端点短杠：垂直于边、长 6（两端各 ±3）、粗 2、中心在节点中心 */
+      const ln = document.createElementNS(NS, 'line');
+      ln.setAttribute('x1', bx0 - uy0 * 3); ln.setAttribute('y1', by0 + ux0 * 3);
+      ln.setAttribute('x2', bx0 + uy0 * 3); ln.setAttribute('y2', by0 - ux0 * 3);
+      ln.setAttribute('stroke', col); ln.setAttribute('stroke-width', 2); ln.setAttribute('opacity', .9);
+      svg.appendChild(ln);
     }
     if (e.label) {
       /* D：同组标签沿路径错位（0.5 / 0.32 / 0.68 / 0.22 / 0.78 轮换），避免互相压 */
       const lt = gTotal > 1 ? [0.5, 0.32, 0.68, 0.22, 0.78][gIdx % 5] : 0.5;
       let lp = null;
-      if (!segs.length && dots.length === 2) {
-        lp = [dots[0].x + (dots[1].x - dots[0].x) * lt, dots[0].y + (dots[1].y - dots[0].y) * lt - 6, 'middle'];
-      } else if (segs.length === 1 && segs[0][0][0] === 'C') {
+      if (segs.length === 1 && segs[0][0][0] === 'C') {
         /* 官方标签 x：~ 中点、-~ 0.75、~- 0.25；同组多条再错开 */
         const [, cax, cay, , , , , cbx, cby] = segs[0][0];
         const ccoreL = spec.replace(/^</, '').replace(/>$/, '');
@@ -3228,8 +3247,10 @@ function renderMiniEdges() {
       }
     }
   }
-  /* 节点圆标在叠加层最后补画一轮，盖在连线与箭头之上（与泳道内圆标重合） */
+  /* 节点圆标在叠加层最后补画一轮，盖在连线与箭头之上（与泳道内圆标重合）。
+     只参与 + 连线的节点跳过：那一端由短杠表示（见上方 bars），两者互斥 */
   for (const n of nodes) {
+    if (onlyPlus.has(n.letter)) continue;
     const p = pos(n.letter);
     if (!p) continue;
     drawNodeMarker(svg, p.x, p.y, n.letter);
@@ -3398,7 +3419,8 @@ function edgePreviewSVG(spec) {
   const tri = (x, dir) => `<path d="M${x} ${y}l${dir * 5} -3v6z" fill="currentColor" stroke="none"/>`;
   if (arrowR) extra += tri(x1, -1);
   if (arrowL) extra += tri(x0, 1);
-  if (both) extra += `<circle cx="${x0}" cy="${y}" r="2" fill="currentColor"/><circle cx="${x1}" cy="${y}" r="2" fill="currentColor"/>`;
+  /* + 的两端短杠（垂直于连线、中心在端点，与最终渲染和官方 tee 的形状一致） */
+  if (both) extra += `<path d="M${x0} ${y - 3}V${y + 3}M${x1} ${y - 3}V${y + 3}" stroke-width="2"/>`;
   for (let i = 1; i <= ticks; i++) { const x = x0 + (x1 - x0) * i / (ticks + 1); extra += `<path d="M${x} ${y - 4}V${y + 4}" fill="none"/>`; }
   return h('span', { class: 'preview', html: `<svg width="${w}" height="${hgt}" viewBox="0 0 ${w} ${hgt}" fill="none" stroke="currentColor" stroke-width="1.4"><path d="${d}"/>${extra}</svg>` }).firstChild;
 }
@@ -4085,6 +4107,23 @@ function nextNodeLetter() {
   state.edges.forEach(e => { used.add(e.from); used.add(e.to); });
   for (const ch of NODE_LETTERS) if (!used.has(ch)) return ch;
   return null;
+}
+
+/* 只参与 `+` 连线的节点字母集合：这些节点不画标记，改由 + 的端点短杠表示
+   （短杠中心在节点中心，与官方 tee 同形）。与节点标记互斥，避免短杠被标记盖住。
+   边数很少，每次渲染现算即可（不做缓存，免去失效逻辑）。 */
+function plusOnlyLetters() {
+  const rec = new Map(); // letter -> { plus, other }
+  state.edges.forEach(e => {
+    [e.from, e.to].forEach(L => {
+      const r = rec.get(L) || { plus: false, other: false };
+      if (e.spec === '+') r.plus = true; else r.other = true;
+      rec.set(L, r);
+    });
+  });
+  const out = new Set();
+  rec.forEach((r, L) => { if (r.plus && !r.other) out.add(L); });
+  return out;
 }
 
 function markEditingRow(lane) {

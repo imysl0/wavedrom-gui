@@ -281,7 +281,7 @@ function planLaneNodes(lane, gw, pos, scale, fs, inset, mode) {
  * Returns { inner: <svg-body string>, width }. `color` is the trace color.
  * ========================================================================== */
 let xhatchSeq = 0; // x 交叉阴影 clipPath 的全局序号（见 laneSVG 内注释）
-function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode) {
+function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipNodeLetters) {
   const W = gw * (lane.period || 1), len = laneLen(lane);
   const positions = laneCharPositions(lane, gw);
   let out = '';       // path + decorations, in draw order
@@ -475,6 +475,9 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode) {
   body += overlays;
   // node markers inside the lane
   Object.keys(lane.nodeByT).forEach(k => {
+    /* 只参与 `+` 连线的节点不画标记：那一端改画短杠（与节点标记互斥，
+       避免「短杠被节点标记盖住」的歧义，也贴近官方视觉） */
+    if (skipNodeLetters && skipNodeLetters.has(lane.nodeByT[k])) return;
     const pk = positions[+k];
     const bx = pk ? pk.x : (+k - (lane.phase || 0)) * W;
     const bw = pk ? pk.w : W;
@@ -619,8 +622,26 @@ function renderModern(source, opts = {}) {
   /* --- paint --- */
   let bg = tag('rect', { x: 0, y: 0, width: W, height: totalH, fill: C.bg });
   let content = '';   // column area (waves, ticks, strips)
+  /* 层叠与编辑器网格同构（index.html：节点标记画在网格里，边是盖在其上的独立叠加层）：
+     节点标记先、边（含箭头/短杠）后——否则节点标记会盖住箭头尖端与端点短杠。 */
   let edgeLayer = ''; // node edges overlay
   let nameLayer = ''; // sticky name column, drawn last
+  /* `+` 的端点短杠与节点标记互斥：只参与 + 连线的节点（plusOnly）不画节点标记、
+     该端改画短杠（中心在节点中心），避免「短杠被节点标记盖住」的歧义。
+     节点标记在 laneSVG 里绘制，所以这份集合要在这里先算好传进去。 */
+  const plusOnly = (() => {
+    const rec = new Map();
+    for (const e of st.edges) {
+      for (const L of [e.from, e.to]) {
+        const r = rec.get(L) || { plus: false, other: false };
+        if (e.spec === '+') r.plus = true; else r.other = true;
+        rec.set(L, r);
+      }
+    }
+    const out = new Set();
+    for (const [L, r] of rec) if (r.plus && !r.other) out.add(L);
+    return out;
+  })();
 
   const headTL = headNums ? tickLabels(H.tick, win.b) : { L: [], offset: 0 };
   const footBase = (F.tock !== null && F.tock !== '' && F.tock !== undefined) ? F.tock : F.tick;
@@ -661,7 +682,7 @@ function renderModern(source, opts = {}) {
       content += tag('line', { x1: 0, y1: r.y + r.h, x2: W, y2: r.y + r.h, stroke: C.lineSoft });
       const idx = flat.indexOf(lane);
       const color = C.ch[(idx < 0 ? 0 : idx) % 6];
-      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode);
+      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, plusOnly);
       // translate into place: lane track starts at namew, minus crop offset winX
       content += `<g transform="translate(${namew - winX}, ${r.y})">${body}</g>`;
     } else if (r.type === 'group' || r.type === 'spacer') {
@@ -694,47 +715,100 @@ function renderModern(source, opts = {}) {
       const ay = planOf(n.lane).lift.has(n.t) ? liftedNodeY(nodeScale, nodeMode) : ay0;
       return { x: namew - winX + ax, y: ry.y + ay };
     };
+    /* 与编辑器网格（index.html 的 renderMiniEdges）保持同一套做法：端点统一回缩 9px，
+       箭头画在回缩点、圆点画在节点位置——可见性靠层叠保证：边层画在节点标记之上
+       （编辑器里边是独立叠加层 z-index:2；这里见下方 nodeLayer 先、edgeLayer 后）。 */
+    const rr = 9;
     const arrow = (x, y, dx, dy) => {
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len, uy = dy / len, s = 5.5;
       edgeLayer += tag('path', { d: `M${x + ux * s} ${y + uy * s}L${x - uy * 3} ${y + ux * 3}L${x + uy * 3} ${y - ux * 3}z`, fill: col, opacity: .9 });
     };
+    /* 同对节点的多条边错开（与编辑器网格 renderMiniEdges 同款）：
+       直线类沿连线法线扇开（A）、曲线类沿法线拱高（C）、标签沿路径错位（D）。
+       组键 = 无序节点对 + 形状类别：直线类与曲线类天然不同路径，不互相错开 */
+    const pairKey = e => (e.from < e.to ? e.from + '~' + e.to : e.to + '~' + e.from) + (e.spec.includes('~') ? '#c' : '#l');
+    const groupTotal = new Map(), groupSeen = new Map();
+    st.edges.forEach(e => { const k = pairKey(e); groupTotal.set(k, (groupTotal.get(k) || 0) + 1); });
     for (const e of st.edges) {
       const pa = pos(e.from), pb = pos(e.to);
       if (!pa || !pb) continue;
-      const spec = e.spec, segs = [], heads = [], dots = [], rr = 9;
+      const spec = e.spec;
+      const gk = pairKey(e);
+      const gIdx = groupSeen.get(gk) || 0;
+      groupSeen.set(gk, gIdx + 1);
+      const gTotal = groupTotal.get(gk) || 1;
+      const isCurve = spec.includes('~');
+      /* A：直线类（含正交折线）整条沿连线法线平移——段方向不变，箭头指向不受影响 */
+      let A = pa, B = pb;
+      if (gTotal > 1 && !isCurve) {
+        const ddx = pb.x - pa.x, ddy = pb.y - pa.y, dlen = Math.hypot(ddx, ddy) || 1;
+        const off = (gIdx - (gTotal - 1) / 2) * 7;
+        const nx = -ddy / dlen, ny = ddx / dlen;
+        A = { x: pa.x + nx * off, y: pa.y + ny * off };
+        B = { x: pb.x + nx * off, y: pb.y + ny * off };
+      }
+      const segs = [], heads = [], bars = [];
       if (spec === '+') {
-        const dx = pb.x - pa.x, dy = pb.y - pa.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
-        segs.push([[pa.x + ux * rr, pa.y + uy * rr], [pb.x - ux * rr, pb.y - uy * rr]]);
-        dots.push(pa, pb);
+        const dx = B.x - A.x, dy = B.y - A.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+        /* 两端各自判断（与节点标记互斥）：端点是 plusOnly（没有节点标记）→ 线体贯穿到
+           节点中心并在那里画短杠；否则线体回缩 rr、且不画短杠（有节点标记，画了只会重叠）。 */
+        const aOnly = plusOnly.has(e.from), bOnly = plusOnly.has(e.to);
+        const aEnd = aOnly ? A : { x: A.x + ux * rr, y: A.y + uy * rr };
+        const bEnd = bOnly ? B : { x: B.x - ux * rr, y: B.y - uy * rr };
+        segs.push([[aEnd.x, aEnd.y], [bEnd.x, bEnd.y]]);
+        if (aOnly) bars.push([A.x, A.y, ux, uy]);
+        if (bOnly) bars.push([B.x, B.y, ux, uy]);
       } else if (spec.includes('|')) {
-        const lead = spec.startsWith('|');
-        const dx = pb.x - pa.x, sx = pa.x, ex = pb.x, sy = pa.y, ey = pb.y, dyv = ey > sy ? 1 : -1;
+        /* 形状按官方实测的 case 表显式判定（不能用 | 计数推断）：Z 形（半程水平 + 竖直 +
+           半程水平）只有 -|- / -|-> / <-|->；<-|> 官方是 L 形（水平 + 竖直） */
+        const isZ = spec === '-|-' || spec === '-|->' || spec === '<-|->';
+        const lead = spec === '|-' || spec === '|->';
+        const sx = A.x, ex = B.x, sy = A.y, ey = B.y;
+        const dyv = ey > sy ? 1 : -1;
+        /* 两端回缩 rr（与直线/曲线族一致）：端点停在节点标记外；
+           方向按实际走向取号，回缩必须朝线段内部，反向走线才不会退到更远处 */
+        const hxv = ex > sx ? 1 : -1;
         if (lead) {
-          segs.push([[sx, sy - rr], [sx, ey]]); segs.push([[sx, ey], [ex, ey]]);
-          if (spec.endsWith('>')) heads.push([ex - rr, ey, 1, 0]);
-          if (spec.startsWith('<')) heads.push([sx, sy - rr, 0, -dyv]);
-        } else if ((spec.match(/\|/g) || []).length >= 2 && !spec.endsWith('|')) {
+          /* 竖直段从起点朝目标行走，起点回缩沿该方向往内让（sy + dyv*rr） */
+          segs.push([[sx, sy + dyv * rr], [sx, ey]]); segs.push([[sx, ey], [ex - hxv * rr, ey]]);
+          if (spec.endsWith('>')) heads.push([ex - hxv * rr, ey, hxv, 0]);
+          if (spec.startsWith('<')) heads.push([sx, sy - dyv * rr, 0, -dyv]);
+        } else if (isZ) {
           const mx = (sx + ex) / 2;
-          segs.push([[sx, sy], [mx, sy]]); segs.push([[mx, sy], [mx, ey]]); segs.push([[mx, ey], [ex, ey]]);
-          if (spec.endsWith('>')) heads.push([ex - rr, ey, 1, 0]);
-          if (spec.startsWith('<')) heads.push([sx + rr, sy, -1, 0]);
+          segs.push([[sx + hxv * rr, sy], [mx, sy]]); segs.push([[mx, sy], [mx, ey]]); segs.push([[mx, ey], [ex - hxv * rr, ey]]);
+          if (spec.endsWith('>')) heads.push([ex - hxv * rr, ey, hxv, 0]);
+          if (spec.startsWith('<') || spec === '-|->') heads.push([sx + hxv * rr, sy, -hxv, 0]); // 官方 -|-> 亦为双向
         } else {
-          segs.push([[sx, sy], [ex, sy]]); segs.push([[ex, sy], [ex, ey]]);
+          segs.push([[sx + hxv * rr, sy], [ex, sy]]); segs.push([[ex, sy], [ex, ey - dyv * rr]]);
           if (spec.endsWith('>')) heads.push([ex, ey - dyv * rr, 0, dyv]);
-          if (spec.startsWith('<')) heads.push([sx, sy + (sy < ey ? -rr : rr), 0, sy < ey ? -1 : 1]);
+          /* 起点箭头沿水平段朝外（<-|> 官方是 L 形） */
+          if (spec.startsWith('<')) heads.push([sx + hxv * rr, sy, -hxv, 0]);
         }
       } else {
-        const dx = pb.x - pa.x, dy = pb.y - pa.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
-        const ax = pa.x + ux * rr, ay = pa.y + uy * rr, bx = pb.x - ux * rr, by = pb.y - uy * rr;
-        if (spec.includes('~')) {
-          const cx = (ax + bx) / 2 - uy * Math.min(26, dist * .22);
-          const cy = (ay + by) / 2 + ux * Math.min(26, dist * .22);
-          segs.push([['Q', ax, ay, cx, cy, bx, by]]);
-          let ex = bx - cx, ey2 = by - cy; const el = Math.hypot(ex, ey2) || 1;
-          if (spec.endsWith('>')) heads.push([bx, by, ex / el, ey2 / el]);
-          let sx2 = ax - cx, sy2 = ay - cy; const sl = Math.hypot(sx2, sy2) || 1;
-          if (spec.startsWith('<')) heads.push([ax, ay, sx2 / sl, sy2 / sl]);
+        const dx = B.x - A.x, dy = B.y - A.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+        const ax = A.x + ux * rr, ay = A.y + uy * rr, bx = B.x - ux * rr, by = B.y - uy * rr;
+        if (isCurve) {
+          /* 对齐官方 arc-shape 的三次贝塞尔：~ 两端水平进出；-~ 起点水平、终点斜入；
+             ~- 起点斜出、终点水平。同组多条再沿法线整体偏移，保持官方形状的同时扇开 */
+          const ccore = spec.replace(/^</, '').replace(/>$/, '');
+          const cdx = bx - ax, cdy = by - ay;
+          let c1x, c1y, c2x, c2y;
+          if (ccore === '-~') { c1x = ax + .7 * cdx; c1y = ay; c2x = bx; c2y = by; }
+          else if (ccore === '~-') { c1x = ax; c1y = ay; c2x = ax + .3 * cdx; c2y = ay + cdy; }
+          else { c1x = ax + .7 * cdx; c1y = ay; c2x = ax + .3 * cdx; c2y = ay + cdy; }
+          if (gTotal > 1) {
+            const cl = Math.hypot(cdx, cdy) || 1;
+            const off = (gIdx - (gTotal - 1) / 2) * 9;
+            const cnx = -cdy / cl, cny = cdx / cl;
+            c1x += cnx * off; c1y += cny * off; c2x += cnx * off; c2y += cny * off;
+          }
+          segs.push([['C', ax, ay, c1x, c1y, c2x, c2y, bx, by]]);
+          const norm = (vx, vy) => { const l = Math.hypot(vx, vy) || 1; return [vx / l, vy / l]; };
+          let [hex, hey] = Math.hypot(bx - c2x, by - c2y) < .5 ? norm(bx - c1x, by - c1y) : norm(bx - c2x, by - c2y);
+          if (spec.endsWith('>')) heads.push([bx, by, hex, hey]);
+          let [hgx, hgy] = Math.hypot(ax - c1x, ay - c1y) < .5 ? norm(ax - c2x, ay - c2y) : norm(ax - c1x, ay - c1y);
+          if (spec.startsWith('<')) heads.push([ax, ay, hgx, hgy]);
         } else {
           segs.push([[ax, ay], [bx, by]]);
           if (spec.endsWith('>')) heads.push([bx, by, ux, uy]);
@@ -743,21 +817,45 @@ function renderModern(source, opts = {}) {
       }
       for (const sg of segs) {
         edgeLayer += tag('path', {
-          d: sg[0][0] === 'Q' ? `M${sg[0][1]} ${sg[0][2]}Q${sg[0][3]} ${sg[0][4]} ${sg[0][5]} ${sg[0][6]}` : `M${sg[0][0]} ${sg[0][1]}L${sg[1][0]} ${sg[1][1]}`,
+          d: sg[0][0] === 'C'
+            ? `M${sg[0][1]} ${sg[0][2]}C${sg[0][3]} ${sg[0][4]} ${sg[0][5]} ${sg[0][6]} ${sg[0][7]} ${sg[0][8]}`
+            : `M${sg[0][0]} ${sg[0][1]}L${sg[1][0]} ${sg[1][1]}`,
           fill: 'none', stroke: col, 'stroke-width': 1.4, opacity: .8,
         });
       }
       for (const [hx, hy, dx2, dy2] of heads) arrow(hx, hy, dx2, dy2);
-      for (const p of dots) edgeLayer += tag('circle', { cx: p.x, cy: p.y, r: 2.4, fill: col, opacity: .9 });
+      /* `+` 的端点短杠：垂直于边、长 6（两端各 ±3）、粗 2、中心在节点中心——与官方 tee 同形 */
+      for (const [bx0, by0, ux0, uy0] of bars) {
+        edgeLayer += tag('line', { x1: bx0 - uy0 * 3, y1: by0 + ux0 * 3, x2: bx0 + uy0 * 3, y2: by0 - ux0 * 3,
+          stroke: col, 'stroke-width': 2, opacity: .9 });
+      }
       if (e.label) {
+        /* D：同组标签沿路径错位（0.5 / 0.32 / 0.68 / 0.22 / 0.78 轮换），避免互相压 */
+        const lt = gTotal > 1 ? [0.5, 0.32, 0.68, 0.22, 0.78][gIdx % 5] : 0.5;
         let lp = null;
-        if (!segs.length && dots.length === 2) lp = [(dots[0].x + dots[1].x) / 2, Math.min(dots[0].y, dots[1].y) - 6, 'middle'];
-        else if (segs.length === 1 && segs[0][0][0] === 'Q') { const a = segs[0][0]; lp = [(a[1] + 2 * a[3] + a[5]) / 4, (a[2] + 2 * a[4] + a[6]) / 4 - 5, 'middle']; }
-        else if (segs.length === 1) lp = [(segs[0][0][0] + segs[0][1][0]) / 2, (segs[0][0][1] + segs[0][1][1]) / 2 - 5, 'middle'];
-        else {
-          let best = null, bl = -1;
-          segs.forEach(sg => { const l = Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]); if (l > bl) { bl = l; best = sg; } });
-          if (best) { const mx2 = (best[0][0] + best[1][0]) / 2, my2 = (best[0][1] + best[1][1]) / 2; lp = best[0][1] === best[1][1] ? [mx2, my2 - 5, 'middle'] : [mx2 + 7, my2, 'start']; }
+        if (segs.length === 1 && segs[0][0][0] === 'C') {
+          /* 官方标签 x：~ 中点、-~ 0.75、~- 0.25；同组多条再错开 */
+          const [, cax, cay, , , , , cbx, cby] = segs[0][0];
+          const ccoreL = spec.replace(/^</, '').replace(/>$/, '');
+          let fx = ccoreL === '-~' ? .75 : ccoreL === '~-' ? .25 : .5;
+          if (gTotal > 1) fx = Math.max(.15, Math.min(.85, fx + (gIdx - (gTotal - 1) / 2) * .18));
+          lp = [cax + (cbx - cax) * fx, (cay + cby) / 2 - 5, 'middle'];
+        } else if (segs.length === 1) {
+          lp = [segs[0][0][0] + (segs[0][1][0] - segs[0][0][0]) * lt,
+                segs[0][0][1] + (segs[0][1][1] - segs[0][0][1]) * lt - 5, 'middle'];
+        } else {
+          /* 折线：按总长比例取点，再按该段方向决定标签偏上 / 偏右 */
+          let segLen = 0; segs.forEach(sg => { segLen += Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]); });
+          let want = segLen * lt, acc = 0, pt = null, segDir = null;
+          for (const sg of segs) {
+            const l = Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]);
+            if (acc + l >= want) { const f = l ? (want - acc) / l : 0; pt = [sg[0][0] + (sg[1][0] - sg[0][0]) * f, sg[0][1] + (sg[1][1] - sg[0][1]) * f]; segDir = sg; break; }
+            acc += l;
+          }
+          if (pt) {
+            const horiz = segDir && segDir[0][1] === segDir[1][1];
+            lp = horiz ? [pt[0], pt[1] - 5, 'middle'] : [pt[0] + 7, pt[1], 'start'];
+          }
         }
         if (lp) {
           // NOTE: cairosvg silently drops any <text> that carries a `stroke`
@@ -766,7 +864,10 @@ function renderModern(source, opts = {}) {
           const fs = FONTS.edgeLabel;
           let lw = 0;
           for (const ch of String(e.label)) lw += (ch.charCodeAt(0) > 0x2e7f ? fs : fs * 0.6);
-          const pad = 3, bh = fs + 4;
+          /* 背景矩形：底边必须停在线上方（基线 + 3 = 覆盖字形降部，距线 2px）。
+             此前高度 fs+4 让底边正好落在线上，把线盖出一段空白（编辑器网格那边
+             用 paint-order:stroke 的字形光晕没这个问题） */
+          const pad = 3, bh = fs + 2;
           const anchor = lp[2];
           const bx = anchor === 'middle' ? lp[0] - lw / 2 - pad : (anchor === 'start' ? lp[0] - pad : lp[0] - lw - pad);
           edgeLayer += tag('rect', { x: bx, y: lp[1] - fs + 1, width: lw + pad * 2, height: bh, rx: 3, fill: C.bg, opacity: .82 });
@@ -775,12 +876,8 @@ function renderModern(source, opts = {}) {
         }
       }
     }
-    // node markers re-drawn on top
-    for (const n of nodes) {
-      const p = pos(n.letter);
-      if (!p) continue;
-      edgeLayer += nodeMarkerSVG(p.x, p.y, n.letter, nodeScale, nodeMode);
-    }
+    /* 节点标记不再在这里重画：laneSVG 里已按通道画过一份（且带 skipNodeLetters 的
+       互斥处理），重复绘制会让每个标记出现两次、也让层叠关系变复杂 */
   }
 
   /* --- name column (sticky, drawn last to cover crossing edges) ---
