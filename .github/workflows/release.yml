@@ -70,7 +70,7 @@ jobs:
           test -f index.html
           cd vscode
           npx --yes @vscode/vsce@3 package --out wavedrom-gui-vscode.vsix \
-            --baseContentUrl https://cnb.cool/linshi-2026/wavedrom-gui/-/raw/main/vscode \
+            --baseContentUrl https://cnb.cool/linshi-2026/wavedrom-gui/-/blob/main/vscode \
             --baseImagesUrl https://cnb.cool/linshi-2026/wavedrom-gui/-/raw/main/vscode
           test -s wavedrom-gui-vscode.vsix
 

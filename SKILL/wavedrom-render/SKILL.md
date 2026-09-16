@@ -25,7 +25,7 @@ description: >
 - 用户提供 WaveDrom / WaveJSON，想预览为波形图、时序图，或导出 SVG / PNG。
 - 需要把 AI 生成的时序描述可视化检视，并检查周期、边沿、数据框、节点和连线是否符合预期。
 - 需要编写或修复 WaveJSON，包括补全 `wave`、`data`、`node`、`edge`、`period`、`phase` 等字段。
-- 需要在现代模式和传统 WaveDrom 模式之间选择渲染风格，或调整传统皮肤、节点位置、节点缩放和 PNG 清晰度。
+- 需要在现代模式和传统 WaveDrom 模式之间选择渲染风格，或调整传统皮肤、节点位置 / 缩放 / 标记形态和 PNG 清晰度。
 - 需要在没有浏览器或 `index.html` 的环境中，通过本目录 CLI 独立渲染波形。
 
 ## WaveJSON 生成指南
@@ -149,13 +149,16 @@ node render.js -              # 从 stdin 读取 WaveJSON
 |---|---|---|---|
 | `--mode` | `modern` \| `traditional` | `modern` | 渲染风格 |
 | `--format` | `svg` \| `png` \| `both` | `png` | 输出格式 |
-| `--out` | 路径 | 跟随输入名 | 输出路径（扩展名自动补） |
+| `--out` / `-o` | 路径 | 跟随输入名 | 输出路径（扩展名自动补） |
 | `--scale` | 数字 | `2` | PNG 缩放倍数（2 = 2×，更清晰） |
 | `--skin` | `default` \| `narrow` | `default` | **仅传统模式**：官方皮肤 |
 | `--node-pos` | `lt tm rt lm c rm lb bm rb` | `lm` | **仅现代模式**：节点圆标位置 |
 | `--node-scale` | 数字 | `1` | **仅现代模式**：节点圆标缩放 |
+| `--node-inset` | `0`–`9` | `4` | **仅现代模式**：节点圆标相对连线端点的内缩像素（0 = 贴住端点） |
+| `--node-mode` | `letter` \| `bare` \| `dot` | `bare` | **仅现代模式**：节点标记形态——字母 / 空心圆 / 实心点 |
 | `--no-meta` | — | 默认内嵌 | 关闭 WaveJSON 元数据内嵌 |
 | `--strict` | — | 宽松解析 | **只接受严格 JSON**：渲染来源不明的文件时务必加上，禁用宽松求值回退 |
+| `-h` / `--help` | — | — | 打印用法 |
 
 ### 示例
 
@@ -177,9 +180,11 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 
 导出的 SVG / PNG 都会把本次 WaveJSON 写进图片：SVG 用 `<metadata data-wavedrom>`、PNG 用 `iTXt` 文本块（关键字 `WaveJSON`），与 wavedrom-gui 的导出同规格。**显示完全不受影响**；把图片在 wavedrom-gui 里「打开文件」即可直接还原图表，`--no-meta` 可关闭。
 
+同时写入**导出来源标记**（SVG 的 `data-export` 属性 / PNG 关键字 `WaveDromGui` 的 `iTXt` 块）：现代模式写 `skill-modern`、传统模式写 `wavedrom`。VSCode 插件在读图时按它选同一套渲染器重绘写回——skill 导出的图在插件里编辑、保存后不会被换成别的风格（`--no-meta` 会一并省掉，届时插件按指纹判断、判不出时兜底 skill-modern）。
+
 ## 两种模式的区别
 
-- **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按调色板着色、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
+- **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按调色板着色、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字（含 JsonML 富文本）与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
 - **传统模式（traditional）**：直接调用内嵌的**官方 WaveDrom v3.5.0** 渲染引擎（`vendor/` 内），产出官方黑白样式，支持 `default` / `narrow` 两套皮肤。
 
 两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页的宽松解析行为一致）。
@@ -189,6 +194,8 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 ## 支持的 WaveJSON 语法
 
 `signal`（含嵌套分组数组、`{}` 空白占位）、`wave`（全部状态字符 `01pnPNudxzhlHL=23456789|.` 与 `.` 延续、`<>` 子周期）、`data`、`node` + `edge`（覆盖全部官方箭头写法）、`head`/`foot`（`text`/`tick`/`tock`/`every`）、`config`（`hscale`/`skin`/`hbounds`）、`period`/`phase`。
+
+**`head`/`foot` 的 `text` 支持官方 JsonML 富文本**：`["tspan", {"class":"h2"}, "标题"]` 这类写法，class 取 `error`/`warning`/`info`/`success`/`muted`/`h1`–`h6`，另支持 `dy`、`baseline-shift`、`font-size`/`font-weight`/`font-style`/`fill` 等内联属性。注意多段富文本要**逐段嵌套**（`["tspan", {}, "前半", ["tspan", {"class":"muted"}, "后半"]]`）——把属性对象直接放在子节点位置（`["tspan", {...}, "a", {...}, "b"]`）不是合法 JsonML，官方引擎会直接报错。现代模式按现代配色映射这些 class（error 红 / warning 橙 / info 蓝 / success 绿 / muted 灰，h1–h6 逐级放大），`baseline-shift` 会转成显式 `y` 位移，任何光栅化器都一致；传统模式交由官方引擎，上下标是否显示取决于光栅化器对 `baseline-shift` 的支持。
 
 ## 字体与字号（可配置）
 
@@ -243,7 +250,7 @@ wavedrom-render/
     render-traditional.js   # 传统模式渲染器（驱动官方引擎，无需浏览器）
     svg-to-png.js           # SVG→PNG（cairosvg / rsvg-convert / ImageMagick 自动探测）
     font-embed.js           # 把子集化后的霞鹜文楷以 @font-face base64 内嵌进 SVG
-    meta-embed.js           # SVG <metadata> / PNG iTXt 的 WaveJSON 元数据内嵌与回读
+    meta-embed.js           # SVG <metadata> / PNG iTXt 的 WaveJSON 元数据与导出来源标记（内嵌与回读）
   scripts/
     svg2png.py              # cairosvg 光栅化辅助脚本
     subset_font.py          # fontTools 字体子集化辅助脚本

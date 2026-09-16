@@ -8,14 +8,14 @@ WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即�
 
 ## 产品一：WaveDrom Web 编辑器
 
-单文件 HTML 应用（约 300+ KB）：用鼠标点击/拖拽编辑 WaveDrom 时序图，右侧官方引擎实时渲染，左侧同步生成 WaveJSON 代码，兼容大部分 WaveDrom 常用语法。直接用浏览器打开 `index.html` 即可（file:// 协议可用，无需服务器），也可使用 [demo站点](https://wave.rtlyes.cn/)（免费服务，不保证可用）。
+单文件 HTML 应用（约 500 KB）：用鼠标点击/拖拽编辑 WaveDrom 时序图，右侧官方引擎实时渲染，左侧同步生成 WaveJSON 代码，兼容大部分 WaveDrom 常用语法。直接用浏览器打开 `index.html` 即可（file:// 协议可用，无需服务器），也可使用 [demo站点](https://wave.rtlyes.cn/)（免费服务，不保证可用）。
 
 核心亮点：
 
-- **点选 + 笔刷编辑**：20 种波形状态点选即改，笔刷涂抹、向右拖动延续、右键清除；笔刷栏五种形态折叠切换，支持键盘直切
+- **点选 + 笔刷编辑**：24 种波形状态点选即改，笔刷涂抹、向右拖动延续、右键清除；笔刷栏五种形态折叠切换，支持键盘直切
 - **官方引擎实时预览**：内嵌 WaveDrom v3.5.0 与 default/narrow 两套皮肤，所见即所得
 - **分组、节点与箭头**：嵌套分组折叠同步，覆盖全部官方箭头写法，period/phase/hscale/hbounds 完整支持
-- **导入导出闭环**：导出的 SVG/PNG 内嵌 WaveJSON 元数据（图片可直接再导入还原图表，与 Skill 导出互通），宽松 WaveJSON 解析（`//` 注释、免引号键等，与官方编辑器一致；分享链接与文件导入走无求值解析，外部内容不执行任何代码），JSON / kroki 代码块 / 分享链接
+- **导入导出闭环**：导出的 SVG/PNG 内嵌 WaveJSON 元数据（图片可直接再导入还原图表，与 Skill 导出互通），并记录**导出来源**（SVG `data-export` / PNG `WaveDromGui` iTXt 块：官方渲染 / 编辑区矢量重建 / skill-modern）——VSCode 插件据此按原风格重绘写回，编辑迭代不会把风格洗掉；宽松 WaveJSON 解析（`//` 注释、免引号键等，与官方编辑器一致；分享链接与文件导入走无求值解析，外部内容不执行任何代码），JSON / kroki 代码块 / 分享链接
 - **深度可调**：深浅双主题、可拖拽分割条布局、界面与代码字体独立选择、100 步撤销重做，偏好全部持久化
 - **双语界面**：默认跟随系统语言（中文 / English），顶栏地球按钮随时切换
 
@@ -28,7 +28,7 @@ WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即�
 - **现代模式**（默认）：与 Web 编辑器完全一致的自绘风格——浅色主题、彩色分信号轨迹、节点箭头、period/phase/hscale/hbounds 全支持，几何逐字移植自 index.html
 - **传统模式**：直接驱动官方 WaveDrom v3.5.0 引擎，产出官方黑白样式，支持 default / narrow 皮肤
 - **字体可内嵌**：可选下载霞鹜文楷，按字符子集化后以 @font-face 内嵌进 SVG，自包含、体积仅几百 KB
-- **与 Web 编辑器互通**：导出的 SVG/PNG 内嵌 WaveJSON 元数据（不影响显示），在 wavedrom-gui「打开文件」即可还原图表继续编辑；`--no-meta` 可关闭
+- **与 Web 编辑器互通**：导出的 SVG/PNG 内嵌 WaveJSON 元数据（不影响显示），在 wavedrom-gui「打开文件」即可还原图表继续编辑；`--no-meta` 可关闭。导出同时带**导出来源标记**（modern → `skill-modern`，traditional → `wavedrom`），VSCode 插件据此选同一套渲染器写回
 - **内置生成指南**：SKILL.md 附「WaveJSON 生成指南」（延续符规则、单 bit 禁用数据框字符、基础语法速查），AI 读取后即可产出规范代码
 
 ```bash
@@ -46,17 +46,18 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 把 wavedrom-gui 的能力带进 VS Code：在内置 Markdown 预览里直接渲染 ```` ```wavedrom ```` 代码块与内嵌 WaveJSON 的图片（现代主题），并一键进入可视化编辑器，编辑结果写回原文件。
 
 - **预览内渲染**：Markdown 预览中把 wavedrom 代码块和内嵌 WaveJSON 的 SVG/PNG 图片渲染为波形图，**在波形上右键「编辑波形」**即进入编辑（严格预览安全级别下即可用，无需放宽安全设置；设置 `wavedrom-gui.previewEditAffordance` 可改成右上角铅笔按钮或点波形即编辑）
-- **可视化编辑写回**：打开可视化编辑器（复用 `index.html`）进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则元数据实时更新，画面停手 5 秒后由编辑器重绘写回（关闭或切走编辑面板时立即落盘）。除预览里的入口外，源码中每个 wavedrom 代码块与内嵌 WaveJSON 的图片上方还有「编辑波形」CodeLens
-- **与前两者互通**：同一套 WaveJSON 元数据规格，Skill/编辑器导出的图片在插件里可直接识别与编辑
+- **源码与资源管理器入口**：源码里每个 wavedrom 代码块上方有 `预览` + `编辑波形` 两颗 CodeLens（前者在侧边开预览面板，再点收起），鼠标停在代码块行上还会浮出内联预览；任意 PNG / SVG 在资源管理器里右键即可「使用 WaveDrom-Gui 编辑器打开」——**不限于 md 引用的图**，打开前先探测内嵌 WaveJSON，普通图片只给一条警告
+- **可视化编辑写回**：打开可视化编辑器（复用 `index.html`）进行可视化编辑，保存后写回——代码块按编辑器的代码显示模式（紧凑 / 舒缓）回写围栏内容、图片则元数据实时更新，画面停手 5 秒后由编辑器重绘写回（关闭或切走编辑面板时立即落盘）；**重绘按原图风格保真**（设置 `wavedrom-gui.imageExportTheme` 默认 auto：官方渲染 / 编辑区矢量重建 / 现代渲染各按各的重绘，编辑迭代不会把风格洗掉）
+- **与前两者互通**：同一套 WaveJSON 元数据规格与导出来源标记，Skill / 编辑器导出的图片在插件里可直接识别、编辑并按原风格写回
 - **中英双语**：界面文案默认跟随 VS Code 的显示语言（判断不出语言时按中文），也可用设置 `wavedrom-gui.language` 固定中文或英文
 
-👉 详见 [vscode/README.md](./vscode/README.md)。
+👉 详见 [vscode/README.md](./vscode/README.md)（**中英双语**，中文在前）；实现原理与排错见 [vscode/design.md](./vscode/design.md)。
 
 ## 技术说明
 
 - 内嵌官方 [WaveDrom](https://wavedrom.com/) v3.5.0 渲染库与 default/narrow 两套皮肤（来源 wavedrom.com）
 - 编辑区迷你波形为自绘 SVG，生成逻辑对照官方源码（`gen-wave-brick.js` 等）实现：成对状态转换、半拍转换标记、电平-时钟半砖融合（xclude 表）、`.`/`|` 重复器、period/phase/hscale 缩放等均按官方语义
-- 导出图片内嵌 WaveJSON 元数据：SVG `<metadata>` / PNG `iTXt` 文本块（纯 JS 零依赖实现，CRC32 手写），导入按文件头嗅探自动回读，不影响图片显示
+- 导出图片内嵌 WaveJSON 元数据：SVG `<metadata>` / PNG `iTXt` 文本块（纯 JS 零依赖实现，CRC32 手写），导入按文件头嗅探自动回读，不影响图片显示；另存**导出来源标记**（`data-export` 属性 / `WaveDromGui` iTXt 关键字），导入方据此按原风格重绘
 - 字体：霞鹜文楷等宽经 npmmirror CDN 分片按需加载（国内直连），离线自动回退系统字体；导出 SVG/PNG 不受界面字体与主题影响
 
 ## 致谢

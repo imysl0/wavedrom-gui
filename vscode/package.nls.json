@@ -12,7 +12,7 @@
   "config.editorPanelPosition.newWindow": "Move the editor into a separate window (VS Code's \"Move Editor into New Window\")",
   "config.editorPanelPosition.desc": "Where the visual editor panel opens. Floating the panel **on top of** the preview is not possible: VS Code does not expose floating/modal editors to extensions (`ViewColumn` only has Active / Beside / 1-9).",
   "config.showCodeLens.desc": "Show an \"Edit waveform\" CodeLens above every ` ```wavedrom ` code block in the Markdown source. This entry point bypasses the preview entirely and is independent of the preview security level, so it makes a stable fallback; turn it off if you find the line noisy.",
-  "config.editorViewMode.simple": "Open the editor in its simplified (mobile) layout — every time the panel is opened (default)",
+  "config.editorViewMode.simple": "Open the editor in its simplified (mobile) layout — every time the panel is opened",
   "config.editorViewMode.auto": "Use the editor UI's own remembered layout (default); the right-side Live preview / WaveJSON windows start hidden in VS Code panels",
   "config.editorViewMode.desc": "Which layout the visual editor panel opens with. `auto` (default) keeps the editor UI's own layout preference and starts with the right-side Live preview / WaveJSON windows hidden — the panel is usually a narrow column and those windows only crowd it; reopen them from the editor's settings → view → window visibility, and the choice sticks within the panel. `simple` forces the compact (mobile) layout regardless of panel width.",
   "config.editorSidePanel.shown": "Expand the \"Lanes & groups\" panel every time the editor opens (default; the editor UI itself hides it by default)",

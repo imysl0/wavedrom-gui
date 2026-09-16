@@ -4420,7 +4420,7 @@ function reopenPopAt(lane, t) {
   if (cell) openPop(lane, t, cell);
 }
 
-/* 状态字符网格：单元格弹窗与笔刷面板共用（延续 + 26 字符，5 列） */
+/* 状态字符网格：单元格弹窗与笔刷面板共用（延续 + 24 字符，5 列） */
 function buildGlyphGrid(parent, currentGlyph, onPick) {
   const glyphs = h('div', { class: 'pop-glyphs' });
   const mkG = (ch, name) => {
