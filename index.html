@@ -1442,7 +1442,7 @@ const I18N_EN = {
   '界面字体': 'UI font', '数据·代码字体': 'Data font',
   '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans', '系统字体': 'System',
   '视图': 'View', '布局方向': 'Layout', '预览在右侧': 'Right', '预览在下方': 'Below',
-  '视图模式': 'View mode', '自动': 'Auto', '简约模式': 'Mobile',
+  '视图模式': 'View mode', '自动': 'Auto', '简约模式': 'Mobile', '桌面模式': 'Desktop',
   '窗口显示': 'Panels', '实时预览': 'Preview', 'WaveJSON 代码': 'Code',
   'W 预览': 'W Preview', 'W 代码': 'W Code',
   '实时预览：点击显示 / 隐藏': 'Live preview: click to show / hide',
@@ -1577,6 +1577,7 @@ const I18N_EN = {
   '自动 →': 'Auto →', '自动 ↓': 'Auto ↓',
   '按屏宽判断桌面/手机布局': 'Pick desktop/mobile layout by viewport width',
   '固定使用手机版布局': 'Always use the mobile layout',
+  '固定使用桌面版布局': 'Always use the desktop layout',
   '" 不可用': '" unavailable',
   '自动连续模式：锁定一格连续给状态、逐格右移（中键点单元格可一步启动+选中；开启后再点切换为逐格下移）': 'Auto mode: lock a cell and keep painting, stepping right (middle-click a cell to start+select; click again to switch to stepping down)',
   '自动连续模式进行中（逐格右移）：键盘字符 / 左键单击 / 点笔刷给当前格上色并右移；点此切换为逐格下移，ESC 退出': 'Auto mode (stepping right): keys / click / brush paint the cell and step right; click to switch to stepping down, ESC exits',
@@ -1725,16 +1726,21 @@ document.documentElement.dataset.trace = tryGet('wdgui-trace') === 'glow' ? 'glo
 document.documentElement.dataset.wavebg = tryGet('wdgui-wavebg') || 'default';
 if (tryGet('wdgui-head-same') !== '0') document.documentElement.dataset.headSame = '1';
 document.documentElement.dataset.zebra = tryGet('wdgui-zebra') === '0' ? '0' : '1';
-/* ---------- 视图模式：auto=按视口判断桌面/手机；simple=强制手机（简约）布局 ---------- */
+/* ---------- 视图模式：auto=按视口判断桌面/手机；simple=强制手机（简约）布局；desktop=强制桌面布局 ---------- */
 const VIEWMODE_MQ = window.matchMedia('(max-width: 800px)');
 /* 矮视口（高度不足）在 auto 模式下也按简约布局排布：桌面窗口压矮时，紧凑布局
    （工具栏收紧、左栏收成抽屉、预览/代码收成入口按钮）比硬塞桌面版实用得多。
    用媒体查询而不是 innerHeight：与宽度那条同一套监听方式，阈值改动只在一处 */
 const VIEWMODE_MIN_H = 600;
 const VIEWMODE_HMQ = window.matchMedia(`(max-height: ${VIEWMODE_MIN_H - 1}px)`);
-function viewMode() { return tryGet('wdgui-viewmode') === 'simple' ? 'simple' : 'auto'; }
-/* 是否走手机布局：简约模式恒为真；自动模式看视口是否 ≤800px 宽、或 <600px 高 */
-function isMobile() { return viewMode() === 'simple' || VIEWMODE_MQ.matches || VIEWMODE_HMQ.matches; }
+function viewMode() { const v = tryGet('wdgui-viewmode'); return v === 'simple' || v === 'desktop' ? v : 'auto'; }
+/* 是否走手机布局：简约模式恒为真，桌面模式恒为假；自动模式看视口是否 ≤800px 宽、或 <600px 高 */
+function isMobile() {
+  const m = viewMode();
+  if (m === 'simple') return true;
+  if (m === 'desktop') return false;
+  return VIEWMODE_MQ.matches || VIEWMODE_HMQ.matches;
+}
 /* 把有效手机态写到 html[data-mobile]，驱动手机 CSS 作用域 */
 function applyViewMode() {
   if (isMobile()) document.documentElement.dataset.mobile = '';
@@ -1761,9 +1767,9 @@ function applySideDock() {
   if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
     b.title = on ? i18n('隐藏通道与分组面板') : i18n('显示通道与分组面板'); }
 }
-/* 切换视图模式偏好（auto/simple）并即时生效 */
+/* 切换视图模式偏好（auto/simple/desktop）并即时生效 */
 function setViewModePref(mode) {
-  storeSet('wdgui-viewmode', mode === 'simple' ? 'simple' : 'auto');
+  storeSet('wdgui-viewmode', mode === 'simple' || mode === 'desktop' ? mode : 'auto');
   applyViewMode();
   applySideDock();          // 有效手机态变了→修正面板显隐与笔刷栏归属（避免离开手机态后 palette 仍挂在 workspace）
   renderBrushUI();          // 笔刷分组/形态随手机态切换
@@ -5533,7 +5539,7 @@ function buildSettingsMenu(menu) {
   const HEAD_BGS = [['own', i18n('独立底色')], ['same', i18n('与波形同色')]];
   const ZEBRAS = [['on', i18n('显示')], ['off', i18n('隐藏')]];
   const VIEWS = [['side', i18n('预览在右侧')], ['below', i18n('预览在下方')]];
-  const VMODES = [['auto', i18n('自动'), i18n('按屏宽判断桌面/手机布局')], ['simple', i18n('简约模式'), i18n('固定使用手机版布局')]];
+  const VMODES = [['auto', i18n('自动'), i18n('按屏宽判断桌面/手机布局')], ['simple', i18n('简约模式'), i18n('固定使用手机版布局')], ['desktop', i18n('桌面模式'), i18n('固定使用桌面版布局')]];
   const NMODES = [['bare', i18n('仅字母')], ['letter', i18n('圈+字母')], ['dot', i18n('点')]];
   const LABELS = [['on', i18n('标签保持')], ['off', i18n('换字符即清除')]];
   const curTrace = () => root.dataset.trace === 'glow' ? 'glow' : 'slim';
