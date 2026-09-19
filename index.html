@@ -1439,6 +1439,7 @@ const I18N_EN = {
   '波形背景': 'Wave bg', '默认': 'Default', '纯白': 'White', '米纸': 'Paper', '雾蓝': 'Mist', '苔绿': 'Sage',
   '信号名底色': 'Name bg', '独立底色': 'Separate', '与波形同色': 'Waveform',
   '斑马纹': 'Zebra', '显示': 'On', '隐藏': 'Off',
+  '开': 'On', '关': 'Off', '自动去毛刺': 'Auto de-glitch', '去毛刺开': 'De-glitch on', '去毛刺关': 'De-glitch off',
   '界面字体': 'UI font', '数据·代码字体': 'Data font',
   '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans', '系统字体': 'System',
   '视图': 'View', '布局方向': 'Layout', '预览在右侧': 'Right', '预览在下方': 'Below',
@@ -4159,6 +4160,42 @@ function showBrushPanelNearFab(fab, atX, atY) {
 let painting = false, paintLane = null, paintedSinceDown = false, dragLastT = -1, extendMode = false;
 let lastXform = null; // 越界变换的边缘触发去抖：{ t, zone }——仅当所在列或上/下区域变化时才变换一次
 function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l; }); return r; }
+/* ---------- 自动去毛刺：电平字符写入后，把所在连续同电平段归一化成「段首 + 延续符」 ----------
+   同电平的 1/0 画平线无毛刺但字符冗余；同电平的 h/H/l/L 会画出贯穿低高的竖沿（+箭头）＝毛刺。
+   归一化后段首（真实跳变处，沿/箭头落点）保留原字符，段内其余显式字符换成延续符，几何不变。 */
+const DEGLITCH_HI = '1Hh', DEGLITCH_LO = '0Ll';
+function deglitchOn() { return tryGet('wdgui-deglitch') !== '0'; }
+function deglitchRun(lane, t) {
+  if (!deglitchOn()) return;
+  const slot = lane.slots[t];
+  if (!slot) return;
+  const set = DEGLITCH_HI.includes(slot.glyph) ? DEGLITCH_HI : DEGLITCH_LO.includes(slot.glyph) ? DEGLITCH_LO : null;
+  if (!set) return; // 只对电平字符触发；延续/时钟/沿/数据/不定/间隙的写入永不触发
+  /* 向后回溯段首：穿延续格与同电平显式格（最左的显式格即段首）；
+     遇异电平（真实跳变）、u/d、时钟、x/z、数据、|（间隙不跨越）或空格即停 */
+  let start = t;
+  for (let i = t - 1; i >= 0; i--) {
+    const sl = lane.slots[i];
+    if (!sl) break;
+    const c = sl.glyph;
+    if (c === '.') continue;
+    if (set.includes(c)) { start = i; continue; }
+    break;
+  }
+  /* 向前扫段尾：同电平显式格并入段待归一，延续格路过，其他字符即停 */
+  let end = t;
+  for (let i = t + 1; i < lane.slots.length; i++) {
+    const sl = lane.slots[i];
+    if (!sl) break;
+    const c = sl.glyph;
+    if (c === '.' || set.includes(c)) { end = i; continue; }
+    break;
+  }
+  for (let i = start + 1; i <= end; i++) {
+    const sl = lane.slots[i];
+    if (sl && set.includes(sl.glyph)) lane.slots[i] = { ...sl, glyph: '.' }; // 保留 label 等附带字段
+  }
+}
 function paintCell(lane, t, glyph) {
   commitTag = 'paint';
   while (lane.slots.length <= t) lane.slots.push(null);
@@ -4182,6 +4219,7 @@ function paintCell(lane, t, glyph) {
   }
   lane.slots[t] = slot;
   lane.len = Math.max(lane.len || 0, t + 1);
+  deglitchRun(lane, t); // 电平写入后就地归一化所在段（同一提交内，撤销一步整体回退）
   paintedSinceDown = true;
   /* 拖涂每跨一格都会进来：直接 update() 会每格全量重建网格 + 全文序列化，
      大文档拖动必掉帧。rAF 合帧后状态照常累改，一帧只渲染一次 */
@@ -5538,6 +5576,7 @@ function buildSettingsMenu(menu) {
   const WBGS = [['default', i18n('默认')], ['white', i18n('纯白')], ['paper', i18n('米纸')], ['mist', i18n('雾蓝')], ['sage', i18n('苔绿')]];
   const HEAD_BGS = [['own', i18n('独立底色')], ['same', i18n('与波形同色')]];
   const ZEBRAS = [['on', i18n('显示')], ['off', i18n('隐藏')]];
+  const ONS = [['on', i18n('开')], ['off', i18n('关')]];
   const VIEWS = [['side', i18n('预览在右侧')], ['below', i18n('预览在下方')]];
   const VMODES = [['auto', i18n('自动'), i18n('按屏宽判断桌面/手机布局')], ['simple', i18n('简约模式'), i18n('固定使用手机版布局')], ['desktop', i18n('桌面模式'), i18n('固定使用桌面版布局')]];
   const NMODES = [['bare', i18n('仅字母')], ['letter', i18n('圈+字母')], ['dot', i18n('点')]];
@@ -5629,11 +5668,13 @@ function buildSettingsMenu(menu) {
     body.appendChild(srow);
   });
 
-  cat('brush', i18n('笔刷'), () => i18n(labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条')), body => {
+  cat('brush', i18n('笔刷'), () => i18n(labelOf(BRUSH_DEFAULTS, state_brush.def, '下横条')) + ' · ' + i18n(deglitchOn() ? '去毛刺开' : '去毛刺关'), body => {
     row(body, i18n('笔刷栏默认样式'), BRUSH_DEFAULTS.map(x => [x[0], i18n(x[1])]), () => state_brush.def, v => {
       state_brush.def = v; storeSet('wdgui-brush-default', v);
       state_brush.mode = v; renderBrushUI();
     });
+    /* 自动去毛刺：电平写入后把所在连续同电平段归一成「段首 + 延续符」，消除同电平 h/H/l/L 的冗余竖沿 */
+    row(body, i18n('自动去毛刺'), ONS, () => deglitchOn() ? 'on' : 'off', v => storeSet('wdgui-deglitch', v));
   });
 
   /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
