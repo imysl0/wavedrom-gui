@@ -52,15 +52,54 @@
 
         - <<: *publish-eo
 
+        # 自动生成变动说明：汇总「上一个 Tag → 本次 Tag」之间的提交，写入 LATEST_CHANGELOG.md。
+        # allowFailure：首个 Tag、区间内无变更或 Git 历史不可达时不阻断发版，由下一步兜底。
+        # 不在此前执行 git fetch --unshallow：文末 git-sync 依赖 fetch_options: --unshallow，
+        # 仓库一旦先变成完整库，该参数会报 "does not make sense"。
+        - name: 生成变动说明
+          image: cnbcool/changelog:latest
+          allowFailure: true
+          settings:
+            latestChangeLogTarget: LATEST_CHANGELOG.md
+            linkReferences: true
+            showPr: true
+
+        # 组装最终 Release 描述：固定文案 + 自动变动说明；文件缺失时降级，保证发布不被卡住。
+        - name: 组装 Release 说明
+          image: node:20
+          script: |
+            set -eu
+            if [ -s LATEST_CHANGELOG.md ]; then
+              echo "已获取自动生成的变动说明，共 $(wc -l < LATEST_CHANGELOG.md) 行"
+              echo "----- LATEST_CHANGELOG.md 预览 -----"
+              head -n 40 LATEST_CHANGELOG.md
+            else
+              echo "【警告】未生成 LATEST_CHANGELOG.md（首个 Tag / 区间无变更 / Git 历史不足），本次降级为固定说明"
+            fi
+
+            {
+              echo "WaveDrom-Gui $CNB_BRANCH"
+              echo
+              echo "Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。"
+              echo
+              if [ -s LATEST_CHANGELOG.md ]; then
+                cat LATEST_CHANGELOG.md
+              else
+                echo "本次未生成自动变动说明，请查看提交记录。"
+              fi
+            } > RELEASE_NOTES.md
+
+            test -s RELEASE_NOTES.md
+            echo "----- RELEASE_NOTES.md（前 40 行）-----"
+            head -n 40 RELEASE_NOTES.md
+
         - name: 创建 Release
           type: git:release
           options:
             tag: "$CNB_BRANCH"
             title: "$CNB_BRANCH"
-            description: |
-              WaveDrom-Gui $CNB_BRANCH
-
-              Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。
+            # 与 description 互斥：描述内容较多时用文件，避免超出长度限制
+            descriptionFromFile: RELEASE_NOTES.md
             latest: true
 
         - name: 打包 VS Code 扩展
