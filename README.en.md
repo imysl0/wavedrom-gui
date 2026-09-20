@@ -12,7 +12,7 @@ A single-file HTML app (~500 KB): click and drag to edit WaveDrom timing diagram
 
 Highlights:
 
-- **Point-and-click + brushes**: 24 waveform states, paint by dragging, drag right to hold, right-click to erase; the brush bar folds through five layouts and supports direct keyboard shortcuts; auto de-glitch on by default (same-level runs normalize to "run head + holds", toggleable)
+- **Point-and-click + brushes**: 24 waveform states, paint by dragging, drag right to hold, right-click to erase; the brush bar folds through five layouts and supports direct keyboard shortcuts; auto de-glitch is off by default (toggle it in the preview footer or in Settings; same-level runs normalize to "run head + holds"), and the preview footer offers a one-click de-glitch that sweeps the whole diagram and reports how many glitches were removed
 - **Official engine, live preview**: ships WaveDrom v3.5.0 with the default/narrow skins — what you see is what you get
 - **Groups, nodes and arrows**: nested groups with synchronized collapse, every official arrow notation, full period/phase/hscale/hbounds support
 - **Import/export loop**: exported SVG/PNG embed WaveJSON metadata (re-import the image to restore the diagram; interoperable with the Skill) plus the **export source** (SVG `data-export` / PNG `WaveDromGui` iTXt chunk: official render / editor vector rebuild / skill-modern) — the VS Code extension uses it to redraw write-backs in the original style, so editing rounds never wash the style away; lenient WaveJSON parsing (`//` comments, unquoted keys, matching the official editor), JSON / kroki snippet / share link

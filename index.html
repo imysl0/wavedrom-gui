@@ -797,6 +797,16 @@ html:not([data-mobile])[data-show-preview="0"][data-show-code="0"] #splitMain { 
   padding: 18px;
 }
 .zoom-wrap { transform-origin: 0 0; width: max-content; }
+/* 预览底栏：一键去毛刺 + 自动去毛刺开关（与设置里的同名项共用同一份偏好） */
+.preview-foot {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+.preview-foot .dg-state { margin-left: 2px; font-weight: 600; opacity: .75; }
+#deglitchAutoBtn.on { color: var(--acc-text); border-color: var(--acc); background: var(--acc-veil); }
+#deglitchAutoBtn.on .dg-state { opacity: 1; }
 html[data-theme="dark"] #wv0 svg { filter: invert(0.91) hue-rotate(180deg) contrast(1.05); }
 html:not([data-theme]) #wv0 svg { filter: invert(0.91) hue-rotate(180deg) contrast(1.05); }
 .code-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px 12px 12px; gap: 8px; }
@@ -1250,6 +1260,10 @@ html[data-mobile] {
     </div>
     <div class="pane active" id="pane-preview">
       <div class="preview-stage" id="previewStage"><div class="zoom-wrap" id="zoomWrap"><div id="wv0"></div></div></div>
+      <div class="preview-foot">
+        <button class="btn" id="deglitchBtn" data-i18n-title="扫描全图，把同电平段里的冗余电平字符合并成延续符" data-i18n-aria="扫描全图，把同电平段里的冗余电平字符合并成延续符"><span data-i18n="一键去毛刺">一键去毛刺</span></button>
+        <button class="btn" id="deglitchAutoBtn" aria-pressed="false" data-i18n-title="会实时自动使用延续符尽可能合并相同电平信号！" data-i18n-aria="会实时自动使用延续符尽可能合并相同电平信号！"><span data-i18n="自动去毛刺">自动去毛刺</span><span class="dg-state" id="dgAutoState">关</span></button>
+      </div>
     </div>
     <div class="pane" id="pane-code">
       <div class="code-wrap">
@@ -1440,6 +1454,9 @@ const I18N_EN = {
   '信号名底色': 'Name bg', '独立底色': 'Separate', '与波形同色': 'Waveform',
   '斑马纹': 'Zebra', '显示': 'On', '隐藏': 'Off',
   '开': 'On', '关': 'Off', '自动去毛刺': 'Auto de-glitch', '去毛刺开': 'De-glitch on', '去毛刺关': 'De-glitch off',
+  '一键去毛刺': 'One-click de-glitch', '扫描全图，把同电平段里的冗余电平字符合并成延续符': 'Scan the whole diagram and merge redundant level characters of a same-level run into holds',
+  '会实时自动使用延续符尽可能合并相同电平信号！': 'Same-level signals are merged with hold characters automatically in real time!',
+  '没有毛刺': 'No glitches', '去掉 ': 'Removed ', ' 个毛刺': ' glitches', '（同电平合并 ': ' (merged ', ' 处）': ' same-level cells)',
   '界面字体': 'UI font', '数据·代码字体': 'Data font',
   '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans', '系统字体': 'System',
   '视图': 'View', '布局方向': 'Layout', '预览在右侧': 'Right', '预览在下方': 'Below',
@@ -1703,6 +1720,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = i18n(el.dataset.i18nPh); });
   closePop(); closeMoreMenu(); closeSetPop(); // 动态浮层内容不随语言刷新，直接收起避免中英混排
   renderGrid(); renderEdges(); renderBrushUI();
+  syncDeglitchUI(); // 预览底栏开关的开/关字随语言重排
   if ($('#nodeLinkMask').classList.contains('open')) renderNodeLinks(); // 标题与提示随语言重排
   updateChainBtn();
 }
@@ -4164,10 +4182,13 @@ function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l;
    同电平的 1/0 画平线无毛刺但字符冗余；同电平的 h/H/l/L 会画出贯穿低高的竖沿（+箭头）＝毛刺。
    归一化后段首（真实跳变处，沿/箭头落点）保留原字符，段内其余显式字符换成延续符，几何不变。 */
 const DEGLITCH_HI = '1Hh', DEGLITCH_LO = '0Ll';
-/* 存 '0' 为关（与斑马纹等布尔设置同一套 '1'/'0' 约定）；兼容 v260920.1 误存的 'off' */
-function deglitchOn() { const v = tryGet('wdgui-deglitch'); return v !== '0' && v !== 'off'; }
+/* 默认关：只有显式存过 '1'（或早期版本点「开」存下的 'on'）才视为开 */
+function deglitchOn() { const v = tryGet('wdgui-deglitch'); return v === '1' || v === 'on'; }
 function deglitchRun(lane, t) {
   if (!deglitchOn()) return;
+  deglitchNormalizeRun(lane, t);
+}
+function deglitchNormalizeRun(lane, t) {
   const slot = lane.slots[t];
   if (!slot) return;
   const set = DEGLITCH_HI.includes(slot.glyph) ? DEGLITCH_HI : DEGLITCH_LO.includes(slot.glyph) ? DEGLITCH_LO : null;
@@ -4196,6 +4217,44 @@ function deglitchRun(lane, t) {
     const sl = lane.slots[i];
     if (sl && set.includes(sl.glyph)) lane.slots[i] = { ...sl, glyph: '.' }; // 保留 label 等附带字段
   }
+}
+/* 一键去毛刺：全图按同一规则扫一遍（不受自动开关影响），返回消除的可见毛刺数与合并的同电平字符数。
+   单趟状态机与 deglitchNormalizeRun 同义：段首保留，段内冗余电平字符换延续符，其余字符断段。 */
+function deglitchAll() {
+  let spikes = 0, merged = 0;
+  eachLane(lane => {
+    let cur = null; // 当前段的电平字符集；null = 不在任何电平段内
+    const n = lane.slots.length;
+    for (let i = 0; i < n; i++) {
+      const sl = lane.slots[i];
+      const g = sl ? sl.glyph : '';
+      if (g === '.') continue; // 延续格：段内原样留着（段外也无从合并）
+      const set = DEGLITCH_HI.includes(g) ? DEGLITCH_HI : DEGLITCH_LO.includes(g) ? DEGLITCH_LO : null;
+      if (!set) { cur = null; continue; } // 异电平/沿/时钟/不定/数据/间隙/空槽：段结束
+      if (set === cur) {
+        lane.slots[i] = { ...sl, glyph: '.' };
+        if (g === 'h' || g === 'H' || g === 'l' || g === 'L') spikes++; else merged++;
+      } else cur = set; // 新段段首（真实跳变处）：保留
+    }
+  });
+  return { spikes, merged };
+}
+/* 自动去毛刺开关：设置 → 笔刷 与预览底栏共用同一份偏好，任一处改动即时同步另一处 */
+function setDeglitch(on) {
+  storeSet('wdgui-deglitch', on ? '1' : '0');
+  syncDeglitchUI();
+  const m = document.querySelector('#m-settings .menu');
+  if (m && m.classList.contains('open')) buildSettingsMenu(m); // 设置菜单开着时同步该行回显
+  if (on) toast(i18n('会实时自动使用延续符尽可能合并相同电平信号！'));
+}
+function syncDeglitchUI() {
+  const b = document.getElementById('deglitchAutoBtn');
+  if (!b) return;
+  const on = deglitchOn();
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', String(on));
+  const s = document.getElementById('dgAutoState');
+  if (s) s.textContent = i18n(on ? '开' : '关');
 }
 function paintCell(lane, t, glyph) {
   commitTag = 'paint';
@@ -5675,7 +5734,7 @@ function buildSettingsMenu(menu) {
       state_brush.mode = v; renderBrushUI();
     });
     /* 自动去毛刺：电平写入后把所在连续同电平段归一成「段首 + 延续符」，消除同电平 h/H/l/L 的冗余竖沿 */
-    row(body, i18n('自动去毛刺'), ONS, () => deglitchOn() ? 'on' : 'off', v => storeSet('wdgui-deglitch', v === 'on' ? '1' : '0'));
+    row(body, i18n('自动去毛刺'), ONS, () => deglitchOn() ? 'on' : 'off', v => setDeglitch(v === 'on'));
   });
 
   /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
@@ -6668,6 +6727,18 @@ function init() {
   applyPanes();
   applySizes();
   bindSplitters();
+
+  /* 预览底栏：一键去毛刺（不受自动开关影响）与自动去毛刺开关（与设置里的同名项同一份偏好） */
+  const dgBtn = $('#deglitchBtn'), dgAuto = $('#deglitchAutoBtn');
+  if (dgBtn) dgBtn.addEventListener('click', () => {
+    const r = deglitchAll();
+    if (r.spikes || r.merged) { commitTag = 'deglitch'; update(); }
+    if (r.spikes) toast(i18n('去掉 ') + r.spikes + i18n(' 个毛刺') + (r.merged ? i18n('（同电平合并 ') + r.merged + i18n(' 处）') : ''));
+    else if (r.merged) toast(i18n('没有毛刺') + i18n('（同电平合并 ') + r.merged + i18n(' 处）'));
+    else toast(i18n('没有毛刺'));
+  });
+  if (dgAuto) dgAuto.addEventListener('click', () => setDeglitch(!deglitchOn()));
+  syncDeglitchUI();
 
   undoBase = JSON.stringify(buildJSON());
   $('#undoBtn').addEventListener('click', doUndo);
