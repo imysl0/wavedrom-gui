@@ -4765,12 +4765,26 @@ function shiftTickParts(parts, col, remove) {
   if (remove) parts.splice(Math.min(col, parts.length - 1), 1);
   else parts.splice(Math.min(col, parts.length), 0, parts[col - 1] !== undefined ? parts[col - 1] : '');
 }
-/* 某通道第 k 拍前插入一拍（内容为延续符），返回是否改动 */
+/* 新插入那一拍用什么字符。默认是延续符「.」；但「前面没有任何状态可延续」时（第 0 拍之前、
+   或前面全是空/延续格）延续符渲染出来是**空白**，此时：
+   - 电平/时钟/x/z/沿：采用后面那一拍的状态（电平不变、时钟多走一拍、不定框同形复制）；
+   - 数据字符（= 与数字）：用「x」占位——渲染成不定框看得见，又不会在前面另起数据框
+     （复制成 = 会把 data 数组的标签整体挤后一位）。 */
+function cycleInsertGlyph(lane, k) {
+  if (extendSource(lane, k) >= 0) return '.'; // 前面有真实状态：正常延续
+  for (let t = k; t < laneLen(lane); t++) {
+    const s = lane.slots[t];
+    if (!s || s.glyph === '.' || s.glyph === '|') continue;
+    return isData(s.glyph) ? 'x' : s.glyph;
+  }
+  return '.';
+}
+/* 某通道第 k 拍前插入一拍，返回是否改动 */
 function insertLaneCycle(lane, k) {
   if (!(k >= 0) || laneLen(lane) === 0) return false; // 空通道：没有内容需要让位，别凭空长出一格延续
   if (k > laneLen(lane)) return false;                // 内容没到这一拍：同理不延长
   while (lane.slots.length < k) lane.slots.push(null); // 补到 k 位即可：用 <= 会在末尾插入时多留一个空槽
-  lane.slots.splice(k, 0, { glyph: '.' });
+  lane.slots.splice(k, 0, { glyph: cycleInsertGlyph(lane, k) });
   if (lane.len) lane.len += 1;
   const byT = {};
   Object.keys(lane.nodeByT).forEach(t => { const n = +t; byT[n >= k ? n + 1 : n] = lane.nodeByT[t]; });
