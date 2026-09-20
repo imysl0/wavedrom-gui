@@ -4164,7 +4164,8 @@ function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l;
    同电平的 1/0 画平线无毛刺但字符冗余；同电平的 h/H/l/L 会画出贯穿低高的竖沿（+箭头）＝毛刺。
    归一化后段首（真实跳变处，沿/箭头落点）保留原字符，段内其余显式字符换成延续符，几何不变。 */
 const DEGLITCH_HI = '1Hh', DEGLITCH_LO = '0Ll';
-function deglitchOn() { return tryGet('wdgui-deglitch') !== '0'; }
+/* 存 '0' 为关（与斑马纹等布尔设置同一套 '1'/'0' 约定）；兼容 v260920.1 误存的 'off' */
+function deglitchOn() { const v = tryGet('wdgui-deglitch'); return v !== '0' && v !== 'off'; }
 function deglitchRun(lane, t) {
   if (!deglitchOn()) return;
   const slot = lane.slots[t];
@@ -5674,7 +5675,7 @@ function buildSettingsMenu(menu) {
       state_brush.mode = v; renderBrushUI();
     });
     /* 自动去毛刺：电平写入后把所在连续同电平段归一成「段首 + 延续符」，消除同电平 h/H/l/L 的冗余竖沿 */
-    row(body, i18n('自动去毛刺'), ONS, () => deglitchOn() ? 'on' : 'off', v => storeSet('wdgui-deglitch', v));
+    row(body, i18n('自动去毛刺'), ONS, () => deglitchOn() ? 'on' : 'off', v => storeSet('wdgui-deglitch', v === 'on' ? '1' : '0'));
   });
 
   /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
