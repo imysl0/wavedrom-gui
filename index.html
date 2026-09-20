@@ -935,6 +935,11 @@ header .ver-badge.ver-link:hover .ver-pop, header .ver-badge.ver-link:focus-visi
 }
 .modal textarea:focus { outline: none; border-color: var(--acc); }
 .modal .m-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+/* 宽标签提示（自动缩放）：附注行 + 抑制时长一排小按钮 */
+.modal .hint-line { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.modal .hint-suppress { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.modal .hint-suppress > span { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.modal .hint-suppress .btn { height: 26px; padding: 0 9px; font-size: 12px; }
 .modal .m-err { color: var(--danger); font-size: 12px; margin-top: 8px; min-height: 16px; }
 .modal a { color: var(--info); }
 .modal a:hover { text-decoration: underline; }
@@ -1396,12 +1401,32 @@ html[data-mobile] {
       <div class="field"><label for="footTick" data-i18n="刻度（0 起）">刻度（0 起）</label><input type="text" id="footTick" placeholder="0、5 2、a, b, c"></div>
       <div class="field"><label for="footTock" data-i18n="刻度（倒标）">刻度（倒标）</label><input type="text" id="footTock" placeholder="9、5 2、a, b, c"></div>
       <div class="cfg-group" data-i18n="波形">波形</div>
+      <div class="field"><label for="autoScale" data-i18n="自动缩放">自动缩放</label><select id="autoScale"><option value="off" data-i18n="关">关</option><option value="on" data-i18n="开">开</option></select></div>
+      <div class="field"><label for="autoScaleMax" data-i18n="自动缩放上限">自动缩放上限</label><select id="autoScaleMax"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option><option value="6">6×</option><option value="7">7×</option><option value="8">8×</option></select></div>
       <div class="field"><label for="hscale" data-i18n="水平缩放">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
       <div class="field"><label for="skin" data-i18n="皮肤">皮肤</label><select id="skin"><option value="default" data-i18n="default（标准）">default（标准）</option><option value="narrow" data-i18n="narrow（紧凑）">narrow（紧凑）</option></select></div>
       <div class="cfg-group" data-i18n="裁剪">裁剪</div>
       <div class="field"><label for="hbMin" data-i18n="起始拍">起始拍</label><input type="number" id="hbMin" min="0" step="1" data-i18n-ph="—（不裁剪）" placeholder="—（不裁剪）"></div>
       <div class="field"><label for="hbMax" data-i18n="结束拍">结束拍</label><input type="number" id="hbMax" min="0" step="1" data-i18n-ph="—（不裁剪）" placeholder="—（不裁剪）"></div>
       <div class="field"><label></label><span style="font-size:11px;color:var(--faint)" data-i18n="预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。">预览与编辑区同步裁剪（官方语义，不含结束拍）；结束拍留空 = 裁到内容末尾。</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="autoScaleMask">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="标签超出单元格宽度" data-i18n-aria="标签超出单元格宽度">
+    <h3><span data-i18n="标签超出单元格宽度">标签超出单元格宽度</span></h3>
+    <p data-i18n="当前图表里有总线标签比单元格宽，编辑区只能省略显示（开头…末尾字符）。打开「自动缩放」后，水平缩放会按最宽的标签自动加宽，标签即可完整显示。">当前图表里有总线标签比单元格宽，编辑区只能省略显示（开头…末尾字符）。打开「自动缩放」后，水平缩放会按最宽的标签自动加宽，标签即可完整显示。</p>
+    <p class="hint-line" data-i18n="之后也可以自己打开：设置 → 笔刷 → 自动缩放，或左栏「图表」→ 波形 → 自动缩放。">之后也可以自己打开：设置 → 笔刷 → 自动缩放，或左栏「图表」→ 波形 → 自动缩放。</p>
+    <div class="hint-suppress">
+      <span data-i18n="暂不打开，且不再提示：">暂不打开，且不再提示：</span>
+      <button class="btn ghost" data-act="autoscale-never" data-i18n="永久">永久</button>
+      <button class="btn ghost" data-act="autoscale-day" data-i18n="一天">一天</button>
+      <button class="btn ghost" data-act="autoscale-week" data-i18n="一周">一周</button>
+    </div>
+    <div class="m-foot">
+      <button class="btn ghost" data-act="autoscale-later" data-i18n="稍后再说">稍后再说</button>
+      <button class="btn primary" data-act="autoscale-on" data-i18n="打开自动缩放">打开自动缩放</button>
     </div>
   </div>
 </div>
@@ -1457,6 +1482,15 @@ const I18N_EN = {
   '一键去毛刺': 'One-click de-glitch', '扫描全图，把同电平段里的冗余电平字符合并成延续符': 'Scan the whole diagram and merge redundant level characters of a same-level run into holds',
   '会实时自动使用延续符尽可能合并相同电平信号！': 'Same-level signals are merged with hold characters automatically in real time!',
   '没有毛刺': 'No glitches', '去掉 ': 'Removed ', ' 个毛刺': ' glitches', '（同电平合并 ': ' (merged ', ' 处）': ' same-level cells)',
+  '自动缩放': 'Auto scale',   '自动缩放上限': 'Auto scale limit',
+  '自动缩放已打开：水平缩放按最宽的总线标签自动决定，最大 ': 'Auto scale is on: the horizontal scale follows the widest bus label, at most ',
+  '标签超出单元格宽度': 'Label wider than its cell',
+  '当前图表里有总线标签比单元格宽，编辑区只能省略显示（开头…末尾字符）。打开「自动缩放」后，水平缩放会按最宽的标签自动加宽，标签即可完整显示。': 'Some bus labels are wider than their cells, so the editor can only elide them (start…end character). With "Auto scale" on, the horizontal scale grows automatically to fit the widest label, so labels show in full.',
+  '之后也可以自己打开：设置 → 笔刷 → 自动缩放，或左栏「图表」→ 波形 → 自动缩放。': 'You can also enable it yourself later: Settings → Brushes → Auto scale, or the left panel’s "Chart" → Waveform → Auto scale.',
+  '暂不打开，且不再提示：': 'Not now, and don’t ask again for:',
+  '永久': 'Forever', '一天': 'A day', '一周': 'A week', '稍后再说': 'Later', '打开自动缩放': 'Enable auto scale',
+  '已打开自动缩放：水平缩放将按最宽的总线标签自动加宽': 'Auto scale enabled: the horizontal scale grows to fit the widest bus label',
+  '已关闭提示（': 'Prompts disabled (', '）；之后可在 设置 → 笔刷 → 自动缩放 或 左栏「图表」→ 波形 → 自动缩放 打开': '); enable it later at Settings → Brushes → Auto scale, or the left panel’s "Chart" → Waveform → Auto scale',
   '界面字体': 'UI font', '数据·代码字体': 'Data font',
   '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans', '系统字体': 'System',
   '视图': 'View', '布局方向': 'Layout', '预览在右侧': 'Right', '预览在下方': 'Below',
@@ -1830,6 +1864,7 @@ applyFonts();
 function applyFonts() {
   document.documentElement.style.setProperty('--font-ui', FONT_STACKS[state_font.ui].ui);
   document.documentElement.style.setProperty('--font-mono', FONT_STACKS[state_font.data].mono);
+  resetLabelWidths(); // 数据字体换了 → 标签实测宽度变了，清缓存重排（节点避让也依赖它）
 }
 /* 设置菜单里的字体选项：界面用无衬线名，数据/代码用对应等宽名 */
 const FONT_CHOICES = [
@@ -1950,7 +1985,71 @@ function nodeMarkerR() {
 }
 /* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
 const LABEL_BAND = [18.5, 32];
-const labelTextW = s => String(s).length * 7.4;
+/* 数据框标签宽度：按渲染字体实测（14px var(--font-mono)）。
+   不能用「每字符固定宽度」估算——中文/全角在等宽字体里正好是 ASCII 的两倍宽，
+   按单倍算会把中文标签算窄一半，省略后仍溢出格子压到相邻数据框。 */
+/* 宽度缓存用 var 并延迟创建：applyFonts() 在模块顶层（本文件更靠前的位置）就会被调用一次，
+   那时下面的 const 还在 TDZ 里，写 const 会让整个脚本顶层执行中断。 */
+var labelWCache = null;
+var labelWCtx = null;
+/* 全角判定：CJK 各块 + 全角标点/字母，另含破折号（—）与省略号（…）——等宽字体下它们同样占整宽 */
+const WIDE_CH = /[\u1100-\u115F\u2014\u2026\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uA960-\uA97F\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+/* 退化估算（拿不到 canvas 时用）：全角字符按两倍宽度计 */
+function estimateLabelW(s) {
+  let units = 0;
+  for (const ch of String(s)) units += WIDE_CH.test(ch) ? 2 : 1;
+  return units * 7.4;
+}
+function labelFontSpec() {
+  const stack = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'monospace';
+  return '14px ' + stack;
+}
+function labelTextW(s) {
+  const str = String(s);
+  if (!str) return 0;
+  if (!labelWCache) labelWCache = new Map();
+  const hit = labelWCache.get(str);
+  if (hit !== undefined) return hit;
+  let w = 0;
+  try {
+    if (!labelWCtx) labelWCtx = document.createElement('canvas').getContext('2d');
+    if (labelWCtx) { labelWCtx.font = labelFontSpec(); w = labelWCtx.measureText(str).width; }
+  } catch (e) { w = 0; }
+  if (!(w > 0)) w = estimateLabelW(str);
+  labelWCache.set(str, w);
+  return w;
+}
+/* 换字体、Web 字体加载完成都会改变实测宽度：清缓存后按新宽度重排。
+   applyFonts() 在模块顶层就会被调用一次，此时后面的 const 还没初始化（TDZ），
+   直接 renderGrid() 会抛错并中断整个脚本——所以用 var 做的就绪标记守住重排。 */
+var appReady = false;
+function resetLabelWidths() {
+  if (labelWCache) labelWCache.clear();
+  if (labelWCtx) { try { labelWCtx.font = labelFontSpec(); } catch (e) { /* 忽略 */ } }
+  if (appReady) renderGrid();
+}
+if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+  document.fonts.ready.then(() => { if (labelWCache) labelWCache.clear(); if (appReady) renderGrid(); });
+}
+/* 标签放不下时按字符省略，绝不做字距压缩：优先「开头…末尾字符」，
+   空间还不够就只留开头，最终在可用宽度里正常显示尽可能多的字符 */
+function fitLabel(label, avail) {
+  const s = String(label);
+  if (avail <= 0) return '';
+  if (labelTextW(s) <= avail) return s;
+  const chs = [...s];
+  if (chs.length <= 1) return s; // 单字符没有省略的余地
+  const last = chs[chs.length - 1];
+  for (let n = chs.length - 1; n >= 1; n--) { // 递减前缀 + … + 末尾字符
+    const cand = chs.slice(0, n).join('') + '…' + last;
+    if (labelTextW(cand) <= avail) return cand;
+  }
+  for (let n = chs.length - 1; n >= 1; n--) { // 连末尾都放不下：只留开头
+    const cand = chs.slice(0, n).join('') + '…';
+    if (labelTextW(cand) <= avail) return cand;
+  }
+  return '…';
+}
 /* 被抬起的节点圆心 y：贴数据框上沿，完全避开标签行 */
 function liftedNodeY() { const mr = nodeMarkerR(); return Math.max(mr, LABEL_BAND[0] - mr - 1.5); }
 
@@ -2021,6 +2120,100 @@ WHEEL_CYCLES.nonclock = [...new Set([...WHEEL_CYCLES.signal, ...WHEEL_CYCLES.bus
 const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 let xclipSeq = 0;
 const gridCellW = () => CELLW * (state.hscale || 1);
+
+/* ---------- 自动缩放：按最宽的总线标签自动挑水平缩放（1–8 整数，与手动档位同一套取值） ----------
+   手动改 hscale 能加宽单元格让标签放得下，这里把它自动化：开关打开时每次文档变化都重算。
+   数据框范围与 laneSVG 同规则：数据格 + 其后紧邻的空格 / 延续 / 间隙格。 */
+const AUTOSCALE_MAX = 8;
+/* 自动缩放的倍数上限（用户可调，2–8）：超过就停在上限，标签改走省略显示 + 悬停看全文，
+   免得一个超长标签把整张图拉得极宽。默认 4。 */
+const AUTOSCALE_CAP_DEF = 4;
+function autoscaleCap() {
+  const v = parseInt(tryGet('wdgui-autoscale-max'), 10);
+  return Number.isFinite(v) ? Math.min(AUTOSCALE_MAX, Math.max(2, v)) : AUTOSCALE_CAP_DEF;
+}
+function autoscaleOn() { return tryGet('wdgui-autoscale') === '1'; }
+function scanLabels() {
+  let need = 1, over = false;
+  const cur = state.hscale || 1;
+  eachLane(lane => {
+    const per = lane.period || 1, n = lane.slots.length;
+    for (let t = 0; t < n; t++) {
+      const s = lane.slots[t];
+      if (!s || !isData(s.glyph) || s.label === undefined || s.label === null || String(s.label) === '') continue;
+      let e = t + 1;
+      while (e < n && (!lane.slots[e] || lane.slots[e].glyph === '.' || lane.slots[e].glyph === '|')) e++;
+      const base = CELLW * per;              // 该框一格在 hscale=1 时的宽度
+      const lw = labelTextW(s.label);
+      if (lw + 8 > (e - t) * base * cur) over = true;
+      need = Math.max(need, (lw + 8) / ((e - t) * base));
+      t = e - 1;                             // 同一框的后续格不再重复计
+    }
+  });
+  return { need: Math.min(AUTOSCALE_MAX, Math.max(1, Math.ceil(need - 1e-6))), over };
+}
+/* 开关打开时把 hscale 调到能容下最宽标签的最小整数档；滑块与数值同步显示 */
+function applyAutoScale() {
+  if (!autoscaleOn()) return;
+  const want = Math.min(scanLabels().need, autoscaleCap()); // 超过用户设的上限就停住，标签转省略显示
+  if (want === state.hscale) return;
+  state.hscale = want;
+  const hs = $('#hscale'); if (hs) hs.value = String(want);
+  const hv = $('#hscaleVal'); if (hv) hv.textContent = String(want);
+}
+/* 改倍数上限：打开时立刻按新上限重算（上/下调都生效） */
+function setAutoscaleCap(v) {
+  const n = parseInt(v, 10); // 注意别用 `|| 默认值`：合法的 lower bound 0 会被当成假值跳成默认值
+  const cap = Number.isFinite(n) ? Math.min(AUTOSCALE_MAX, Math.max(2, n)) : AUTOSCALE_CAP_DEF;
+  storeSet('wdgui-autoscale-max', String(cap));
+  syncAutoscaleUI();
+  const m = document.querySelector('#m-settings .menu');
+  if (m && m.classList.contains('open')) buildSettingsMenu(m);
+  update(true);
+}
+function setAutoscale(on) {
+  storeSet('wdgui-autoscale', on ? '1' : '0');
+  if (on) applyAutoScale();
+  syncAutoscaleUI();
+  const m = document.querySelector('#m-settings .menu');
+  if (m && m.classList.contains('open')) buildSettingsMenu(m);
+  update(true);
+}
+/* 两处开关（设置 → 笔刷 / 图表设置 → 波形）回显同步；自动打开时手动的水平缩放滑块置灰 */
+function syncAutoscaleUI() {
+  const on = autoscaleOn();
+  const sel = $('#autoScale');
+  if (sel) sel.value = on ? 'on' : 'off';
+  const cap = $('#autoScaleMax');
+  if (cap) cap.value = String(autoscaleCap());
+  const hs = $('#hscale');
+  if (hs) {
+    hs.disabled = on;
+    hs.title = on ? i18n('自动缩放已打开：水平缩放按最宽的总线标签自动决定，最大 ') + autoscaleCap() + '×' : '';
+  }
+}
+/* ---------- 宽标签首次提示：导入图表或首次输入宽标签时问一次要不要打开自动缩放 ----------
+   用户可选择「永久 / 一天 / 一周」内不再提示，选择存 AUTOSCALE_HINT_KEY（'never' 或截止时间戳）。 */
+const AUTOSCALE_HINT_KEY = 'wdgui-autoscale-hint';
+let autoscaleHintShown = false; // 本次会话最多弹一次，避免连续输入标签时反复打扰
+function autoscaleHintAllowed() {
+  if (autoscaleHintShown || autoscaleOn()) return false;
+  const v = tryGet(AUTOSCALE_HINT_KEY);
+  if (!v) return true;
+  if (v === 'never') return false;
+  const until = parseInt(v, 10);
+  return !(until > Date.now()); // 抑制期已过 → 重新提示
+}
+function suppressAutoscaleHint(kind) {
+  if (kind === 'never') storeSet(AUTOSCALE_HINT_KEY, 'never');
+  else storeSet(AUTOSCALE_HINT_KEY, String(Date.now() + (kind === 'week' ? 7 : 1) * 86400000));
+}
+function closeAutoscaleHint() { const m = $('#autoScaleMask'); if (m) m.classList.remove('open'); }
+function maybePromptAutoscale() {
+  if (!autoscaleHintAllowed() || !scanLabels().over) return;
+  autoscaleHintShown = true;
+  $('#autoScaleMask').classList.add('open');
+}
 /* 每个槽位的定位（子周期 < > 内的字符按半砖宽渲染，官方 pos += 1 语义） */
 function laneCharPositions(lane) {
   const base = gridCellW() * (lane.period || 1);
@@ -2807,8 +3000,11 @@ function laneSVG(lane, colCount, color, cropX) {
         tx.setAttribute('text-anchor', 'middle');
         tx.setAttribute('font-size', '14'); tx.style.fontFamily = 'var(--font-mono)';
         tx.setAttribute('fill', isDigit ? '#1B2536' : color);
-        tx.textContent = String(label);
-        if (labelTextW(label) > avail && avail > 0) { tx.setAttribute('textLength', avail); tx.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+        const shown = fitLabel(label, avail); // 过长只省略显示，不压缩字距
+        tx.textContent = shown;
+        if (shown !== String(label)) { // 被省略 → 登记该框覆盖的每一格，悬停时弹出完整标签
+          for (let k = t; k < e; k++) elidedLabels.set(lane.id + ':' + k, String(label));
+        }
         svg.appendChild(tx);
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
@@ -3017,6 +3213,44 @@ function brushTip(msg, el) {
   cellTipTimer = setTimeout(() => tip.classList.remove('show'), 2600);
 }
 
+/* ---------- 悬停显示被省略的完整标签 ----------
+   laneSVG 渲染时把「标签被省略」的格子登记进 elidedLabels（含该数据框覆盖的每一格），
+   悬停这些格子时就地弹出完整内容；重建网格会清空登记并收起气泡。 */
+const elidedLabels = new Map(); // `${laneId}:${t}` → 完整标签
+let labelTipCell = null;
+function showLabelTip(msg, cell) {
+  let tip = $('#cellTip');
+  if (!tip) { tip = h('div', { id: 'cellTip', role: 'status' }); document.body.appendChild(tip); }
+  tip.textContent = msg;
+  tip.classList.add('show');
+  tip.style.left = '-9999px'; tip.style.top = '-9999px'; // 先离屏量尺寸，再定位（避免抖动）
+  const r = cell.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - tw / 2, innerWidth - tw - 8));
+  const below = r.top - th - 10 < 8;
+  tip.style.left = x + 'px';
+  tip.style.top = (below ? r.bottom + 10 : r.top - th - 10) + 'px';
+  tip.classList.toggle('below', below);
+}
+function hideLabelTip() {
+  const tip = $('#cellTip');
+  if (tip) tip.classList.remove('show');
+  labelTipCell = null;
+}
+function bindLabelHoverTip(inner) {
+  inner.addEventListener('mouseover', ev => {
+    const cell = ev.target.closest ? ev.target.closest('.cell') : null;
+    if (!cell) { if (labelTipCell) hideLabelTip(); return; }
+    if (cell === labelTipCell) return;
+    const full = elidedLabels.get(cell.dataset.lane + ':' + cell.dataset.t);
+    if (full === undefined) { if (labelTipCell) hideLabelTip(); return; }
+    labelTipCell = cell;
+    clearTimeout(cellTipTimer); // 与 cellTip / brushTip 共用同一气泡与计时器：悬停期间不自动消失
+    showLabelTip(full, cell);
+  });
+  inner.addEventListener('mouseleave', hideLabelTip);
+}
+
 /* ---------- 渲染：网格 ---------- */
 function laneUnits(lane) {
   return Math.ceil((laneLen(lane) - (lane.phase || 0)) * (lane.period || 1));
@@ -3083,6 +3317,7 @@ function toggleGroupCollapse(id) {
 function renderGrid() {
   const inner = $('#gridInner');
   inner.textContent = '';
+  elidedLabels.clear(); hideLabelTip(); // 省略标签登记随本次重建重算
   // 信号名列宽：手动值（拖拽分割条）优先，否则整树最长名称（含分组名）自适应
   /* 名字宽度用 canvas 按实际字体精确测量，不再单名封顶——列宽跟随最长名（上限 NAMEW_MAX） */
   const namew = state.sizes.namew ? clampNameW(state.sizes.namew) : calcNamew();
@@ -3700,6 +3935,7 @@ function renderSettings() {
   $('#footTick').value = fmtTick(state.foot.tick);
   $('#footTock').value = fmtTick(state.foot.tock);
   $('#hscale').value = state.hscale; $('#hscaleVal').textContent = state.hscale;
+  syncAutoscaleUI(); // 自动缩放开关回显 + 打开时置灰手动滑块
   const skinSel = $('#skin');
   skinSel.value = state.skin;
   if (skinSel.value !== state.skin) { // 无匹配 option（导入的自定义皮肤）：动态补一个，让控件如实反映 state
@@ -3858,6 +4094,7 @@ function renderPreview() {
 let rafPending = false, saveTimer = null, previewTimer = null;
 function scheduleUpdate() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; update(); }); }
 function update(structureChanged) {
+  applyAutoScale(); // 打开时先按标签重算水平缩放，再序列化（hscale 的变化并入本次编辑的同一步撤销）
   commitUndo();
   commitTag = null;
   if (popCell && !getLaneById(popCell.lane.id)) closePop();
@@ -4620,7 +4857,9 @@ function openPop(lane, t, anchor) {
     if (slot && isData(slot.glyph)) {
       const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: i18n('标签'), 'aria-label': i18n('数据标签') });
       inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
+      inp.addEventListener('change', () => setTimeout(maybePromptAutoscale, 0)); // 刚输入宽标签：问一次要不要自动缩放
       inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
+
       row.appendChild(inp);
       setTimeout(() => { inp.focus(); const n = inp.value.length; inp.setSelectionRange(n, n); }, 30);
     }
@@ -4663,7 +4902,9 @@ function openPop(lane, t, anchor) {
   if (slot && isData(slot.glyph)) {
     const inp = h('input', { type: 'text', value: slot.label !== undefined ? slot.label : '', placeholder: i18n('如 0x1F、D0、NOP'), 'aria-label': i18n('数据标签') });
     inp.addEventListener('input', () => { commitTag = 'label'; slot.label = inp.value; scheduleUpdate(); });
+    inp.addEventListener('change', () => setTimeout(maybePromptAutoscale, 0)); // 刚输入宽标签：问一次要不要自动缩放
     inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') closePop(); });
+
     pop.appendChild(h('div', { class: 'pop-field' }, h('label', null, i18n('数据标签')), inp));
     const row = h('div', { class: 'pop-colors' });
     const mkSw = (ch, label, bg) => {
@@ -4998,6 +5239,7 @@ function bindGrid() {
     paintCell(lane, dragLastT, '.');
   });
   inner.addEventListener('mouseleave', () => document.querySelectorAll('.col-hl').forEach(x => x.classList.remove('col-hl')));
+  bindLabelHoverTip(inner); // 悬停被省略的长标签 → 弹出完整内容
   inner.addEventListener('click', ev => {
     const cell = ev.target.closest('.cell');
     if (!cell) return;
@@ -5637,6 +5879,7 @@ function buildSettingsMenu(menu) {
   const HEAD_BGS = [['own', i18n('独立底色')], ['same', i18n('与波形同色')]];
   const ZEBRAS = [['on', i18n('显示')], ['off', i18n('隐藏')]];
   const ONS = [['on', i18n('开')], ['off', i18n('关')]];
+  const AUTOSCALE_CAPS = [2, 3, 4, 5, 6, 7, 8].map(n => [String(n), n + '×']); // 自动缩放的倍数上限档位
   const VIEWS = [['side', i18n('预览在右侧')], ['below', i18n('预览在下方')]];
   const VMODES = [['auto', i18n('自动'), i18n('按屏宽判断桌面/手机布局')], ['simple', i18n('简约模式'), i18n('固定使用手机版布局')], ['desktop', i18n('桌面模式'), i18n('固定使用桌面版布局')]];
   const NMODES = [['bare', i18n('仅字母')], ['letter', i18n('圈+字母')], ['dot', i18n('点')]];
@@ -5735,6 +5978,9 @@ function buildSettingsMenu(menu) {
     });
     /* 自动去毛刺：电平写入后把所在连续同电平段归一成「段首 + 延续符」，消除同电平 h/H/l/L 的冗余竖沿 */
     row(body, i18n('自动去毛刺'), ONS, () => deglitchOn() ? 'on' : 'off', v => setDeglitch(v === 'on'));
+    /* 自动缩放：按最宽的总线标签自动加宽水平缩放（与图表设置 → 波形 里的同名项共用偏好） */
+    row(body, i18n('自动缩放'), ONS, () => autoscaleOn() ? 'on' : 'off', v => setAutoscale(v === 'on'));
+    row(body, i18n('自动缩放上限'), AUTOSCALE_CAPS, () => String(autoscaleCap()), v => setAutoscaleCap(v));
   });
 
   /* 帮助与关于：原顶栏「帮助」菜单与「关于」按钮并入这里，都是直接动作，用普通行 */
@@ -5840,6 +6086,7 @@ function applyDocJSON(json) {
   syncSettings();
   update(true);
   persist();
+  maybePromptAutoscale(); // 导入的图表若带宽标签，问一次要不要打开自动缩放
 }
 /* 导入文件的来源名（去扩展名）：导出时的默认文件名沿用它。浏览器拿不到来源目录
    （下载目录是浏览器行为）；VS Code 面板由扩展用原图所在目录弹系统保存框，
@@ -6391,6 +6638,19 @@ function handleAct(act, btn) {
     case 'open-about': $('#aboutMask').classList.add('open'); break;
     case 'open-examples': openExamplePop(btn); break;
     case 'about-close': $('#aboutMask').classList.remove('open'); break;
+    case 'autoscale-on':
+      closeAutoscaleHint();
+      setAutoscale(true);
+      toast(i18n('已打开自动缩放：水平缩放将按最宽的总线标签自动加宽'));
+      break;
+    case 'autoscale-later': closeAutoscaleHint(); break;
+    case 'autoscale-never': case 'autoscale-day': case 'autoscale-week': {
+      const kind = act === 'autoscale-never' ? 'never' : act === 'autoscale-day' ? 'day' : 'week';
+      suppressAutoscaleHint(kind);
+      closeAutoscaleHint();
+      toast(i18n('已关闭提示（') + i18n(kind === 'never' ? '永久' : kind === 'day' ? '一天' : '一周') + i18n('）；之后可在 设置 → 笔刷 → 自动缩放 或 左栏「图表」→ 波形 → 自动缩放 打开'));
+      break;
+    }
     case 'about-repo': window.open('https://cnb.cool/linshi-2026/wavedrom-gui', '_blank'); break;
     case 'open-shortcut': $('#shortcutMask').classList.add('open'); break;
     case 'shortcut-close': $('#shortcutMask').classList.remove('open'); break;
@@ -6514,6 +6774,9 @@ function bindSettings() {
   $('#footTick').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tick = tickVal(e.target.value); scheduleUpdate(); });
   $('#footTock').addEventListener('input', e => { commitTag = 'cfg'; state.foot.tock = tickVal(e.target.value); scheduleUpdate(); });
   $('#hscale').addEventListener('input', e => { commitTag = 'cfg'; state.hscale = +e.target.value; $('#hscaleVal').textContent = e.target.value; scheduleUpdate(); });
+  /* 自动缩放开关（与 设置 → 笔刷 里的同名项共用偏好）；关闭后水平缩放滑块回到手动 */
+  $('#autoScale').addEventListener('change', e => setAutoscale(e.target.value === 'on'));
+  $('#autoScaleMax').addEventListener('change', e => setAutoscaleCap(e.target.value));
   $('#skin').addEventListener('change', e => { state.skin = e.target.value; update(); });
   const hbSet = () => {
     commitTag = 'cfg';
@@ -6830,6 +7093,7 @@ function init() {
   bindDropImport();
   $('#pasteMask').addEventListener('mousedown', ev => { if (ev.target === $('#pasteMask')) handleAct('paste-cancel'); });
   $('#aboutMask').addEventListener('mousedown', ev => { if (ev.target === $('#aboutMask')) handleAct('about-close'); });
+  $('#autoScaleMask').addEventListener('mousedown', ev => { if (ev.target === $('#autoScaleMask')) closeAutoscaleHint(); });
   $('#shortcutMask').addEventListener('mousedown', ev => { if (ev.target === $('#shortcutMask')) handleAct('shortcut-close'); });
   /* 侧栏迁移弹窗：点遮罩空白处关闭 */
   [['#edgeMask', 'edge-close'], ['#cfgMask', 'cfg-close'], ['#nodeLinkMask', 'node-link-close']].forEach(([sel, act]) =>
@@ -6861,6 +7125,7 @@ function init() {
   animateLanes = new Set(allLanes().map(l => l.id));
   renderGrid();
   animateLanes = null;
+  appReady = true; // 初始化完成：此后字体变化才允许触发标签宽度的重排
   // 界面字体异步加载完成后按真实字形重算列宽（只更新 --namew 变量，不重建 DOM，不打断输入）
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => { if (!state.sizes.namew) document.documentElement.style.setProperty('--namew', calcNamew() + 'px'); });

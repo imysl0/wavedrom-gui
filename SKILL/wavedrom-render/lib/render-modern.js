@@ -226,7 +226,55 @@ function nodeAnchorXY(bx, bw, pos, scale, inset) {
 }
 /* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
 const LABEL_BAND = [18.5, 32];
-const labelTextW = (s, fs) => String(s).length * fs * 0.53;
+/* 全角判定：CJK 各块 + 全角标点/字母，另含破折号（—）与省略号（…）——等宽字体下它们同样占整宽 */
+const WIDE_CH = /[\u1100-\u115F\u2014\u2026\u2E80-\u303E\u3041-\u33FF\u3400-\u4DBF\u4E00-\u9FFF\uA000-\uA4CF\uA960-\uA97F\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+/* 标签宽度估算：等宽字体下 ASCII 约 0.53em，中文/全角正好是它的两倍。
+   只数字符会把中文标签算窄一半，压缩/省略都会失准（与编辑器同一套规则）。 */
+function widthUnits(s) {
+  let u = 0;
+  for (const ch of String(s)) u += WIDE_CH.test(ch) ? 2 : 1;
+  return u;
+}
+const labelTextW = (s, fs) => widthUnits(s) * fs * 0.53;
+/* 放不下时按字符省略，绝不做字距压缩：优先「开头…末尾字符」，再只留开头 */
+function fitLabel(label, avail, fs) {
+  const s = String(label);
+  if (avail <= 0) return '';
+  if (labelTextW(s, fs) <= avail) return s;
+  const chs = [...s];
+  if (chs.length <= 1) return s; // 单字符没有省略的余地
+  const last = chs[chs.length - 1];
+  for (let n = chs.length - 1; n >= 1; n--) {
+    const cand = chs.slice(0, n).join('') + '…' + last;
+    if (labelTextW(cand, fs) <= avail) return cand;
+  }
+  for (let n = chs.length - 1; n >= 1; n--) {
+    const cand = chs.slice(0, n).join('') + '…';
+    if (labelTextW(cand, fs) <= avail) return cand;
+  }
+  return '…';
+}
+/* ---------- 自动缩放：按最宽的数据标签自动挑水平缩放 ----------
+   只增不减：文档自带的 hscale 更大时以其为准（显式配置是用户意图），上限只约束自动放大的部分；
+   到上限仍放不下时由 fitLabel 省略显示。扫描范围与 laneSVG 同规则：数据格 + 其后紧邻的空格/延续/间隙格。 */
+const AUTOSCALE_MAX_DEF = 2;    // 上限默认 2×
+const AUTOSCALE_MAX_HARD = 8;   // 与编辑器的手动档位量程一致
+function scanLabelNeed(tree, fs) {
+  let need = 1;
+  eachLane(tree, lane => {
+    const per = lane.period || 1, n = laneLen(lane);
+    for (let t = 0; t < n; t++) {
+      const s = lane.slots[t];
+      if (!s || !isData(s.glyph) || s.label === undefined || s.label === null || String(s.label) === '') continue;
+      let e = t + 1;
+      while (e < n && (!lane.slots[e] || lane.slots[e].glyph === '.' || lane.slots[e].glyph === '|')) e++;
+      need = Math.max(need, (labelTextW(s.label, fs) + 8) / ((e - t) * CELLW * per));
+      t = e - 1; // 同一框的后续格不再重复计
+    }
+  });
+  return Math.min(AUTOSCALE_MAX_HARD, Math.max(1, Math.ceil(need - 1e-6)));
+}
+
 /* 被抬起的节点圆心 y：贴数据框上沿，完全避开标签行 */
 const liftedNodeY = (scale, mode) => Math.max(nodeMarkerR(scale, mode), LABEL_BAND[0] - nodeMarkerR(scale, mode) - 1.5);
 
@@ -396,8 +444,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
         const avail = hi - lo;
         const attrs = { x: (lo + hi) / 2, y: 29, 'text-anchor': 'middle', 'font-size': FONTS.dataLabel,
           'font-family': FONT_MONO, fill: isDigit ? '#1B2536' : color };
-        if (labelTextW(label, FONTS.dataLabel) > avail && avail > 0) { attrs.textLength = avail; attrs.lengthAdjust = 'spacingAndGlyphs'; }
-        out += tag('text', attrs, esc(String(label)));
+        out += tag('text', attrs, esc(fitLabel(label, avail, FONTS.dataLabel))); // 过长只省略显示，不压缩字距
       }
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
       lvl = null; t = e; continue;
@@ -612,6 +659,11 @@ function renderModern(source, opts = {}) {
   const nodeScale = Math.max(0.4, Math.min(2, opts.nodeScale || 1));
   const nodeInset = Number.isFinite(opts.nodeInset) ? Math.max(0, Math.min(9, opts.nodeInset)) : NODE_INSET_DEF;
   const nodeMode = ['letter', 'bare', 'dot'].includes(opts.nodeMode) ? opts.nodeMode : 'bare';
+  /* 自动缩放（默认开，上限默认 2×）：按最宽标签把 hscale 抬到够用就停 */
+  const autoScale = opts.autoScale !== false;
+  const capRaw = parseInt(opts.autoScaleMax, 10);
+  const autoScaleMax = Number.isFinite(capRaw) ? Math.min(AUTOSCALE_MAX_HARD, Math.max(1, capRaw)) : AUTOSCALE_MAX_DEF;
+  if (autoScale) st.hscale = Math.min(AUTOSCALE_MAX_HARD, Math.max(st.hscale, Math.min(scanLabelNeed(st.tree, FONTS.dataLabel), autoScaleMax)));
   const gw = CELLW * (st.hscale || 1);
 
   if (!st.tree.length) {
@@ -1015,4 +1067,4 @@ function renderModern(source, opts = {}) {
   return { svg: '<?xml version="1.0" encoding="UTF-8"?>\n' + svg, width: W, height: totalH };
 }
 
-module.exports = { renderModern };
+module.exports = { renderModern, scanLabelNeed, fitLabel, labelTextW };

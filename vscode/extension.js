@@ -340,7 +340,9 @@ function renderSvg(jsonText) {
   try { doc = parseLoose(jsonText); }
   catch (e) { return { err: t('WaveDrom: Failed to parse WaveJSON — {0}', e.message) }; }
   try {
-    const r = mod.renderModern(doc, {});
+    /* autoScale: false —— 扩展的职责是按原图风格忠实重绘，几何必须跟随文档自己的
+       config.hscale，不能被自动缩放改写（渲染器默认是自动缩放开的，skill 侧用它） */
+    const r = mod.renderModern(doc, { autoScale: false });
     const svg = String((r && r.svg) || '').replace(/^<\?xml[^>]*\?>\s*/, '');
     return svg ? { svg } : { err: t('WaveDrom: Failed to render — {0}', 'empty output') };
   } catch (e) { return { err: t('WaveDrom: Failed to render — {0}', e.message) }; }
@@ -728,7 +730,7 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
         if (ex === null && IMG.kind === 'skill-modern' && window.WaveDromModern && typeof window.WaveDromModern.renderModern === 'function') {
           try {
             var srcDoc = JSON.parse(localStorage.getItem(KEY) || 'null');
-            var rr = window.WaveDromModern.renderModern(srcDoc, {});
+            var rr = window.WaveDromModern.renderModern(srcDoc, { autoScale: false }); // 同上：预览按文档 hscale 忠实呈现
             /* 模板字符串里的正则：\s \d 必须双写反斜杠，否则转义被模板吃掉变成字面量 */
             var mstr = String(rr.svg).replace(/^<\\?xml[^>]*\\?>\\s*/, '');
             var mw = parseInt((mstr.match(/<svg[^>]*\\swidth="([\\d.]+)"/) || [])[1], 10);
