@@ -547,6 +547,41 @@ html:not([data-mobile])[data-show-preview="0"][data-show-code="0"] #splitMain { 
   border-left: 1px solid var(--line-soft);
 }
 .time-cell.tick { color: var(--acc-text); font-weight: 600; }
+/* 列边界命中条：平时隐形，指针落上去才显一条 1px 竖线（真正的按钮在悬浮胶囊里）。
+   z-index 高于 sticky 名称角格（6），免得被角格底色压住 */
+.col-ins {
+  /* z-index 高于名称列拖拽分隔条(40)：最左那条边界正好压在分隔条上，不抬起来就点不到 */
+  position: absolute; top: 0; bottom: 0; width: 20px; z-index: 45;
+  opacity: 0; transition: opacity .12s ease;
+  pointer-events: none; /* 默认不接收事件：触屏点表头要能落到 .time-cell 上 */
+}
+@media (hover: hover) and (pointer: fine) { .col-ins { pointer-events: auto; } }
+.col-ins:hover {
+  opacity: 1;
+  background: linear-gradient(90deg,
+    transparent calc(50% - .5px), var(--acc) calc(50% - .5px),
+    var(--acc) calc(50% + .5px), transparent calc(50% + .5px));
+}
+/* 悬停缝隙时在该列上方弹出的胶囊：整列插入（＋）/ 删除（−） */
+.col-ins-pop {
+  position: fixed; z-index: 110; display: none; align-items: center; gap: 6px;
+  padding: 5px 6px 5px 11px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line);
+  box-shadow: var(--shadow-pop);
+}
+.col-ins-pop.open { display: flex; }
+.col-ins-pop .ci-col { font: 500 11px var(--font-mono); color: var(--muted); white-space: nowrap; }
+.col-ins-pop button {
+  width: 38px; height: 30px; padding: 0; border: 1px solid transparent; border-radius: 999px;
+  font: 700 20px/1 var(--font-mono); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+/* 淡彩而非实心饱和色：与应用里选中态/激活态（.pos-grid button.active、#sidePaneBtnCode 等）同一套配色语言，
+   大面积色块只在悬停时加深一点点，避免在表头旁边抢视线 */
+.col-ins-pop .ci-add { border-color: var(--acc); background: var(--acc-veil); color: var(--acc-text); }
+.col-ins-pop .ci-del { border-color: var(--danger); background: var(--danger-veil); color: var(--danger); }
+.col-ins-pop .ci-add:hover { background: color-mix(in srgb, var(--acc) 24%, transparent); }
+.col-ins-pop .ci-del:hover { background: color-mix(in srgb, var(--danger) 24%, transparent); }
 
 .strip { display: flex; }
 .strip-corner { width: var(--namew, 196px); flex: none; }
@@ -882,6 +917,22 @@ html:not([data-theme]) #wv0 svg { filter: invert(0.91) hue-rotate(180deg) contra
 .pop-colors .swatch:hover { transform: scale(1.15); }
 .pop-colors .swatch.active { outline: 2px solid var(--acc); outline-offset: 1px; }
 .pop-actions { display: flex; gap: 6px; margin-top: 10px; }
+/* 操作行统一胶囊形：加减拍走淡彩（绿=插入、红=删除，与表头胶囊同一套语言），
+   清除本格保持中性色，悬停才提示危险色（沿用 .btn.danger 的 hover） */
+.btn.cap { border-radius: 999px; font-weight: 600; }
+/* 操作行三等分：胶囊标签较长时 flex:1 受 min-width:auto（内容宽度）限制缩不下去，
+   会把整行撑出弹窗 → 放开最小宽度并收一点内边距与间距 */
+.pop-actions { gap: 5px; }
+.pop-actions .btn.cap { min-width: 0; padding: 0 9px; }
+.btn.cap .sym { font: 700 15px/1 var(--font-mono); }
+.btn.cap.neutral { background: var(--raise); border-color: var(--line); color: var(--muted); }
+/* 只提亮底色，颜色/描边让给 .btn.danger:hover —— 否则「清除本格」悬停时不会提示危险色 */
+.btn.cap.neutral:hover { background: var(--line-soft); border-color: var(--line-hover); }
+.btn.cap.neutral.danger:hover { color: var(--danger); border-color: var(--danger-line); }
+.btn.cap.add { background: var(--acc-veil); border-color: var(--acc); color: var(--acc-text); }
+.btn.cap.add:hover { background: color-mix(in srgb, var(--acc) 24%, transparent); }
+.btn.cap.del { background: var(--danger-veil); border-color: var(--danger); color: var(--danger); }
+.btn.cap.del:hover { background: color-mix(in srgb, var(--danger) 24%, transparent); }
 .pop-actions .btn { flex: 1; justify-content: center; height: 28px; font-size: 12px; }
 
 /* 模态 */
@@ -1110,6 +1161,10 @@ html[data-mobile] {
   #cellPop .pop-mini input { flex: 1; min-width: 60px; height: 28px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 8px; color: var(--text); font-size: 12px; }
   #cellPop .pop-mini input:focus { outline: none; border-color: var(--acc); }
   #cellPop .pop-mini .btn { font-size: 12px; padding: 0 8px; }
+  /* 第二行（＋ 前插一拍 / − 删除本拍）与上方输入框之间留出间距，胶囊也矮一点，别顶住输入框 */
+  #cellPop .pop-mini + .pop-mini { margin-top: 8px; }
+  #cellPop .pop-mini .cap { height: 24px; }
+  #cellPop .pop-mini .cap .sym { font-size: 13px; }
   /* 信号\拍 角格：名称列操作按钮的显示/隐藏开关 */
   .time-corner .ha-toggle { display: inline-flex; margin-left: auto; }
   .lane-head .drag-grip, .lane-head .lane-actions { display: none !important; }
@@ -1294,6 +1349,11 @@ html[data-mobile] {
 
 <div class="popover" id="cellPop" role="dialog" aria-label="单元格状态" data-i18n-aria="单元格状态"></div>
 <div class="popover" id="morePop" role="menu" aria-label="更多操作" data-i18n-aria="更多操作"></div>
+<div class="col-ins-pop" id="colInsPop" role="group" aria-label="整列插入 / 删除" data-i18n-aria="整列插入 / 删除">
+  <span class="ci-col"></span>
+  <button class="ci-add" type="button" aria-label="在该拍前插入一拍（整列）">+</button>
+  <button class="ci-del" type="button" aria-label="删除该拍（整列）">−</button>
+</div>
 
 <div class="modal-mask" id="pasteMask">
   <div class="modal" role="dialog" aria-modal="true" aria-label="粘贴 WaveJSON" data-i18n-aria="粘贴 WaveJSON">
@@ -1471,7 +1531,7 @@ const I18N_EN = {
   '下载 WaveDrom SVG': 'Download WaveDrom SVG', '下载 WaveDrom PNG（2×）': 'Download WaveDrom PNG (2×)',
   '下载编辑区 SVG': 'Download editor SVG', '下载编辑区 PNG（2×）': 'Download editor PNG (2×)',
   '下载 JSON': 'Download JSON', '复制 JSON': 'Copy JSON', '复制 kroki 代码块': 'Copy kroki snippet', '复制分享链接': 'Copy share link',
-  '界面语言 / Language': 'Language / 界面语言', '跟随系统 / Auto': 'Follow system / Auto', '简体中文': '简体中文', 'English': 'English',
+  '跟随系统 / Auto': 'Follow system / Auto', '简体中文': '简体中文', 'English': 'English',
   /* 设置菜单 */
   '外观': 'Look', '主题': 'Theme', '浅色': 'Light', '深色': 'Dark',
   '波形轨迹': 'Trace', '纤细': 'Slim', '荧光辉光': 'Glow',
@@ -1483,6 +1543,26 @@ const I18N_EN = {
   '会实时自动使用延续符尽可能合并相同电平信号！': 'Same-level signals are merged with hold characters automatically in real time!',
   '没有毛刺': 'No glitches', '去掉 ': 'Removed ', ' 个毛刺': ' glitches', '（同电平合并 ': ' (merged ', ' 处）': ' same-level cells)',
   '自动缩放': 'Auto scale',   '自动缩放上限': 'Auto scale limit',
+  '富文本标题（tspan）：请到代码区编辑': 'Rich-text title (tspan): edit it in the code pane',
+  '富文本底部文字（tspan）：请到代码区编辑': 'Rich-text foot text (tspan): edit it in the code pane',
+  '本地保存的图表数据损坏，已隔离备份（wdgui-doc-v1-corrupt），当前显示示例': 'The locally saved diagram was corrupted; a backup was quarantined (wdgui-doc-v1-corrupt) and the sample is shown instead',
+  '第 {n} 拍': 'Cycle {n}',
+  '整列插入 / 删除': 'Insert / remove a whole column',
+  '在第 {n} 拍前插入一拍（整列）': 'Insert a cycle before cycle {n} (all lanes)',
+  '删除第 {n} 拍（整列）': 'Remove cycle {n} (all lanes)',
+  '已在第 {n} 拍前插入一拍（{m} 条通道，Ctrl+Z 可撤销）': 'Inserted a cycle before cycle {n} ({m} lanes, Ctrl+Z to undo)',
+  '第 {n} 拍前没有可插入的通道': 'Nothing to insert before cycle {n}',
+  '已删除第 {n} 拍（{m} 条通道，Ctrl+Z 可撤销）': 'Removed cycle {n} ({m} lanes, Ctrl+Z to undo)',
+  '已删除第 {n} 拍（{m} 条通道，连带清理 {e} 条连线，Ctrl+Z 可撤销）': 'Removed cycle {n} ({m} lanes, cleaned up {e} edges, Ctrl+Z to undo)',
+  '第 {n} 拍没有可删除的内容': 'Cycle {n} has nothing to remove',
+  '已在第 {n} 拍前插入一拍 · 通道「{lane}」（Ctrl+Z 可撤销）': 'Inserted a cycle before cycle {n} · lane "{lane}" (Ctrl+Z to undo)',
+  '已删除第 {n} 拍 · 通道「{lane}」（Ctrl+Z 可撤销）': 'Removed cycle {n} · lane "{lane}" (Ctrl+Z to undo)',
+  '已删除第 {n} 拍 · 通道「{lane}」（连带清理 {e} 条连线，Ctrl+Z 可撤销）': 'Removed cycle {n} · lane "{lane}" (cleaned up {e} edges, Ctrl+Z to undo)',
+  '这里没有可插入的内容': 'Nothing to insert here',
+  '这里没有可删除的内容': 'Nothing to remove here',
+  '前插一拍': 'Insert cycle', '删除本拍': 'Remove cycle',
+  '在本格前插入一拍（只动本通道）': 'Insert a cycle before this cell (this lane only)',
+  '删除本拍（只动本通道，后面的内容左移一拍）': 'Remove this cycle (this lane only; later content shifts left)',
   '自动缩放已打开：水平缩放按最宽的总线标签自动决定，最大 ': 'Auto scale is on: the horizontal scale follows the widest bus label, at most ',
   '标签超出单元格宽度': 'Label wider than its cell',
   '当前图表里有总线标签比单元格宽，编辑区只能省略显示（开头…末尾字符）。打开「自动缩放」后，水平缩放会按最宽的标签自动加宽，标签即可完整显示。': 'Some bus labels are wider than their cells, so the editor can only elide them (start…end character). With "Auto scale" on, the horizontal scale grows automatically to fit the widest label, so labels show in full.',
@@ -1499,11 +1579,11 @@ const I18N_EN = {
   'W 预览': 'W Preview', 'W 代码': 'W Code',
   '实时预览：点击显示 / 隐藏': 'Live preview: click to show / hide',
   'WaveJSON 代码：点击显示 / 隐藏': 'WaveJSON code: click to show / hide',
-  '节点': 'Nodes', '节点位置': 'Position', '节点样式': 'Style', '仅字母': 'Letter only', '圈+字母': 'Circled', '点': 'Dot',
-  '节点大小': 'Size', '靠边内缩': 'Edge inset',
+  '节点': 'Nodes', '节点位置': 'Position', '仅字母': 'Letter only', '圈+字母': 'Circled', '点': 'Dot',
+ 
   '笔刷': 'Brush', '笔刷栏默认样式': 'Bar style', '下横条': 'Bottom bar', '右纵条': 'Right column', '右下角': 'Corner',
   '数据标签': 'Labels', '标签保持': 'Keep labels', '换字符即清除': 'Clear on change',
-  '帮助与关于': 'Help & About', '快捷键': 'Shortcuts', '关于': 'About', '打开仓库': 'Open repo',
+  '帮助与关于': 'Help & About', '快捷键': 'Shortcuts', '关于': 'About',
   /* 侧栏面板 */
   '＋信号': '+Sig', '＋时钟': '+Clk', '＋总线': '+Bus', '＋占位': '+Spacer', '＋分组': '+Grp',
   '边与箭头': 'Edges & arrows', '图表设置': 'Chart settings',
@@ -1512,8 +1592,8 @@ const I18N_EN = {
   '标题、刻度、缩放、皮肤、裁剪等图表参数': 'Title, ticks, scale, skin, crop…',
   '清空所有信号，恢复为空白文档（Ctrl+Z 可撤销）': 'Clear all signals, back to empty doc (Ctrl+Z to undo)',
   /* 编辑工具栏 */
-  '自动模式': 'Auto mode', '自动右移': 'Auto →', '自动下移': 'Auto ↓', '右移': '→', '下移': '↓',
-  '启动': 'Start', '退出': 'Exit',
+  '右移': '→', '下移': '↓',
+ 
   '撤销 (Ctrl+Z)': 'Undo (Ctrl+Z)', '重做 (Ctrl+Y)': 'Redo (Ctrl+Y)', '撤销': 'Undo', '重做': 'Redo',
   '网格拍数增减': 'Cycle count', '说明': 'Help',
   '左键点选状态，数据格弹窗可设标签、填充色、放置节点 · 选中格滚轮切换状态 · 先选笔刷，点击落状态，向右拖动 = 延续 · 右键清除 · Ctrl+Z 撤销 / Ctrl+Y 重做': 'Left-click to set a state; data-cell popup offers label, fill color and node placement · scroll on a selected cell to cycle states · pick a brush then click/drag to paint (drag right = hold) · right-click to erase · Ctrl+Z undo / Ctrl+Y redo',
@@ -1569,7 +1649,7 @@ const I18N_EN = {
   '展开为右侧面板': 'Expand to side panel', '折叠为右纵条': 'Fold to right column',
   '波形状态笔刷': 'Waveform state brushes',
   /* 网格与状态 */
-  '信号 \\ 拍': 'Sig\\T', '信号 \ 拍': 'Signal \ cycle',
+  '信号 \\ 拍': 'Sig\\T',
   '从一条信号开始': 'Start with a signal',
   '添加通道后，点击网格中的每一拍来画出波形，右侧会实时渲染成时序图。': 'Add a lane, then click the cells to paint the waveform — the live preview renders it as a timing diagram.',
   '＋ 添加一条信号': '+ Add a signal', '载入示例': 'Load example', '空白占位': 'Spacer',
@@ -1586,7 +1666,7 @@ const I18N_EN = {
   '导入成功': 'Imported', '已载入示例：': 'Loaded example: ', '已新建空白文档': 'New empty document created',
   '信号列宽已恢复自动': 'Name-column width back to auto',
   '节点字母（a–Z 共 52 个）已用完': 'Node letters (a–Z, 52) exhausted',
-  '已经在最上了': 'Already at the top', '已经在最下了': 'Already at the bottom',
+ 
   /* 笔刷状态名 */
   '低电平': 'Low', '高电平': 'High', '反相时钟': 'Clk inv', '时钟·箭头': 'Clk ↗', '反相时钟·箭头': 'Clk ↘',
   '上升沿': 'Rise', '下降沿': 'Fall', '不确定': 'X', '高阻': 'High-Z',
@@ -1605,7 +1685,7 @@ const I18N_EN = {
   '添加总线通道，可填写数据标签': 'Add a bus lane with data labels', '添加空白占位通道': 'Add an empty spacer lane',
   '添加分组，把相邻通道收进组里': 'Add a group to wrap adjacent lanes',
   '显示通道与分组面板': 'Show lanes & groups panel', '隐藏通道与分组面板': 'Hide lanes & groups panel',
-  '显示或隐藏通道与分组面板': 'Show or hide the lanes & groups panel',
+ 
   '操作说明': 'Help',
   '当前版本 dev，点击打开仓库首页': 'Version dev — click to open the repo',
   '当前版本 ': 'Version ', '，点击打开仓库首页': ' — click to open the repo', 'phase 相位': 'phase',
@@ -1617,14 +1697,14 @@ const I18N_EN = {
   '笔刷：': 'Brush: ', '笔刷组': ' brush set',
   '显示/隐藏名称列操作按钮（拖拽·更多·删除）': 'Toggle name-column actions (drag · more · delete)',
   '关闭边与箭头': 'Close edges', '关闭图表设置': 'Close chart settings',
-  '行内小工具：总是显示（点击改为悬停显示）': 'Inline tools: always on (click to switch to hover)',
-  '行内小工具：悬停显示（点击改为总是显示）': 'Inline tools: hover (click to switch to always on)',
-  '折叠通道树（只保留添加按钮）': 'Fold the lane tree (keep add buttons only)',
-  '展开通道树': 'Unfold the lane tree',
+ 
+ 
+ 
+ 
   '拖动调整信号列宽 · 双击恢复自动': 'Drag to resize the name column · double-click to reset',
   '拖动调整预览区大小 · 双击重置': 'Drag to resize the preview · double-click to reset',
-  '节点 X ✕': 'Node X ✕', '移除节点标记': 'Remove the node mark', '放置节点（可连箭头）': 'Place a node (connectable arrow)',
-  '数据格标签输入': 'Data label input',
+  '移除节点标记': 'Remove the node mark', '放置节点（可连箭头）': 'Place a node (connectable arrow)',
+ 
   '界面语言': 'Language', '通道与分组': 'Lanes & groups',
   '自动 →': 'Auto →', '自动 ↓': 'Auto ↓',
   '按屏宽判断桌面/手机布局': 'Pick desktop/mobile layout by viewport width',
@@ -1648,7 +1728,7 @@ const I18N_EN = {
   '展开分组': 'Expand group', '折叠分组': 'Collapse group', '展开分组：': 'Expand group: ', '折叠分组：': 'Collapse group: ',
   '删除箭头': 'Delete arrow', '改动会自动同步到左侧网格': 'Edits sync to the grid automatically',
   '渲染库未加载': 'Renderer not loaded', '渲染 API 缺失': 'Render API missing', '渲染失败：': 'Render failed: ',
-  '皮肤 "': 'Skin "', ' 不可用': ' unavailable',
+  '皮肤 "': 'Skin "',
   '已钉住：选择笔刷后弹层保持（点击改回自动收起）': 'Pinned: the flyout stays open after picking a brush (click to unpin)',
   '选择笔刷后自动收起（点击钉住弹层）': 'Flyout auto-closes after picking a brush (click to pin)',
   '笔刷面板': 'Brush panel',
@@ -2101,6 +2181,16 @@ function planLaneNodes(lane) {
   return { ranges, lift };
 }
 
+/* i18n 模板占位符替换：把模板里的 {n}/{m}/{e} 换成实参，比链式 replace 紧凑 */
+/* 注意用 split/join 而不是 replace：replace 的第二参数是字符串时，$&/$1/$$ 会被当作替换模式展开，
+   通道名里出现这类字符就会把提示文案搞乱 */
+const fmtT = (tpl, map) => Object.entries(map).reduce((out, [k, v]) => out.split(`{${k}}`).join(v), i18n(tpl));
+/* 裁掉通道末尾的空槽（clearCell 与删拍共用）：slots 里 null 表示"没有内容"，
+   末尾空槽留着会让 laneLen 虚长，删除后必须一起裁掉 */
+function trimTrailingNulls(lane) {
+  while (lane.slots.length && !lane.slots[lane.slots.length - 1]) lane.slots.pop();
+}
+
 /* ---------- 常量 ---------- */
 const CELLW = 40, NAMEW = 196;
 const NODE_LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -2432,6 +2522,9 @@ function updateUndoButtons() {
   if (r) r.disabled = !redoStack.length;
 }
 function restoreSnapshot(json) {
+  /* 撤销/重做/导入都会走这里：重置 700ms 同类合并窗口，否则「撤销后紧接着的同 tag 操作」
+     （例如末尾 ± 拍）会被并进已经弹出的那一步，导致这一步撤不回来 */
+  lastCommitTag = null; lastCommitTime = 0;
   closePop();
   adoptState(parseDoc(JSON.parse(json)));
   undoBase = json;
@@ -3326,6 +3419,7 @@ function renderGrid() {
   const colCount = win.b - win.a;
   if (!state.tree.length) {
     inner.appendChild(buildEmptyState());
+    hideColIns(); // 文档被清空：胶囊的锚点都没了，直接收起
     return;
   }
   const H = state.head, F = state.foot;
@@ -3362,6 +3456,14 @@ function renderGrid() {
           label = (v === undefined || (headEvery > 1 && (((off + t) % headEvery) + headEvery) % headEvery !== 0)) ? '' : String(v);
         }
         cells.appendChild(h('div', { class: 'time-cell' + (headNums ? ' tick' : ''), 'data-t': t, style: `width:${gridCellW()}px` }, label));
+      }
+      /* 列边界：只放隐形的窄命中条，悬停/点按后在当前列上方弹出胶囊按钮（整列插入/删除，见 showColIns）。
+         右端渲染到「最长通道的列数」为止——再往右是补白列，插/删都没有内容可操作。
+         居中偏移 = 窄条宽度的一半（宽度改过要同步改，否则会偏离列边界）。 */
+      let maxCol = 0;
+      eachLane(l => { maxCol = Math.max(maxCol, laneUnits(l)); });
+      for (let u = win.a; u <= Math.min(win.b, maxCol); u++) {
+        cells.appendChild(h('div', { class: 'col-ins', 'data-col': u, style: `left:${(u - win.a) * gridCellW() - 10}px` }));
       }
       return cells;
     })());
@@ -3402,6 +3504,7 @@ function renderGrid() {
   bindNameSplit(h('div', { class: 'name-split', title: i18n('拖动调整信号列宽 · 双击恢复自动') }), inner);
   renderMiniEdges();
   if (autoChain && chainSel) restoreChainSelHighlight();
+  if (colInsCol !== null) anchorColIns(); // 重建后胶囊跟着重新定位（列增减 / 滚动都会变）
 }
 
 /* 编辑区网格上的边线叠加层：把两个节点标记连起来 */
@@ -3673,6 +3776,10 @@ function openMoreMenu(node, kind, anchor) {
     pop.appendChild(mkItem(IC.subgroup, i18n('添加子分组'), () => { node.children.push(newGroup(i18n('子组') + ' ' + (node.children.filter(c => c.kind === 'group').length + 1))); update(true); }));
   }
   pop.classList.add('open');
+  placeMorePop(pop, anchor);
+}
+/* 浮层定位：优先锚点右侧，放不下翻到左侧，纵向夹在视口内（#morePop 与表头列菜单共用） */
+function placeMorePop(pop, anchor) {
   const r = anchor.getBoundingClientRect();
   const pw = pop.offsetWidth, ph = pop.offsetHeight;
   let x = r.right + 4, y = r.top - 8;
@@ -3681,6 +3788,66 @@ function openMoreMenu(node, kind, anchor) {
   pop.style.left = x + 'px';
   pop.style.top = y + 'px';
 }
+/* ---------- 表头缝隙的悬浮胶囊：hover 边界 → 在该列上方弹出整列加减 ----------
+   命中条本身是隐形的（只显一条 1px 竖线），按钮放在胶囊里，尺寸不受表头 40px 高度限制。 */
+let colInsCol = null, colInsHideTimer = null, colInsAnchor = null;
+/* 悬停路径只在「有真 hover 的精细指针」下生效；触屏走 pointerup 显式判定。
+   两者分开是因为 tap 之后浏览器会补发一套合成 mouse 事件（顺序还因浏览器而异）：
+   混在一起会出现「刚点开的胶囊被 260ms 定时器关掉」这类竞态。 */
+const fineHover = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
+const isTouchPointer = ev => ev.pointerType ? ev.pointerType !== 'mouse' : matchMedia('(any-pointer: coarse)').matches;
+/* 胶囊定位：水平对齐该列边界，垂直贴表头上方；上方没空间（表头贴视口顶）就压在表头上。
+   锚点优先用调用方给的元素（桌面是缝隙命中条，触屏是点到的表头格），
+   重建后元素会失效，再按列号回查命中条 / 表头格。 */
+function anchorColIns() {
+  const pop = $('#colInsPop');
+  if (!pop || colInsCol === null) return;
+  const strip = colInsAnchorEl();
+  if (!strip) { hideColIns(); return; }
+  const r = strip.getBoundingClientRect();
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  const row = document.querySelector('#gridInner .time-row');
+  const rowTop = row ? row.getBoundingClientRect().top : r.top;
+  /* 与表头重叠 2px：指针从缝隙往上挪时始终落在「缝隙 ∪ 胶囊」里，中间没有需要跨越的空隙 */
+  let y = rowTop - h + 2;
+  if (y < 8) y = r.top + 2;
+  pop.style.left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)) + 'px';
+  pop.style.top = y + 'px';
+}
+/* 当前该锚定的元素：优先用调用方给的（桌面=缝隙命中条，触屏=点到的表头格），
+   网格重建后元素失效 → 按列号回查命中条，再退到表头格 */
+function colInsAnchorEl() {
+  if (colInsAnchor && colInsAnchor.isConnected) return colInsAnchor;
+  return document.querySelector(`#gridInner .col-ins[data-col="${colInsCol}"]`)
+    || document.querySelector(`#gridInner .time-cell[data-t="${colInsCol}"]`);
+}
+function showColIns(col, anchorEl) {
+  const pop = $('#colInsPop');
+  if (!pop) return;
+  clearTimeout(colInsHideTimer);
+  colInsCol = col;
+  colInsAnchor = anchorEl || null;
+  pop.dataset.col = String(col);
+  pop.querySelector('.ci-col').textContent = fmtT('第 {n} 拍', { n: col });
+  const tAdd = fmtT('在第 {n} 拍前插入一拍（整列）', { n: col });
+  const tDel = fmtT('删除第 {n} 拍（整列）', { n: col });
+  const addB = pop.querySelector('.ci-add'), delB = pop.querySelector('.ci-del');
+  addB.title = tAdd; addB.setAttribute('aria-label', tAdd);
+  delB.title = tDel; delB.setAttribute('aria-label', tDel);
+  pop.classList.add('open');
+  anchorColIns();
+}
+function hideColIns() {
+  clearTimeout(colInsHideTimer);
+  colInsCol = null;
+  colInsAnchor = null;
+  const pop = $('#colInsPop');
+  if (pop) pop.classList.remove('open');
+}
+/* 延时隐藏：指针离开缝隙/胶囊后给一小段宽限期。鼠标从缝隙移动到上方胶囊必然要经过
+   中间的空隙（以及网格外区域），立即隐藏会导致「还没移到胶囊上就消失」。 */
+function scheduleHideColIns() { clearTimeout(colInsHideTimer); colInsHideTimer = setTimeout(hideColIns, 260); }
+
 function closeMoreMenu() { $('#morePop').classList.remove('open'); }
 function buildLaneRow(lane, depth, colCount, win) {
   const color = laneColor(lane);
@@ -4561,7 +4728,7 @@ function clearCell(lane, t) {
   const wasReal = !!(lane.slots[t] && lane.slots[t].glyph !== '.');
   const nEdges = removeNodeMark(lane, t); // 清格连同节点标记：引用它的连线一并清理，不留悬空边占字母
   if (lane.slots[t]) lane.slots[t] = null;
-  while (lane.slots.length && !lane.slots[lane.slots.length - 1]) lane.slots.pop();
+  trimTrailingNulls(lane);
   lane.len = null;
   if (nEdges) update(true); else update(); // 清理了连线才需要重建箭头列表/叠加层
   if (nEdges) toast(i18n('已移除节点（连带 ') + nEdges + i18n(' 条连线）'));
@@ -4575,6 +4742,107 @@ function clearCell(lane, t) {
     const src = extendSource(lane, t);
     cellTip(i18n('已清除第 ') + t + i18n(' 拍') + ' · ' + (src >= 0 ? i18n('该拍现延续第 ') + src + i18n(' 拍') : i18n('该拍变为延续')), lane, t);
   }
+}
+/* ---------- 拍级插入 / 删除 ----------
+   一拍 = 时间轴上的一个单位；period=1、phase=0 时一拍就是一格（绝大多数文档如此）。
+   period>1 的通道里「一拍」是该通道自己的整拍（period 列），插入后它右移的列数多于
+   period=1 的通道——「每条通道各加一拍」的语义必然如此。列 → 拍的换算与末尾删拍同一套公式。 */
+const cycleSlotOf = (lane, col) => Math.floor(col / (lane.period || 1) + (lane.phase || 0));
+/* 显式刻度（每列一个标签）跟着挪一格；数字 / 偏移 / "起点 步长" 自动跟随列号，不在此列。
+   tickLabels 把 "a b c d" 这类字符串按空白拆成同一套数组，所以两种写法都要挪：
+   数组原地改，字符串拆分改写后**返回**新值（由调用方写回）。 */
+function shiftTickArray(arr, col, remove) {
+  if (typeof arr === 'string') {
+    const parts = arr.trim().split(/\s+/);
+    if (parts.length < 3) return arr;
+    shiftTickParts(parts, col, remove);
+    return parts.join(' ');
+  }
+  if (Array.isArray(arr) && arr.length >= 3) shiftTickParts(arr, col, remove);
+  return arr;
+}
+function shiftTickParts(parts, col, remove) {
+  if (remove) parts.splice(Math.min(col, parts.length - 1), 1);
+  else parts.splice(Math.min(col, parts.length), 0, parts[col - 1] !== undefined ? parts[col - 1] : '');
+}
+/* 某通道第 k 拍前插入一拍（内容为延续符），返回是否改动 */
+function insertLaneCycle(lane, k) {
+  if (!(k >= 0) || laneLen(lane) === 0) return false; // 空通道：没有内容需要让位，别凭空长出一格延续
+  if (k > laneLen(lane)) return false;                // 内容没到这一拍：同理不延长
+  while (lane.slots.length < k) lane.slots.push(null); // 补到 k 位即可：用 <= 会在末尾插入时多留一个空槽
+  lane.slots.splice(k, 0, { glyph: '.' });
+  if (lane.len) lane.len += 1;
+  const byT = {};
+  Object.keys(lane.nodeByT).forEach(t => { const n = +t; byT[n >= k ? n + 1 : n] = lane.nodeByT[t]; });
+  lane.nodeByT = byT;
+  return true;
+}
+/* 删除某通道第 k 拍（连带该拍的节点标记与引用它的连线），返回清理的连线条数；-1 = 没有可删的拍 */
+function removeLaneCycle(lane, k) {
+  if (!(k >= 0) || k >= laneLen(lane)) return -1;
+  const nEdges = removeNodeMark(lane, k);
+  lane.slots.splice(k, 1);
+  if (lane.len) lane.len = Math.max(0, lane.len - 1);
+  const byT = {};
+  Object.keys(lane.nodeByT).forEach(t => {
+    const n = +t;
+    if (n > k) byT[n - 1] = lane.nodeByT[t];
+    else if (n < k) byT[n] = lane.nodeByT[t];
+  });
+  lane.nodeByT = byT;
+  trimTrailingNulls(lane);
+  return nEdges;
+}
+/* 整列：所有通道一起插入 / 删除（显式刻度数组同步挪位） */
+function insertCycleAt(col) {
+  let n = 0;
+  eachLane(lane => { if (insertLaneCycle(lane, cycleSlotOf(lane, col))) n++; });
+  if (n) {
+    state.head.tick = shiftTickArray(state.head.tick, col, false);
+    state.head.tock = shiftTickArray(state.head.tock, col, false);
+    state.foot.tick = shiftTickArray(state.foot.tick, col, false);
+    state.foot.tock = shiftTickArray(state.foot.tock, col, false);
+  }
+  return n;
+}
+function removeCycleAt(col) {
+  let n = 0, edges = 0;
+  eachLane(lane => { const r = removeLaneCycle(lane, cycleSlotOf(lane, col)); if (r >= 0) { n++; edges += r; } });
+  if (n) {
+    state.head.tick = shiftTickArray(state.head.tick, col, true);
+    state.head.tock = shiftTickArray(state.head.tock, col, true);
+    state.foot.tick = shiftTickArray(state.foot.tick, col, true);
+    state.foot.tock = shiftTickArray(state.foot.tock, col, true);
+  }
+  return { n, edges };
+}
+/* 四个入口的统一出口：结构改动 → update(true) + 提示；不设 commitTag，独占一步撤销 */
+function doInsertCycle(col) {
+  const n = insertCycleAt(col);
+  if (!n) { toast(fmtT('第 {n} 拍前没有可插入的通道', { n: col })); return; }
+  update(true);
+  toast(fmtT('已在第 {n} 拍前插入一拍（{m} 条通道，Ctrl+Z 可撤销）', { n: col, m: n }));
+}
+function doRemoveCycle(col) {
+  const r = removeCycleAt(col);
+  if (!r.n) { toast(fmtT('第 {n} 拍没有可删除的内容', { n: col })); return; }
+  update(true);
+  toast(fmtT(r.edges
+    ? '已删除第 {n} 拍（{m} 条通道，连带清理 {e} 条连线，Ctrl+Z 可撤销）'
+    : '已删除第 {n} 拍（{m} 条通道，Ctrl+Z 可撤销）', { n: col, m: r.n, e: r.edges }));
+}
+function doInsertLaneCycle(lane, k) {
+  if (!insertLaneCycle(lane, k)) { toast(i18n('这里没有可插入的内容')); return; }
+  update(true);
+  toast(fmtT('已在第 {n} 拍前插入一拍 · 通道「{lane}」（Ctrl+Z 可撤销）', { n: k, lane: lane.name || i18n('未命名') }));
+}
+function doRemoveLaneCycle(lane, k) {
+  const edges = removeLaneCycle(lane, k);
+  if (edges < 0) { toast(i18n('这里没有可删除的内容')); return; }
+  update(true);
+  toast(fmtT(edges
+    ? '已删除第 {n} 拍 · 通道「{lane}」（连带清理 {e} 条连线，Ctrl+Z 可撤销）'
+    : '已删除第 {n} 拍 · 通道「{lane}」（Ctrl+Z 可撤销）', { n: k, lane: lane.name || i18n('未命名'), e: edges }));
 }
 /* 清理悬空连线：引用已不存在节点的边。返回清理条数。
    这类边在 WaveJSON 里是无效数据，而且会让被引用的字母永久占位——
@@ -4886,6 +5154,19 @@ function openPop(lane, t, anchor) {
     linkBtnM.addEventListener('click', () => openNodeLinks(lane, t));
     row.appendChild(linkBtnM);
     pop.appendChild(row);
+    /* 触屏整列加减走「点表头弹胶囊」；这里给本通道的拍级增删（与「清除本格」语义不同） */
+    const row2 = h('div', { class: 'pop-mini' });
+    const insLaneM = h('button', { class: 'btn cap add', style: 'flex:none' },
+      h('span', { class: 'sym' }, '+'), i18n('前插一拍'));
+    insLaneM.title = i18n('在本格前插入一拍（只动本通道）');
+    insLaneM.addEventListener('click', () => { closePop(); doInsertLaneCycle(lane, t); });
+    const delLaneM = h('button', { class: 'btn cap del', style: 'flex:none' },
+      h('span', { class: 'sym' }, '−'), i18n('删除本拍'));
+    delLaneM.title = i18n('删除本拍（只动本通道，后面的内容左移一拍）');
+    delLaneM.addEventListener('click', () => { closePop(); doRemoveLaneCycle(lane, t); });
+    row2.appendChild(insLaneM);
+    row2.appendChild(delLaneM);
+    pop.appendChild(row2);
     pop.classList.add('open');
     const r0 = anchor.getBoundingClientRect();
     let x0 = r0.left, y0 = r0.bottom + 6;
@@ -4962,9 +5243,17 @@ function openPop(lane, t, anchor) {
   nodeRow.appendChild(linkBtn);
   pop.appendChild(nodeRow);
 
-  const clearBtn = h('button', { class: 'btn danger', style: 'flex:none' }, i18n('清除本格'));
+  const clearBtn = h('button', { class: 'btn danger cap neutral' }, i18n('清除本格'));
   clearBtn.addEventListener('click', () => { clearCell(lane, t); closePop(); });
-  pop.appendChild(h('div', { class: 'pop-actions' }, clearBtn));
+  /* 本通道的拍级增删：与「清除本格」（置空、保留拍位）不同，这里是真正插/删一拍，后面的内容跟着挪。
+     胶囊配色与表头浮出的整列加减一致：绿=插入、红=删除 */
+  const insLane = h('button', { class: 'btn cap add', title: i18n('在本格前插入一拍（只动本通道）') },
+    h('span', { class: 'sym' }, '+'), i18n('前插一拍'));
+  insLane.addEventListener('click', () => { closePop(); doInsertLaneCycle(lane, t); });
+  const delLane = h('button', { class: 'btn cap del', title: i18n('删除本拍（只动本通道，后面的内容左移一拍）') },
+    h('span', { class: 'sym' }, '−'), i18n('删除本拍'));
+  delLane.addEventListener('click', () => { closePop(); doRemoveLaneCycle(lane, t); });
+  pop.appendChild(h('div', { class: 'pop-actions' }, clearBtn, insLane, delLane));
   pop.classList.add('open');
   const r = anchor.getBoundingClientRect();
   const pw = pop.offsetWidth, ph = pop.offsetHeight;
@@ -5167,6 +5456,7 @@ function bindGrid() {
     }
   });
   let hlCol = null; // 当前点亮列：同一列内垂直移动不重扫 DOM（原来每格 mouseover 两次全树查询）
+
   inner.addEventListener('mouseover', ev => {
     if (rowDnd.active) return; // 行拖拽中不点亮列高亮
     const cell = ev.target.closest('.cell');
@@ -5261,6 +5551,60 @@ function bindGrid() {
     const lane = getLaneById(+cell.dataset.lane);
     if (lane) clearCell(lane, +cell.dataset.t);
   });
+  /* 表头缝隙（桌面 hover）：悬停 → 该列上方弹出胶囊（整列插入 / 删除） */
+  inner.addEventListener('mouseover', ev => {
+    if (!fineHover()) return; // 触屏的合成 mouse 事件一律不参与，避免时序竞态
+    const strip = ev.target.closest ? ev.target.closest('.col-ins') : null;
+    if (!strip) { if (colInsCol !== null) scheduleHideColIns(); return; } // 移进波形区就延时收起（延时留出「缝隙→胶囊」的过渡）
+    /* 命中条压在 sticky 名称列上时（横向滚动后），指针其实停在名称列，别在这里弹 */
+    const corner = document.querySelector('#gridInner .time-corner');
+    if (corner && ev.clientX < corner.getBoundingClientRect().right) return;
+    clearTimeout(colInsHideTimer); // 回到同一条缝隙也要清掉待隐藏的定时器
+    const col = +strip.dataset.col;
+    if (col !== colInsCol) showColIns(col, strip); else anchorColIns();
+  });
+  inner.addEventListener('mouseleave', () => { if (fineHover()) scheduleHideColIns(); }); // 延时而非立即：留给「缝隙 → 胶囊」的移动时间
+  /* 触屏：点表头列 / 缝隙开合胶囊，点别处收起。
+     用 pointerup + 位移判定（>8px 视为滚动/拖拽不算点按），不依赖合成 mouse 事件 */
+  let tapStart = null;
+  inner.addEventListener('pointerdown', ev => {
+    if (!isTouchPointer(ev)) return;
+    tapStart = { x: ev.clientX, y: ev.clientY };
+  });
+  inner.addEventListener('pointerup', ev => {
+    if (!isTouchPointer(ev)) return;
+    const start = tapStart; tapStart = null;
+    if (!start || Math.abs(ev.clientX - start.x) > 8 || Math.abs(ev.clientY - start.y) > 8) return;
+    const t = ev.target.closest ? ev.target.closest('.col-ins, .time-cell') : null;
+    if (!t) { if (colInsCol !== null) hideColIns(); return; } // 点网格别处 → 收起
+    const col = t.classList.contains('col-ins') ? +t.dataset.col : +t.dataset.t;
+    if (colInsCol === col) hideColIns(); else showColIns(col, t);
+  });
+  /* 网格滚动时胶囊跟着重新定位；锚点被滚出可视区就收起。窗口缩放直接收起（下次悬停/点按再出） */
+  const gridScroller = $('#gridScroll');
+  if (gridScroller) gridScroller.addEventListener('scroll', () => {
+    if (colInsCol === null) return;
+    const el = colInsAnchorEl();
+    const gr = gridScroller.getBoundingClientRect();
+    const ar = el ? el.getBoundingClientRect() : null;
+    if (!ar || ar.right < gr.left || ar.left > gr.right || ar.bottom < gr.top || ar.top > gr.bottom) { hideColIns(); return; }
+    anchorColIns();
+  });
+  window.addEventListener('resize', () => { if (colInsCol !== null) hideColIns(); });
+  /* 触屏点到网格与胶囊之外（工具栏、侧栏等）也收起；网格内的点按由上面的 pointerup 判定 */
+  document.addEventListener('pointerdown', ev => {
+    if (!isTouchPointer(ev) || colInsCol === null) return;
+    const tg = ev.target;
+    if (tg && tg.closest && (tg.closest('#colInsPop') || tg.closest('#gridInner'))) return;
+    hideColIns();
+  });
+  const colInsPop = $('#colInsPop');
+  if (colInsPop) {
+    colInsPop.addEventListener('mouseenter', () => { if (fineHover()) clearTimeout(colInsHideTimer); }); // 从缝隙移到胶囊上不收起
+    colInsPop.addEventListener('mouseleave', () => { if (fineHover()) scheduleHideColIns(); }); // 同样给宽限期：手抖一下或立刻回头还能接上
+    colInsPop.querySelector('.ci-add').addEventListener('click', () => { doInsertCycle(+colInsPop.dataset.col); });
+    colInsPop.querySelector('.ci-del').addEventListener('click', () => { doRemoveCycle(+colInsPop.dataset.col); });
+  }
   /* ---------- 触摸绘制（pointer events，touch 专用，与鼠标路径并行） ----------
      pointerdown preventDefault 抑制合成鼠标事件避免双路径；单元格 touch-action:none，
      单指 = 画/擦/延续，双指 = 平移网格（touch-action none 的滚动补偿）。 */
@@ -6576,7 +6920,7 @@ function handleAct(act, btn) {
             if (content <= 0) break;
             let deleted = false;
             eachLane(l => {
-              const t = Math.floor((content - 1) / (l.period || 1) + (l.phase || 0)); // 覆盖目标列的拍
+              const t = cycleSlotOf(l, content - 1); // 覆盖目标列的拍（与插入/删除一拍同一套换算）
               if (t >= 0 && t < laneLen(l)) { clearCell(l, t); deleted = true; }
             });
             if (!deleted) break;
