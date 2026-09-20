@@ -23,6 +23,10 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          # 完整历史 + 全部 tag：下面要定位「上一个 tag」并列出区间提交
+          # （默认浅克隆只有 1 个提交、也没有 tag，生成不了变动说明）
+          fetch-depth: 0
 
       - name: 使用 Node.js 20
         uses: actions/setup-node@v4
@@ -60,6 +64,71 @@ jobs:
           console.log(`已将应用版本号写入为 ${tag}`);
           NODE
 
+      - name: 生成变动说明
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # 与 .cnb.yml 的「生成变动说明」同义：汇总「上一个 Tag → 本次 Tag」之间的提交。
+          # CNB 侧用 cnbcool/changelog 插件；GitHub 侧直接用 git，避免多引一个 action。
+          # 首个 Tag / 区间无变更 / 找不到上一个 Tag 时写空文件，由下一步降级为固定说明。
+          : > LATEST_CHANGELOG.md
+
+          prev="$(git describe --tags --abbrev=0 --match 'v*' "${TAG}^" 2>/dev/null || true)"
+          if [ -z "$prev" ]; then
+            echo "首个 Tag 或找不到上一个 Tag，跳过自动变动说明"
+            exit 0
+          fi
+          echo "上一个 Tag：$prev"
+
+          # --no-merges：合并提交不带要点；正文里保留提交主题（仓库的提交主题即改动要点）
+          count="$(git rev-list --no-merges --count "${prev}..${TAG}")"
+          if [ "$count" -eq 0 ]; then
+            echo "区间 ${prev}..${TAG} 内没有提交"
+            exit 0
+          fi
+
+          {
+            echo "### 本次改动（共 ${count} 个提交）"
+            echo
+            git log --no-merges --pretty=format:'- %s' "${prev}..${TAG}"
+            echo
+          } > LATEST_CHANGELOG.md
+
+          repo="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          echo >> LATEST_CHANGELOG.md
+          echo "**完整对比**：${repo}/compare/${prev}...${TAG}" >> LATEST_CHANGELOG.md
+          echo "----- LATEST_CHANGELOG.md 预览 -----"
+          head -n 40 LATEST_CHANGELOG.md
+
+      - name: 组装 Release 说明
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # 固定文案 + 自动变动说明；文件缺失时降级，保证发布不被卡住（与 .cnb.yml 一致）
+          if [ -s LATEST_CHANGELOG.md ]; then
+            echo "已获取自动生成的变动说明，共 $(wc -l < LATEST_CHANGELOG.md) 行"
+          else
+            echo "【警告】未生成 LATEST_CHANGELOG.md（首个 Tag / 区间无变更 / Git 历史不足），本次降级为固定说明"
+          fi
+
+          {
+            echo "WaveDrom-Gui ${TAG}"
+            echo
+            echo "Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。"
+            echo
+            if [ -s LATEST_CHANGELOG.md ]; then
+              cat LATEST_CHANGELOG.md
+            else
+              echo "本次未生成自动变动说明，请查看提交记录。"
+            fi
+          } > RELEASE_NOTES.md
+
+          test -s RELEASE_NOTES.md
+          echo "----- RELEASE_NOTES.md（前 40 行）-----"
+          head -n 40 RELEASE_NOTES.md
+
       - name: 打包 VS Code 扩展
         run: |
           set -euo pipefail
@@ -88,13 +157,12 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          notes="WaveDrom-Gui ${TAG}
-
-          Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。"
+          test -s RELEASE_NOTES.md
           files=(wavedrom-gui.html vscode/wavedrom-gui-vscode.vsix)
-          # 同名 Release 已存在时（流水线重跑/补附件）改为覆盖上传，避免重复创建报错
+          # 同名 Release 已存在时（流水线重跑/补附件）改为覆盖上传并同步刷新说明，避免重复创建报错
           if gh release view "$TAG" --json id >/dev/null 2>&1; then
             gh release upload "$TAG" --clobber "${files[@]}"
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
           else
-            gh release create "$TAG" "${files[@]}" --title "$TAG" --notes "$notes" --latest
+            gh release create "$TAG" "${files[@]}" --title "$TAG" --notes-file RELEASE_NOTES.md --latest
           fi
