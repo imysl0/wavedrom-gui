@@ -4580,7 +4580,19 @@ function showBrushPanelNearFab(fab, atX, atY) {
 
 /* ---------- 交互：单元格 ---------- */
 let painting = false, paintLane = null, paintedSinceDown = false, dragLastT = -1, extendMode = false;
-let lastXform = null; // 越界变换的边缘触发去抖：{ t, zone }——仅当所在列或上/下区域变化时才变换一次
+let lastXform = null; // 变换的边缘触发去抖：{ t, zone }——仅当所在列或上/下区域变化时才变换一次
+/* 拖动时的「高度分区」：直接按画面上的电平高度分三段——
+   指针在高电平线一带（中线以上）= 上变换，低电平线一带（中线以下）= 下变换，中间带 = 向右延续。
+   与绘制坐标同一套常量（HI=13 高电平线、MID=24 中线、LO=35 低电平线），
+   所以「拖到信号线的上面 / 下面」在画面上是看得见、对得上的；中间那条窄带才是延拖区。 */
+const DRAG_LEVEL_DEAD = 8; // 中间延续带：中线上下各 8px（合计 16px）
+/* el 传该行的格子或轨道：它的 top 就是绘制坐标的 0，返回 'up' | 'down' | null（中间带） */
+function dragZoneAt(ev, el) {
+  const y = ev.clientY - el.getBoundingClientRect().top;
+  if (y < MID - DRAG_LEVEL_DEAD) return 'up';
+  if (y > MID + DRAG_LEVEL_DEAD) return 'down';
+  return null;
+}
 function getLaneById(id) { let r = null; eachLane(l => { if (l.id === id) r = l; }); return r; }
 /* ---------- 自动去毛刺：电平字符写入后，把所在连续同电平段归一化成「段首 + 延续符」 ----------
    同电平的 1/0 画平线无毛刺但字符冗余；同电平的 h/H/l/L 会画出贯穿低高的竖沿（+箭头）＝毛刺。
@@ -5453,7 +5465,7 @@ function bindGrid() {
     if (!cell || ev.button !== 0) return;
     downPos = [ev.clientX, ev.clientY];
     paintedSinceDown = false;
-    lastXform = null; // 新拖动开始：清除越界变换去抖记录
+    lastXform = null; // 新拖动开始：清除变换去抖记录
     if (autoChain) return; // 模式内左键不涂抹/不拖延续，交给 click → setChainSel + openPop
     if (state.tool.type === 'glyph') {
       const lane = getLaneById(+cell.dataset.lane);
@@ -5483,7 +5495,7 @@ function bindGrid() {
     }
     if (cell) {
       const t = cell.dataset.t;
-      if (painting && cell.dataset.lane == paintLane && (ev.buttons & 1)) {
+      if (painting && cell.dataset.lane == paintLane && (ev.buttons & 1) && !dragZoneAt(ev, cell)) {
         const lane = getLaneById(+cell.dataset.lane);
         const t = +cell.dataset.t;
         if (extendMode) {
@@ -5522,13 +5534,14 @@ function bindGrid() {
     const track = lane && document.querySelector(`#gridInner .lane-row[data-lane="${paintLane}"] .lane-track`);
     if (!track) return;
     const r = track.getBoundingClientRect();
-    if (ev.clientY < r.top || ev.clientY > r.bottom) {
-      const zone = ev.clientY < r.top ? 'up' : 'down';
+    /* 高度分区：在高电平线一带 → 上变换，低电平线一带 → 下变换，中间带 → 落到下面走延伸 */
+    const zone = dragZoneAt(ev, track);
+    if (zone) {
       // 鼠标所在列（夹取到已拖过的范围内，避免跳格）
       const win = gridWindow();
       const rawT = win.a + Math.floor((ev.clientX - r.left) / gridCellW());
       const t = Math.max(0, Math.min(rawT, dragLastT + 1));
-      // 边缘触发：所在列或区域未变则不重复变换
+      // 边缘触发：所在列或上/下侧未变则不重复变换
       if (lastXform && lastXform.t === t && lastXform.zone === zone) return;
       const base = baseGlyphAt(lane, t);
       const next = zone === 'up' ? cellUp(base) : cellDown(base);
@@ -5537,8 +5550,7 @@ function bindGrid() {
       lastXform = { t, zone };
       return;
     }
-    lastXform = null; // 回到通道内：跨界记录清零，下次跨出上/下方可重新触发
-    if (ev.clientX <= r.right) return;
+    if (ev.clientX <= r.right) return; // 中间带：轨道内由 mouseover 逐格延续，越过右端则每个事件补一格
     dragLastT += 1;
     paintCell(lane, dragLastT, '.');
   });
@@ -5684,7 +5696,7 @@ function bindGrid() {
       }
       return;
     }
-    if (cell && +cell.dataset.lane === touchDrag.laneId) { // 复刻 mouseover 逐格涂画
+    if (cell && +cell.dataset.lane === touchDrag.laneId && !dragZoneAt(ev, cell)) { // 复刻 mouseover 逐格涂画（在变换带里不涂）
       const t = +cell.dataset.t;
       if (touchDrag.mode === 'extend') {
         if (t === dragLastT + 1) { dragLastT = t; const cur = lane.slots[t]; if (!cur || cur.glyph !== '.') paintCell(lane, t, '.'); }
@@ -5695,10 +5707,10 @@ function bindGrid() {
         else { const same = gch === '.' ? (cur && cur.glyph === gch) : (cur && cur.glyph === gch); dragLastT = t; if (!same) paintCell(lane, t, gch); }
       }
     }
-    if ((touchDrag.mode === 'extend' || state.tool.type === 'glyph') && track) { // 复刻 mousemove 越界变换与向右延续
+    if ((touchDrag.mode === 'extend' || state.tool.type === 'glyph') && track) { // 复刻 mousemove：方向分流
       const r2 = track.getBoundingClientRect();
-      if (ev.clientY < r2.top || ev.clientY > r2.bottom) {
-        const zone = ev.clientY < r2.top ? 'up' : 'down';
+      const zone = dragZoneAt(ev, track);
+      if (zone) {
         const win2 = gridWindow();
         const rawT = win2.a + Math.floor((ev.clientX - r2.left) / gridCellW());
         const t = Math.max(0, Math.min(rawT, dragLastT + 1));
@@ -5710,7 +5722,6 @@ function bindGrid() {
         lastXform = { t, zone };
         return;
       }
-      lastXform = null;
       if (ev.clientX > r2.right) { dragLastT += 1; paintCell(lane, dragLastT, '.'); }
     }
   });
