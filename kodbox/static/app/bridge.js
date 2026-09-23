@@ -144,10 +144,11 @@
   function codeCompactOn() { try { return !!codeCompact; } catch (e) { return false; } }
   function docText() { return fmtJSON(buildJSON(), 0, codeCompactOn()); }
 
-  /* 原图是哪种导出就按哪种重绘：编辑区(含 skill 的现代风格)走矢量重建，官方渲染走官方渲染。
-     与 VSCode 插件的 wavedrom-gui.imageExportTheme=auto 同一套判断。 */
+  /* 原图是哪种导出就按哪种重绘：官方渲染（wavedrom）保持官方，其余走编辑区矢量重建。
+     认不出来源（新建的空文件、被别的工具剥掉元数据的图）兜底编辑区风格——与屏幕上
+     看到的预览一致，也与 VSCode 插件 extension.js 里 `|| 'skill-modern'` 的兜底同调。 */
   function exportAction() {
-    var editorStyle = (srcKind === 'editor' || srcKind === 'skill-modern');
+    var editorStyle = (srcKind !== 'wavedrom');
     if (KIND === 'svg') return editorStyle ? 'export-editor-svg' : 'export-svg';
     return editorStyle ? 'export-editor-png' : 'export-png';
   }
