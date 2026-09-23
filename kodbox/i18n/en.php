@@ -11,7 +11,7 @@ return array(
 	'wavedrom.config.autoSave'      => "Auto save after editing",
 	'wavedrom.config.autoSaveDesc'  => "When off, use the toolbar Save button or Ctrl+S; when on, editing stops for about 1s and the file is written back",
 
-	'wavedrom.app.title'     => "Waveforms",
+	'wavedrom.app.title'     => "Waveform editor",
 	'wavedrom.app.previewTitle' => "Waveform preview",
 	'wavedrom.new.wave'      => "Timing diagram (source)",
 	'wavedrom.new.wavesvg'   => "Timing diagram (SVG)",

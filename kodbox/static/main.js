@@ -12,7 +12,7 @@ kodReady.push(function(){
 	// 文案在宿主输出本文件时就替换掉：页面里的 LNG 表只有核心自己的键,插件 i18n 不会并进去,
 	// 运行时查 LNG['wavedrom.xxx'] 取不到。|| 后面是键缺失(渲染成空串)时的兜底。
 	var T = {
-		appTitle:     "{{LNG['wavedrom.app.title']}}"        || '波形图',
+		appTitle:     "{{LNG['wavedrom.app.title']}}"        || '波形图编辑',
 		appDesc:      "{{LNG['wavedrom.meta.desc']}}"        || '波形图编辑器',
 		previewTitle: "{{LNG['wavedrom.app.previewTitle']}}" || '波形预览',
 		newWave:    "{{LNG['wavedrom.new.wave']}}"       || '时序图(源文件)',
@@ -59,7 +59,8 @@ kodReady.push(function(){
 	};
 
 	// 并进去之后，普通照片的「打开方式」里也会带上这两项，所以右键菜单每次显示时再按
-	// 整个文件名收一遍：只有 *.wave.png / *.wave.svg 才露出来。
+	// 整个文件名收一遍：`.wave` / `.wave.svg` / `.wave.png` 才露出来，普通照片里看不到。
+	// （`.wave` 本身靠 fileExt 关联也在候选里，但隐藏是按 key 走的，一起收回来即可。）
 	// 绑「带菜单类型命名空间」的事件——核心的 打开方式 子菜单是在上一步(无名空间的同名
 	// 事件)里重建的，命名空间事件排在它之后触发，这时改隐藏状态才不会被冲掉。
 	var FILE_MENUS = ['.menu-path-file', '.menu-path-mini-file', '.menu-path-guest-file',
@@ -70,8 +71,7 @@ kodReady.push(function(){
 	}).join(' '), function(menu, app){
 		var info = (app && app.rightMenu && app.rightMenu.targetData(menu)) ||
 			(menu.$target && menu.$target.data('fileItem')) || {};
-		var kind = waveKind(info.name);
-		var how = kind === 'png' || kind === 'svg' ? 'menuItemShow' : 'menuItemHide';
+		var how = waveKind(info.name) ? 'menuItemShow' : 'menuItemHide';
 		$.contextMenu[how](menu, APP_ID);
 		$.contextMenu[how](menu, PREVIEW_ID);
 	});

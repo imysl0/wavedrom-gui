@@ -11,7 +11,7 @@ return array(
 	'wavedrom.config.autoSave'      => "编辑后自动写回",
 	'wavedrom.config.autoSaveDesc'  => "关闭时需用工具栏「保存」或 Ctrl+S；开启后停止编辑约 1 秒自动写回原文件",
 
-	'wavedrom.app.title'     => "波形图",
+	'wavedrom.app.title'     => "波形图编辑",
 	'wavedrom.app.previewTitle' => "波形预览",
 	'wavedrom.new.wave'      => "时序图(源文件)",
 	'wavedrom.new.wavesvg'   => "时序图(SVG)",
