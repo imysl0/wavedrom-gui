@@ -2,7 +2,7 @@
 
 [简体中文](./README.md) | **English**
 
-A WaveDrom timing-diagram toolkit with three products: a click-to-edit **web visual editor**, a browser-free **command-line rendering Skill**, and a **VS Code extension** (beta). They are wired together through image metadata — **SVGs/PNGs exported by the Skill embed the WaveJSON, and the web editor's "Open file" restores them into an editable diagram**. Zero build, works offline. The code was written in collaboration with GLM-5.3-flash, Qwen3.8-max, deepseek-v4-flash-exp, mimo-v25-pro and claude-opus-4.8 — a spare-time project. Feel free to use it, file issues, send PRs, or star it!
+A WaveDrom timing-diagram toolkit with four products: a click-to-edit **web visual editor**, a browser-free **command-line rendering Skill**, a **VS Code extension** (beta), and a **kodbox plugin** (beta). They are wired together through image metadata — **SVGs/PNGs exported by the Skill embed the WaveJSON, and the web editor's "Open file" restores them into an editable diagram**. Zero build, works offline. The code was written in collaboration with GLM-5.3-flash, Qwen3.8-max, deepseek-v4-flash-exp, mimo-v25-pro and claude-opus-4.8 — a spare-time project. Feel free to use it, file issues, send PRs, or star it!
 
 ![Screenshot](./images/wavedrom-gui.png)
 
@@ -53,6 +53,20 @@ Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks (mode
 - **English / Chinese UI**: texts follow VS Code's display language by default (Chinese is the fallback when it cannot be determined), and the `wavedrom-gui.language` setting can pin either one
 
 👉 See [vscode/README.md](./vscode/README.md) (bilingual — Chinese first, English after). Implementation notes: [vscode/design.md](./vscode/design.md) (Chinese).
+
+## Product 4: kodbox plugin (beta)
+
+> 🧪 **First release — testing and feedback welcome.** Two steps: `cd kodbox && node scripts/build.js`, then copy the `kodbox/` directory to `<kodbox>/plugins/wavedrom` and enable it in the admin panel (developed against kodbox 1.69.03; no core patches, no database, no external dependencies).
+
+The waveform editor inside your own kodbox: timing-diagram files in the drive are **created, opened by double-click and saved back in place** — no download-and-reupload round trip.
+
+- **Three file types**: `.wave` (WaveJSON source), `.wave.svg` and `.wave.png` (the image *is* the source) — the embedded WaveJSON is decoded for editing and, on save, the picture is redrawn **in the style it was exported with**, so repeated edits never wash the style out and never degrade it
+- **Create and go**: the file list's "New" menu offers timing-diagram entries for all three kinds; the two image kinds start as an empty file and the editor immediately renders a valid starter diagram into it
+- **Plain images untouched**: `.wave.png` / `.wave.svg` are matched on the whole filename, so ordinary `.png` / `.svg` still open in the image viewer; claiming, open mode (inline / dialog / new window), auto-save, extra extensions and priority are all admin settings
+- **Saving and permissions**: toolbar Save or `Ctrl+S`, with a status readout (loading / unsaved changes / saved); write-back honours kodbox's own write permission (read-only users get a disabled button), and the plugin's save endpoint validates the extension whitelist against the server-side filename, the content shape (PNG signature, `<svg` marker) and the CSRF token — with a same-origin fallback — so it can't become an arbitrary file write
+- **Interoperable with the other three**: same WaveJSON metadata spec and export-source marker, so images from the Skill / web editor / VS Code extension are recognized, editable and written back in the same style
+
+👉 Install, settings, security notes and troubleshooting: [kodbox/README.md](./kodbox/README.md) (Chinese).
 
 ## Technical notes
 

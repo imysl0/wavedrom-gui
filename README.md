@@ -2,7 +2,7 @@
 
 **简体中文** | [English](./README.en.md)
 
-WaveDrom 时序图工具集，目前包含三个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，一个无浏览器的 **命令行渲染 Skill**，以及一个 **VSCode 插件**（beta）。它们通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
+WaveDrom 时序图工具集，目前包含四个产品：一个鼠标点选即可编辑的 **Web 可视化编辑器**，一个无浏览器的 **命令行渲染 Skill**，一个 **VSCode 插件**（beta），以及一个 **kodbox 在线网盘插件**（beta）。它们通过图片元数据打通——**Skill 导出的 SVG/PNG 内嵌 WaveJSON，Web 编辑器「打开文件」即可直接还原成可编辑的图表**。零构建、离线可用。代码完全由 GLM-5.3-flash、Qwen3.8-max、deepseek-v4-flash-exp、mimo-v25-pro、claude-opus-4.8 协作完成，工作之余写的，欢迎大家使用、提 issue、PR、关注！
 
 ![整体截图](./images/wavedrom-gui.png)
 
@@ -53,6 +53,20 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 - **中英双语**：界面文案默认跟随 VS Code 的显示语言（判断不出语言时按中文），也可用设置 `wavedrom-gui.language` 固定中文或英文
 
 👉 详见 [vscode/README.md](./vscode/README.md)（**中英双语**，中文在前）；实现原理与排错见 [vscode/design.md](./vscode/design.md)。
+
+## 产品四：kodbox 插件（beta）
+
+> 🧪 **首个版本，欢迎测试反馈**。构建 + 安装两步：`cd kodbox && node scripts/build.js`，再把 `kodbox/` 整个目录拷成 `<kodbox>/plugins/wavedrom`，后台启用即可（开发实测 kodbox 1.69.03，不改核心、无数据库、无外部依赖）。
+
+把波形编辑器搬进自己的 kodbox：网盘里的时序图文件**直接新建、双击打开、编辑后写回原文件**，不用下载再上传。
+
+- **三种关联文件**：`.wave`（WaveJSON 源码）、`.wave.svg`、`.wave.png`（图片即源）——图片内嵌的 WaveJSON 解出来编辑，保存时按**原导出风格**重绘覆盖，反复编辑不会把风格洗掉，也不会做有损转换
+- **新建即用**：右键 / 工具栏「新建」里有「时序图(源文件) / 时序图(SVG) / 时序图(PNG)」，图片两种先建空文件，编辑器打开后立刻渲染一份合法内容落盘
+- **不打扰普通图片**：`.wave.png` / `.wave.svg` 靠整个文件名的后缀识别，普通 `.png` / `.svg` 仍旧走图片查看器；接管开关、打开方式（内嵌/弹窗/新窗口）、自动写回、关联扩展名、优先级都在后台设置里
+- **保存与权限**：顶栏「保存」或 `Ctrl+S`，状态位显示 读取中 / 有未保存的改动 / 已保存；写回沿用 kodbox 的写权限判断，只读用户看到的是禁用按钮 + 只读提示；写接口自带类型与内容校验（PNG 看文件签名、SVG 看标记、只认这三种后缀）和 CSRF/同源校验，不会变成「往任意路径写任意文件」的口子
+- **与前三个产品互通**：同一套 WaveJSON 元数据规格与导出来源标记，Skill / 编辑器 / VSCode 插件产出的图在这里可以直接编辑并原风格写回
+
+👉 安装、配置项、安全边界与排错见 [kodbox/README.md](./kodbox/README.md)。
 
 ## 技术说明
 

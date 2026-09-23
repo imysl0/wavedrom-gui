@@ -1,0 +1,36 @@
+<?php
+return array(
+	'wavedrom.menu'          => "波形图",
+	'wavedrom.title'         => "波形图编辑器",
+	'wavedrom.meta.name'     => "波形图编辑器",
+	'wavedrom.meta.title'    => "WaveDrom 波形图",
+	'wavedrom.meta.desc'     => "鼠标点选编辑 WaveDrom 时序图，支持 .wave / .wave.svg / .wave.png 直接编辑并写回",
+
+	'wavedrom.config.claimImage'    => "接管 .wave.png / .wave.svg",
+	'wavedrom.config.claimImageDesc' => "开启后，双击这类文件直接进入波形编辑器（普通图片不受影响）；关闭则只在「打开方式」里可手动选择",
+	'wavedrom.config.autoSave'      => "编辑后自动写回",
+	'wavedrom.config.autoSaveDesc'  => "关闭时需用工具栏「保存」或 Ctrl+S；开启后停止编辑约 1 秒自动写回原文件",
+
+	'wavedrom.app.title'     => "波形图",
+	'wavedrom.new.wave'      => "时序图(源文件)",
+	'wavedrom.new.wavesvg'   => "时序图(SVG)",
+	'wavedrom.new.wavepng'   => "时序图(PNG)",
+	'wavedrom.new.needFolder'=> "请先打开一个可写入的文件夹",
+
+	'wavedrom.host.loading'  => "正在读取文件…",
+	'wavedrom.host.save'     => "保存",
+	'wavedrom.host.saved'    => "已保存",
+	'wavedrom.host.saving'   => "正在保存…",
+	'wavedrom.host.dirty'    => "有未保存的改动",
+	'wavedrom.host.readonly' => "只读：没有该文件的写入权限",
+	'wavedrom.host.noMeta'   => "该文件里没有内嵌的波形数据，已按起始图表打开；保存会覆盖原内容",
+	'wavedrom.host.loadFail' => "文件读取失败",
+	'wavedrom.host.saveFail' => "保存失败",
+	'wavedrom.host.noFile'   => "未关联文件：从文件列表新建或双击 .wave / .wave.svg / .wave.png 即可写回原文件",
+
+	'wavedrom.errType'       => "文件类型与后缀不符，已拒绝写入",
+	'wavedrom.errEmpty'      => "内容为空，已拒绝写入",
+	'wavedrom.errDecode'     => "数据解码失败",
+	'wavedrom.errTooLarge'   => "内容过大，已拒绝写入",
+	'wavedrom.errNoBuild'    => "缺少 static/app/editor.html，请在插件目录执行 node scripts/build.js 生成",
+);

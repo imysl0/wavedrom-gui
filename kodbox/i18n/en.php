@@ -1,0 +1,36 @@
+<?php
+return array(
+	'wavedrom.menu'          => "Waveforms",
+	'wavedrom.title'         => "WaveDrom Editor",
+	'wavedrom.meta.name'     => "WaveDrom Editor",
+	'wavedrom.meta.title'    => "WaveDrom Waveform Editor",
+	'wavedrom.meta.desc'     => "Edit WaveDrom timing diagrams by clicking. .wave / .wave.svg / .wave.png open in place and save back",
+
+	'wavedrom.config.claimImage'    => "Claim .wave.png / .wave.svg",
+	'wavedrom.config.claimImageDesc' => "When on, double-clicking such a file opens the waveform editor (plain images are untouched); when off, pick it from \"Open with\"",
+	'wavedrom.config.autoSave'      => "Auto save after editing",
+	'wavedrom.config.autoSaveDesc'  => "When off, use the toolbar Save button or Ctrl+S; when on, editing stops for about 1s and the file is written back",
+
+	'wavedrom.app.title'     => "Waveforms",
+	'wavedrom.new.wave'      => "Timing diagram (source)",
+	'wavedrom.new.wavesvg'   => "Timing diagram (SVG)",
+	'wavedrom.new.wavepng'   => "Timing diagram (PNG)",
+	'wavedrom.new.needFolder'=> "Open a writable folder first",
+
+	'wavedrom.host.loading'  => "Reading the file…",
+	'wavedrom.host.save'     => "Save",
+	'wavedrom.host.saved'    => "Saved",
+	'wavedrom.host.saving'   => "Saving…",
+	'wavedrom.host.dirty'    => "Unsaved changes",
+	'wavedrom.host.readonly' => "Read-only: you have no write permission on this file",
+	'wavedrom.host.noMeta'   => "No waveform data embedded in this file; a starter diagram was loaded. Saving overwrites the original",
+	'wavedrom.host.loadFail' => "Failed to read the file",
+	'wavedrom.host.saveFail' => "Save failed",
+	'wavedrom.host.noFile'   => "No file attached: create one from the file list, or double-click a .wave / .wave.svg / .wave.png to save back",
+
+	'wavedrom.errType'       => "Content does not match the file extension; write refused",
+	'wavedrom.errEmpty'      => "Empty content; write refused",
+	'wavedrom.errDecode'     => "Failed to decode the payload",
+	'wavedrom.errTooLarge'   => "Content too large; write refused",
+	'wavedrom.errNoBuild'    => "static/app/editor.html is missing. Run node scripts/build.js in this plugin directory",
+);

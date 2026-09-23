@@ -1,2 +1,4 @@
 reasonix.toml
 .zcode/
+# kodbox 插件随包构建产物（node kodbox/scripts/build.js 从 ../index.html 生成）
+kodbox/static/app/editor.html
