@@ -2,11 +2,12 @@
 /* 随包构建：把仓库根的 index.html 复制成插件里的 static/app/editor.html。
  *
  * 编辑器本体一行都不改——宿主能力（取文件 / 解码内嵌 WaveJSON / 写回）全在
- * bridge.js 里，由 app.php 在 <body> 之后注入。这里做四件事：
- *   1. 打版本标记（顶栏徽标显示「插件版本 · 编辑器日期」，排错时能一眼看出用的是哪份）
- *   2. 校验注入点还在（app.php 依赖 'wdgui-doc-v1' 字面量与 topbar 结构）
- *   3. 同步图标的缓存串（见文件中段）
- *   4. 可选 `--zip`：产出可分发的插件压缩包（见文件末尾）
+ * bridge.js 里，由 app.php 在 <body> 之后注入。这里做五件事：
+ *   1. 插件版本对齐仓库 tag（见下方 tagVersion，与 vscode/scripts/build.js 同规则）
+ *   2. 打版本标记（顶栏徽标与「关于」弹窗显示本次版本号，排错时能一眼看出用的是哪份）
+ *   3. 校验注入点还在（app.php 依赖 'wdgui-doc-v1' 字面量与 topbar 结构）
+ *   4. 同步图标的缓存串（见文件中段）
+ *   5. 可选 `--zip`：产出可分发的插件压缩包（见文件末尾）
  */
 'use strict';
 const fs = require('fs');
@@ -21,6 +22,25 @@ const dst = path.join(pluginDir, 'static', 'app', 'editor.html');
 const pkg = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'));
 let html = fs.readFileSync(src, 'utf8');
 
+/* 插件版本与仓库 tag 对齐，规则与 vscode/scripts/build.js 同源：
+   tag `v260921.3` → `260921.3.0`（补一段 patch，和扩展版本字字相同，便于对照）。
+   取值优先级：`--version`/WDGUI_VERSION → git describe → package.json 现值。
+   前者优先是因为发版镜像多为浅克隆、refs/tags 未必可用，而流水线里 tag 是已知量。 */
+function tagVersion() {
+  const fromArg = process.argv.indexOf('--version');
+  let raw = (fromArg > 0 ? process.argv[fromArg + 1] : '') || process.env.WDGUI_VERSION || '';
+  raw = raw.trim();
+  if (!raw) {
+    try {
+      raw = require('child_process')
+        .execSync('git describe --tags --abbrev=0', { cwd: pluginDir, encoding: 'utf8' })
+        .trim();
+    } catch (e) { /* 无 git / 浅克隆无 tag：走下面的兜底 */ }
+  }
+  const m = /^v?(\d+)\.(\d+)(?:\.(\d+))?$/.exec(raw);
+  return m ? m[1] + '.' + m[2] + '.' + (m[3] || '0') : '';
+}
+
 ['\nfunction applyDocJSON', '\nfunction parseLoose', '\nfunction fmtJSON', '\nfunction handleAct', "'wdgui-doc-v1'"]
   .forEach((needle) => {
     if (html.indexOf(needle) < 0) {
@@ -29,10 +49,13 @@ let html = fs.readFileSync(src, 'utf8');
     }
   });
 
-const editedAt = new Date(fs.statSync(src).mtimeMs).toISOString().slice(0, 10);
+/* 徽标只放版本号：tag 自身已含日期（vYYMMDD.N），再拼 mtime 在 CI 里会变成「构建当天」 */
+const ver = tagVersion() || pkg.version;
+if (ver !== pkg.version) console.log('[build] version ' + pkg.version + ' → ' + ver + ' (来自 tag)');
+pkg.version = ver;
 html = html.replace(
   /<meta name="app-version" content="[^"]*">/,
-  '<meta name="app-version" content="' + pkg.version + ' · ' + editedAt + '">'
+  '<meta name="app-version" content="' + ver + '">'
 );
 
 fs.mkdirSync(path.dirname(dst), { recursive: true });
@@ -40,19 +63,24 @@ fs.writeFileSync(dst, html);
 console.log('[build] ' + path.relative(repoDir, src) + ' → ' + path.relative(repoDir, dst)
   + ' (' + (html.length / 1024).toFixed(0) + ' KB)');
 
-/* 图标 URL 的缓存串：nginx 对图片发 max-age=30d，插件中心的卡片只认 package.json 里
+/* 回写 package.json：version（来自 tag）+ 图标 URL 的缓存串。
+   用正则逐字段替换而不是 JSON.stringify 整体重写——这份文件用制表符缩进、
+   一行一键，整体序列化会把格式全改掉，diff 就没法看了。
+   图标缓存串的由来：nginx 对图片发 max-age=30d，插件中心的卡片只认 package.json 里
    这个 URL，所以换图标必须换 URL。核心不展开 package.json 里的 {{package.version}}
-   （只有 {{pluginHost}} / {{LNG…}} 会替换），版本号由这里按 version 自动回写，
-   维护时只改 version 一处即可。 */
+   （只有 {{pluginHost}} / {{LNG…}} 会替换），因此这里按 version 自动同步，
+   版本号本身又跟着 tag 走，维护时两处都不用手工记改。 */
 const pkgFile = path.join(pluginDir, 'package.json');
 const pkgRaw = fs.readFileSync(pkgFile, 'utf8');
-const want = '"icon":"{{pluginHost}}static/images/icon.svg?v=' + pkg.version + '"';
-const patched = pkgRaw.replace(/"icon":"\{\{pluginHost\}\}static\/images\/icon\.svg(\?v=[^"]*)?"/, want);
-if (patched === pkgRaw) {
-  console.log('[build] source.icon 缓存串已是 v=' + pkg.version);
+const want = pkgRaw
+  .replace(/("version":")[^"]*(")/, '$1' + ver + '$2')
+  .replace(/"icon":"\{\{pluginHost\}\}static\/images\/icon\.svg(\?v=[^"]*)?"/,
+    '"icon":"{{pluginHost}}static/images/icon.svg?v=' + ver + '"');
+if (want === pkgRaw) {
+  console.log('[build] package.json 的 version 与图标缓存串已是 ' + ver);
 } else {
-  fs.writeFileSync(pkgFile, patched);
-  console.log('[build] source.icon 缓存串 → ?v=' + pkg.version);
+  fs.writeFileSync(pkgFile, want);
+  console.log('[build] package.json → version=' + ver + ', source.icon ?v=' + ver);
 }
 
 /* `--zip 输出.zip`：把插件打成可直接解压到 plugins/ 的发行包。

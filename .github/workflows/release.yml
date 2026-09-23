@@ -144,13 +144,16 @@ jobs:
           test -s wavedrom-gui-vscode.vsix
 
       - name: 打包 kodbox 插件
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           # 同样必须排在「index.html 改名」之前：kodbox/scripts/build.js 要从仓库根的
           # index.html 生成插件里的 static/app/editor.html。zip 由 build.js 用 Node 自带
           # zlib 手写产出，与 CNB 侧跑完全同一条命令（镜像里有没有 zip 都不影响）。
+          # WDGUI_VERSION：插件版本跟着本次 tag 走，与 CNB 侧的 $CNB_BRANCH 同义。
           test -f index.html
-          node kodbox/scripts/build.js --zip wavedrom-kodbox-plugin.zip
+          WDGUI_VERSION="$TAG" node kodbox/scripts/build.js --zip wavedrom-kodbox-plugin.zip
           test -s wavedrom-kodbox-plugin.zip
 
       - name: 准备 Release 附件

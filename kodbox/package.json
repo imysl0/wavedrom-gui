@@ -3,9 +3,9 @@
 	"name":"{{LNG['wavedrom.meta.name']}}",
 	"title":"{{LNG['wavedrom.meta.title']}}",
 	"menu":"{{LNG['wavedrom.menu']}}",
-	"version":"1.01",
+	"version":"260921.3.0",
 	"source":{
-		"icon":"{{pluginHost}}static/images/icon.svg?v=1.01",
+		"icon":"{{pluginHost}}static/images/icon.svg?v=260921.3.0",
 		"screenshoot":[
 			"{{pluginHost}}static/images/shot1.png"
 		]

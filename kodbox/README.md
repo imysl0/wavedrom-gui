@@ -22,7 +22,7 @@ cd kodbox && node scripts/build.js --zip ../wavedrom-kodbox-plugin.zip   # 生�
 cp -r kodbox /path/to/kodbox/plugins/wavedrom
 ```
 
-发版流水线（`.cnb.yml` 与 GitHub Actions）会跑同一条 `build.js --zip` 并把 zip 挂成 Release 附件，所以 zip 里的编辑器顶栏徽标带的是本次发版的版本号。
+发版流水线（`.cnb.yml` 与 GitHub Actions）会跑同一条 `build.js --zip` 并把 zip 挂成 Release 附件。插件 `version` 在构建时对齐仓库 tag（`v260921.3` → `260921.3.0`，与 VS Code 扩展同号）：流水线用 `WDGUI_VERSION` 把本次 tag 显式传进去（浅克隆里 `git describe` 可能取不到 tag），本地构建则自动退回 `git describe`。
 
 兼容 kodbox 1.6x（开发实测于 1.69.03），无数据库、无外部依赖、不改核心文件。
 
@@ -61,7 +61,7 @@ cp -r kodbox /path/to/kodbox/plugins/wavedrom
 - 打开后提示「该文件里没有内嵌的波形数据」→ 这是一张普通图片改了名，或元数据被别的工具抹掉了；此时保存会用起始图表覆盖原内容，先取消。
 - 状态卡在「正在保存…」或「保存失败」→ 看 kodbox 是否登录过期、目录是否只读、磁盘是否可写；错误详情走编辑器右下角提示。
 - 改了插件文件但界面没变 → 后台刷新页面；`bridge.js` 的 URL 带版本号 + 文件 mtime，正常会自动失效，若套了 CDN 请一并刷新。
-- 图标不换 → nginx 对图片发的是 `max-age=30d`，所以图标 URL 必须带缓存串：`main.js` 里用 `{{package.version}}` 自动跟随，`package.json` 的 `source.icon` 由 `node scripts/build.js` 按 `version` 回写。**换图标只需升一次 `version` 再跑构建**，两处都会对齐。
+- 图标不换 → nginx 对图片发的是 `max-age=30d`，所以图标 URL 必须带缓存串：`main.js` 里用 `{{package.version}}` 自动跟随，`package.json` 的 `source.icon` 由 `node scripts/build.js` 按 `version` 回写。`version` 本身又在构建时对齐仓库 tag，所以**换图标只管换文件、跑一次构建**，三处（版本号、图标缓存串、编辑器徽标）会一起跟上。
 - 列表里 `.wave.png` / `.wave.svg` 没有预览图 → 是核心的封面缩略图没出：确认 `fileThumb` 插件开着、服务器有 GD/Imagick；`.wave` 源码文件本来就没有预览，显示的是波形图标。
 - 中文文件名、多标签页同开一个文件都可用（每个文件一份独立的自动保存键，互不覆盖）。
 

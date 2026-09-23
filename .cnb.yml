@@ -127,8 +127,10 @@
             # index.html 生成插件里的 static/app/editor.html，改名之后会 ENOENT。
             # zip 由 build.js 用 Node 自带 zlib 手写产出——node:20 镜像不保证有 zip/python3，
             # 这样两端流水线可以跑完全同一条命令。
+            # WDGUI_VERSION：插件版本跟着本次 tag 走。检出是浅克隆、refs/tags 可能不可用，
+            # git describe 会静默失败并沿用 package.json 旧值，所以这里把权威值显式给进去。
             test -f index.html
-            node kodbox/scripts/build.js --zip wavedrom-kodbox-plugin.zip
+            WDGUI_VERSION="$CNB_BRANCH" node kodbox/scripts/build.js --zip wavedrom-kodbox-plugin.zip
             test -s wavedrom-kodbox-plugin.zip
             ls -l wavedrom-kodbox-plugin.zip
 
