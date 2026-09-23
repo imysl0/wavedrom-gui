@@ -56,7 +56,18 @@ kodReady.push(function(){
 		};
 	});
 
-	// 左侧菜单入口(不带文件)：打开的是一个空白图表，改完用顶栏「导出」下载，或从文件列表建文件再编辑
+	// 侧栏入口打开的是整页应用，会把浏览器视图顶掉，而核心的「另存为」对话框类只挂在
+	// 浏览器视图的 pathAction 上——趁视图还在先把类存到 kodApp 上，bridge.js 事后取用。
+	// 首屏的浏览器视图可能比本插件的 JS 先建好，所以除了事后的钩子，先就地取一次。
+	var keepFileApi = function(view){
+		var api = view && (view.FileApi || (view.pathAction && view.pathAction.FileApi));
+		if (api) { kodApp.__wavedromFileApi = api; }
+	};
+	keepFileApi(kodApp.rootExplorer && kodApp.rootExplorer());
+	Events.bind('view.initAfter', keepFileApi);
+
+	// 左侧菜单入口(不带文件)：打开的是一个空白图表，点「保存」时由 bridge.js 弹核心的
+	// 「另存为」选位置；「导出」仍是下载到本地。
 	Router.mapIframe({ page: APP_ID, title: '{{package.name}}', url: API, ignoreLogin: 1 });
 	Events.bind('main.menu.loadBefore', function(listData){
 		listData[APP_ID] = {
@@ -81,15 +92,18 @@ kodReady.push(function(){
 
 	// 图片类占位文件先建成空的：编辑器打开后发现是空文件，会按起始图表渲染一次再落盘，
 	// 元数据由编辑器自己写(和手动「导出」同一条路)，插件里不必重造一份 PNG/SVG 编码器。
+	// 命名沿用核心的行内改名(createRename.add)，和「新建文件」是同一套交互：默认名已去重、
+	// 可原地改、Esc 取消——取消就什么文件都不留。.wave 走上面的 createOpen，本身已是这条流程。
 	var createFile = function(kind){
 		var root = kodApp.rootExplorer && kodApp.rootExplorer();
-		var pa = root && root.pathAction;
-		if (!pa || !pa.newFileContent) { return Tips.tips(L('new.needFolder'), 'warning'); }
-		var father = (pa.currentPath() || '').replace(/\/+$/, '');
-		var name = (LNG['explorer.newFile'] || '新建文件') + '.wave.' + kind;
-		pa.newFileContent(name, '', null, function(info){
-			var thePath = (info && info.path) || (father + '/' + name);
-			kodApp.open(thePath, kind, (info && info.name) || name, APP_ID, { fresh: 1 });
+		var rename = root && root.pathAction && root.pathAction.createRename;
+		if (!rename || !rename.add) { return Tips.tips(L('new.needFolder'), 'warning'); }
+		rename.add('file', 'wave.' + kind, function(res){
+			if (!res || !res.code || !res.info) return;      // 同名或非法名：核心把光标留在输入框里继续改
+			// 回调时行内输入框还在，取用户最终输入的名字当标签标题；
+			// 移动端弹窗式命名拿不到(已关窗)，就交给 app.php 按路径反查真名。
+			var typed = $('textarea.newfile').val() || rename.fileNameLast || '';
+			kodApp.open(res.info, kind, $.trim(typed), APP_ID, { fresh: 1 });
 		});
 	};
 

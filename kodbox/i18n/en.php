@@ -26,7 +26,10 @@ return array(
 	'wavedrom.host.noMeta'   => "No waveform data embedded in this file; a starter diagram was loaded. Saving overwrites the original",
 	'wavedrom.host.loadFail' => "Failed to read the file",
 	'wavedrom.host.saveFail' => "Save failed",
-	'wavedrom.host.noFile'   => "No file attached: create one from the file list, or double-click a .wave / .wave.svg / .wave.png to save back",
+	'wavedrom.host.noFile'   => "No file attached: press Save to pick a folder in the drive, or use Export to download",
+	'wavedrom.host.saveAs'   => "Choose where to save…",
+	'wavedrom.host.newDefault' => "waveform",
+	'wavedrom.host.badName'  => "The file name must end with .wave, .wave.svg or .wave.png; nothing was written",
 
 	'wavedrom.errType'       => "Content does not match the file extension; write refused",
 	'wavedrom.errEmpty'      => "Empty content; write refused",

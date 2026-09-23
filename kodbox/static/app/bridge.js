@@ -11,10 +11,11 @@
   if (!H || !H.docKey) return;
 
   var L = function (k) { return (H.lng && H.lng[k]) || k; };
-  var KIND = H.kind || 'json';                 // png | svg | json
+  var KIND = H.kind || 'json';                 // png | svg | json；「另存为」换目标后会跟着改
   var SEED = { signal: [{ name: 'clk', wave: 'p....' }] };   // 新建文件的起点：一拍时钟
 
   var srcKind = '', baseline = null, dirty = false, busy = false, capture = null, autoTimer = null;
+  var picking = false;                         // 「另存为」弹窗开着
   var el = {};
 
   /* ---------- 遮罩：编辑器启动会先恢复本地自动保存的图表，取到文件前别让用户看见那一瞬 ---------- */
@@ -73,7 +74,10 @@
     var anchor = bar.querySelector('.spacer');
     if (anchor) anchor.insertAdjacentElement('afterend', wrap);
     else bar.appendChild(wrap);
-    if (!H.canWrite) { el.btn.disabled = true; setStatus(L('readonly'), 'warn'); }
+    if (!saveable()) {
+      el.btn.disabled = true;
+      setStatus(H.fileUrl ? L('readonly') : L('noFile'), 'warn');
+    }
   }
 
   /* ---------- 读文件 ---------- */
@@ -205,8 +209,74 @@
     x.send(body);
   }
 
+  /* ---------- 「另存为」：没有落盘目标时(侧栏菜单打开的空白图表)，保存才选位置 ---------- */
+  /* 对话框用的是宿主核心自己的另存为(kodbox pathAction.FileApi, type:'createFile')——
+     一棵目录树 + 一个可改的全名输入框，标题、重名处理、权限校验都是核心现成的。
+     编辑器在 iframe 里，弹窗画在父窗口；类由 main.js 在浏览器视图还在时存到 kodApp 上
+     (侧栏入口是整页应用，会把浏览器视图顶掉)。 */
+  function host() {
+    try {
+      var p = window.parent;
+      if (!p || p === window || !p.kodApp) return null;
+      var api = p.kodApp.__wavedromFileApi || (p.kodApp.pathAction && p.kodApp.pathAction.FileApi);
+      return api ? { w: p, api: api } : null;
+    } catch (e) { return null; }
+  }
+  function saveable() { return !!H.canWrite || (!H.savePath && !!host()); }
+
+  function kindOfName(name) {
+    name = String(name || '').toLowerCase();
+    if (/\.wave\.png$/.test(name)) return 'png';
+    if (/\.wave\.svg$/.test(name)) return 'svg';
+    if (/\.wave$/.test(name)) return 'json';
+    return '';
+  }
+
+  /* 把新文件认成当前目标：后缀决定按哪种格式重绘，之后 Ctrl+S 直接覆盖不再弹窗。
+     换了格式就无从继承「原图风格」，退回编辑区(现代)出图。 */
+  function adopt(info) {
+    var one = (info && info.path) ? info : (info && info.length ? info[0] : null);
+    var kind = kindOfName(one && one.name);
+    if (!one || !kind) return false;
+    if (kind !== KIND) srcKind = '';
+    KIND = kind;
+    H.savePath = one.path;
+    H.canWrite = true;
+    return true;
+  }
+
+  function saveAs() {
+    var h = host();
+    if (!h || picking) return;
+    var w = h.w;
+    picking = true;
+    setStatus(L('saveAs'));
+    new h.api({
+      type: 'createFile',
+      createFile: { name: L('newDefault') + '.wave.png' },
+      callback: function (info) {
+        picking = false;
+        if (!adopt(info)) { setStatus(L('badName'), 'err'); notify(L('badName'), true); return; }
+        save(true);
+      }
+    });
+    /* 取消弹窗没有任何回调，只能盯着它还在不在，否则保存按钮一直卡在「选择保存位置」 */
+    var timer = w.setInterval(function () {
+      if (w.$(w.document).find('.pathSelectApi:visible').length) return;
+      w.clearInterval(timer);
+      if (!picking) return;
+      picking = false;
+      setStatus(H.canWrite ? '' : (H.fileUrl ? L('readonly') : L('noFile')), 'warn');
+    }, 500);
+  }
+
   function save(manual) {
-    if (busy || !H.canWrite) { if (manual) notify(L('readonly'), true); return; }
+    if (busy) return;
+    if (!H.canWrite) {
+      if (!H.savePath) { if (manual) saveAs(); return; }   // 自动保存不该弹窗，manual 才走
+      if (manual) notify(L('readonly'), true);
+      return;
+    }
     busy = true;
     setStatus(L('saving'));
     finish(function (err, payload) {
@@ -251,7 +321,7 @@
     var v = stored();
     if (v === null || baseline === null) return;
     if (v === baseline) return;
-    if (!dirty) { dirty = true; if (H.canWrite) setStatus(L('dirty'), 'warn'); }
+    if (!dirty) { dirty = true; if (saveable()) setStatus(L('dirty'), 'warn'); }
     if (H.autoSave && H.canWrite) {
       clearTimeout(autoTimer);
       autoTimer = setTimeout(function () { save(false); }, 1200);
@@ -277,9 +347,9 @@
       hideMask(L('loadFail'));
       return;
     }
-    if (!H.fileUrl) {                          // 从左侧菜单直接打开：没有文件目标，只能导出到本地
+    if (!H.fileUrl) {                          // 从左侧菜单直接打开：保存时选位置，或「导出」下载到本地
       hideMask();
-      if (el.btn) el.btn.disabled = true;
+      if (!saveable() && el.btn) el.btn.disabled = true;
       setStatus(L('noFile'), 'warn');
       syncBaseline(); setInterval(watchTick, 300);
       return;

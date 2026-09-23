@@ -26,7 +26,10 @@ return array(
 	'wavedrom.host.noMeta'   => "该文件里没有内嵌的波形数据，已按起始图表打开；保存会覆盖原内容",
 	'wavedrom.host.loadFail' => "文件读取失败",
 	'wavedrom.host.saveFail' => "保存失败",
-	'wavedrom.host.noFile'   => "未关联文件：从文件列表新建或双击 .wave / .wave.svg / .wave.png 即可写回原文件",
+	'wavedrom.host.noFile'   => "未关联文件：点「保存」选个位置存进网盘，或用「导出」下载到本地",
+	'wavedrom.host.saveAs'   => "请选择保存位置…",
+	'wavedrom.host.newDefault' => "波形图",
+	'wavedrom.host.badName'  => "文件名需以 .wave / .wave.svg / .wave.png 结尾，已放弃写入",
 
 	'wavedrom.errType'       => "文件类型与后缀不符，已拒绝写入",
 	'wavedrom.errEmpty'      => "内容为空，已拒绝写入",

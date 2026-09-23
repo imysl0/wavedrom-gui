@@ -45,9 +45,6 @@ class wavedromPlugin extends PluginBase{
 	 */
 	public function index(){
 		$path = $this->pathTrue($this->in['path']);
-		$name = (string)$this->in['name'];
-		$kind = $this->kindOf($name);
-		if ($kind === '' && $this->in['ext'] === 'wave') { $kind = 'json'; }
 		$args = $this->hostArgs();
 
 		$fileUrl  = '';
@@ -62,6 +59,14 @@ class wavedromPlugin extends PluginBase{
 				if ($canWrite) { $savePath = $path; }
 			}
 		}
+
+		// 名字以盘上为准：新建走核心的行内改名，插件的回调只拿得到路径({source:N}/),
+		// 用户输入的名字不必绕一圈传回来,顺带也防了前端传错 name 把类型认歪。
+		$name = (string)$this->in['name'];
+		$info = $fileUrl && substr($path, 0, 4) != 'http' ? IO::info($path) : false;
+		if (is_array($info) && !$info['isFolder'] && $info['name']) { $name = $info['name']; }
+		$kind = $this->kindOf($name);
+		if ($kind === '' && $this->in['ext'] === 'wave') { $kind = 'json'; }
 
 		$file = $this->pluginPath . 'static/app/editor.html';
 		if (!is_file($file)) {
@@ -107,7 +112,7 @@ class wavedromPlugin extends PluginBase{
 	/* bridge.js 里要显示的少量文案：编辑器自带 i18n 只管自己的界面,宿主提示走 kodbox 语言包 */
 	private function hostLang(){
 		$keys = array('loading', 'save', 'saved', 'saving', 'dirty', 'readonly',
-			'noMeta', 'loadFail', 'saveFail', 'noFile');
+			'noMeta', 'loadFail', 'saveFail', 'noFile', 'saveAs', 'newDefault', 'badName');
 		$out = array();
 		foreach ($keys as $k) { $out[$k] = LNG('wavedrom.host.' . $k); }
 		return $out;
