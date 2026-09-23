@@ -12,10 +12,18 @@ return array(
 	'wavedrom.config.autoSaveDesc'  => "关闭时需用工具栏「保存」或 Ctrl+S；开启后停止编辑约 1 秒自动写回原文件",
 
 	'wavedrom.app.title'     => "波形图",
+	'wavedrom.app.previewTitle' => "波形预览",
 	'wavedrom.new.wave'      => "时序图(源文件)",
 	'wavedrom.new.wavesvg'   => "时序图(SVG)",
 	'wavedrom.new.wavepng'   => "时序图(PNG)",
 	'wavedrom.new.needFolder'=> "请先打开一个可写入的文件夹",
+
+	'wavedrom.preview.edit'     => "编辑",
+	'wavedrom.preview.loading'  => "正在生成预览…",
+	'wavedrom.preview.readonly' => "只读：没有该文件的写入权限",
+	'wavedrom.preview.noFile'   => "没有可预览的内容",
+	'wavedrom.preview.fail'     => "预览生成失败，已改为显示文件内容",
+	'wavedrom.preview.noMeta'   => "该文件里没有可渲染的波形数据，已改为显示文件内容",
 
 	'wavedrom.host.loading'  => "正在读取文件…",
 	'wavedrom.host.save'     => "保存",

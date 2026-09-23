@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>波形预览</title>
+<style>
+:root{
+	--bg:#f2f3f5;--panel:#fff;--line:#e4e6ea;--text:#20232a;--muted:#8a9099;--acc:#2f6feb;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+	margin:0;display:flex;flex-direction:column;background:var(--bg);color:var(--text);
+	font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Roboto,sans-serif;
+}
+.wd-bar{
+	flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px;
+	background:var(--panel);border-bottom:1px solid var(--line);
+}
+.wd-mark{flex:none;display:flex;color:var(--acc)}
+.wd-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.wd-spacer{flex:1}
+.wd-btn{
+	flex:none;font:inherit;font-weight:500;padding:5px 14px;border-radius:6px;cursor:pointer;
+	border:1px solid var(--acc);background:var(--acc);color:#fff;
+}
+.wd-btn:hover{opacity:.88}
+/* 只读时按钮仍可点(点了要告诉用户为什么点不动)，只是看起来按不下去 */
+.wd-btn.off{background:var(--panel);border-color:var(--line);color:var(--muted)}
+.wd-btn.off:hover{opacity:1;border-color:var(--muted)}
+.wd-canvas{flex:1;overflow:auto;padding:20px}
+.wd-stage{min-height:100%;display:flex;align-items:center;justify-content:center}
+.wd-card{
+	max-width:100%;padding:14px;background:#fff;border:1px solid var(--line);border-radius:8px;
+	box-shadow:0 1px 3px rgba(20,25,35,.07);
+}
+.wd-card img{display:block;max-width:100%;height:auto}
+.wd-state{display:flex;align-items:center;gap:9px;color:var(--muted)}
+.wd-state.err{color:#b4413b}
+.wd-spin{animation:wd-rot 1.1s linear infinite;color:var(--acc)}
+@keyframes wd-rot{to{transform:rotate(360deg)}}
+.wd-src{
+	width:100%;max-width:920px;margin:0;padding:14px 16px;
+	background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--text);
+	font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+	white-space:pre-wrap;word-break:break-all;
+}
+/* 渲 .wave 源码用的编辑器：挪出视口但照常参与布局(编辑器要量尺寸)，出图后即销毁 */
+.wd-render{position:fixed;left:-99999px;top:0;width:1200px;height:800px;border:0;pointer-events:none;z-index:-1}
+.wd-tip{
+	position:fixed;left:50%;bottom:26px;transform:translateX(-50%);max-width:80%;
+	padding:7px 14px;border-radius:6px;background:rgba(32,35,42,.92);color:#fff;
+	font-size:12px;opacity:0;transition:opacity .2s;pointer-events:none;
+}
+.wd-tip.on{opacity:1}
+@media (max-width:600px){.wd-canvas{padding:12px}.wd-btn{padding:5px 10px}}
+</style>
+</head>
+<body>
+<header class="wd-bar">
+	<span class="wd-mark">
+		<svg width="16" height="16" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+			<path d="M1 14h4V6h4v10h4V6h4v8h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+		</svg>
+	</span>
+	<span class="wd-name" id="wdName"></span>
+	<span class="wd-spacer"></span>
+	<button type="button" class="wd-btn" id="wdEdit"></button>
+</header>
+<main class="wd-canvas">
+	<div class="wd-stage" id="wdStage"></div>
+</main>
+<div class="wd-tip" id="wdTip"></div>
+<script id="wd-config" type="application/json">__WD_PREVIEW_CFG__</script>
+<script src="__WD_PREVIEW_JS__"></script>
+</body>
+</html>

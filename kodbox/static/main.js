@@ -1,6 +1,8 @@
 kodReady.push(function(){
-	var APP_ID   = '{{package.id}}';
-	var API      = '{{pluginApi}}';
+	var APP_ID    = '{{package.id}}';
+	var API       = '{{pluginApi}}';
+	var PREVIEW_ID  = '{{package.id}}Preview';   // 「打开方式」里的第二个条目，走同插件的 preview 路由
+	var PREVIEW_API = '{{pluginApi}}preview';
 	// 带版本号的图标 URL：换图后不必等浏览器缓存过期（发版时记得升 package.json 的 version）
 	var ICON     = '{{pluginHost}}static/images/icon.svg?v={{package.version}}';
 	var OPEN_WITH= '{{config.openWith}}';
@@ -10,8 +12,9 @@ kodReady.push(function(){
 	// 文案在宿主输出本文件时就替换掉：页面里的 LNG 表只有核心自己的键,插件 i18n 不会并进去,
 	// 运行时查 LNG['wavedrom.xxx'] 取不到。|| 后面是键缺失(渲染成空串)时的兜底。
 	var T = {
-		appTitle:   "{{LNG['wavedrom.app.title']}}"      || '波形图',
-		appDesc:    "{{LNG['wavedrom.meta.desc']}}"      || '波形图编辑器',
+		appTitle:     "{{LNG['wavedrom.app.title']}}"        || '波形图',
+		appDesc:      "{{LNG['wavedrom.meta.desc']}}"        || '波形图编辑器',
+		previewTitle: "{{LNG['wavedrom.app.previewTitle']}}" || '波形预览',
 		newWave:    "{{LNG['wavedrom.new.wave']}}"       || '时序图(源文件)',
 		newSvg:     "{{LNG['wavedrom.new.wavesvg']}}"    || '时序图(SVG)',
 		newPng:     "{{LNG['wavedrom.new.wavepng']}}"    || '时序图(PNG)',
@@ -27,30 +30,35 @@ kodReady.push(function(){
 		if (endsWith(name, '.wave'))     return 'json';
 		return '';
 	};
-	var openArgs = function(path, ext, name, args){
-		core.openFile(API, OPEN_WITH, [path, ext, name, args]);
+	var openArgs = function(api, path, ext, name, args){
+		core.openFile(api, OPEN_WITH, [path, ext, name, args]);
 	};
 
 	// 「打开方式」的候选按 ext 取(kodApp.getApp(ext))，.wave.png / .wave.svg 的真实 ext 是
 	// png / svg，光靠 fileExt 配置进不去。appSortSet 会把这两个后缀并进本插件的支持列表，
-	// 并给出该后缀下的排序权重(值越大越靠前)——取现有最小值再减一，只多一个菜单项，
+	// 并给出该后缀下的排序权重(值越大越靠前)——取现有最小值再往下让，只多两个菜单项，
 	// 绝不抢在普通图片的默认打开应用前面。
 	var claimOpenWith = function(){
 		if (!kodApp.appSortSet) return;
+		var mine = {}; mine[APP_ID] = 1; mine[PREVIEW_ID] = 1;
 		var weight = {};
 		_.each(['png', 'svg'], function(ext){
 			var list = kodApp.getApp(ext) || [], min = 0;
 			_.each(list, function(app){
-				if (app.name === APP_ID) return;
+				if (mine[app.name]) return;
 				var v = (app.extSort && app.extSort[ext] != null) ? app.extSort[ext] : app.sort;
 				if (v < min) min = v;
 			});
 			weight[ext] = min - 1;
 		});
 		kodApp.appSortSet(APP_ID, weight);
+		// 预览紧跟在编辑器下面，永远轮不到「默认打开」
+		var below = {};
+		_.each(weight, function(v, k){ below[k] = v - 1; });
+		kodApp.appSortSet(PREVIEW_ID, below);
 	};
 
-	// 并进去之后，普通照片的「打开方式」里也会带上这一项，所以右键菜单每次显示时再按
+	// 并进去之后，普通照片的「打开方式」里也会带上这两项，所以右键菜单每次显示时再按
 	// 整个文件名收一遍：只有 *.wave.png / *.wave.svg 才露出来。
 	// 绑「带菜单类型命名空间」的事件——核心的 打开方式 子菜单是在上一步(无名空间的同名
 	// 事件)里重建的，命名空间事件排在它之后触发，这时改隐藏状态才不会被冲掉。
@@ -63,7 +71,9 @@ kodReady.push(function(){
 		var info = (app && app.rightMenu && app.rightMenu.targetData(menu)) ||
 			(menu.$target && menu.$target.data('fileItem')) || {};
 		var kind = waveKind(info.name);
-		$.contextMenu[kind === 'png' || kind === 'svg' ? 'menuItemShow' : 'menuItemHide'](menu, APP_ID);
+		var how = kind === 'png' || kind === 'svg' ? 'menuItemShow' : 'menuItemHide';
+		$.contextMenu[how](menu, APP_ID);
+		$.contextMenu[how](menu, PREVIEW_ID);
 	});
 
 	Events.bind('explorer.kodApp.before', function(appList){
@@ -74,7 +84,18 @@ kodReady.push(function(){
 			sort: SORT,
 			icon: 'x-item-icon x-wavedrom',
 			appFileEdit: true, appFileView: true,
-			callback: function(path, ext, name, args){ openArgs(path, ext, name, args); }
+			callback: function(path, ext, name, args){ openArgs(API, path, ext, name, args); }
+		});
+		// 预览条目：只看图，可写的文件预览页右上带「编辑」。sort 低编辑器一档，
+		// 默认打开仍是编辑器；只读的文件由 app.php 直接把编辑器路由换成预览页。
+		appList.push({
+			name: PREVIEW_ID,
+			title: T.previewTitle,
+			ext: EXT_WAVE,
+			sort: SORT - 1,
+			icon: 'x-item-icon x-wavedrom',
+			appFileView: true,
+			callback: function(path, ext, name, args){ openArgs(PREVIEW_API, path, ext, name, args); }
 		});
 		// 核心要等本钩子返回后才把条目交给 kodApp.add，appSortSet 得排在它之后
 		setTimeout(claimOpenWith, 0);

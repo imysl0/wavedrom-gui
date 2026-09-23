@@ -42,62 +42,125 @@ class wavedromPlugin extends PluginBase{
 	 *   - 每文件独立的自动保存键（多标签页同开时不互相覆盖）
 	 *   - WD_HOST 配置与 bridge.js（取文件 / 解码 / 写回）
 	 * 注入脚本排在编辑器自身脚本之前,不改动编辑器任何逻辑。
+	 *
+	 * 只读文件在这儿会换成预览页：拿不到写权限时，编辑器那一整套外壳只是噪音。
 	 */
 	public function index(){
+		$t = $this->target();
+		if ($t['path'] !== '' && !$t['canWrite']) { return $this->previewPage($t); }
+		$this->editorPage($t, false);
+	}
+
+	/** 「打开方式 → 波形预览」：只看图，可写与否都一样（可写的预览页有「编辑」按钮） */
+	public function preview(){
+		$this->previewPage($this->target());
+	}
+
+	/** 预览页给 .wave 源码出图用的渲染器：隐藏 iframe 装载编辑器，只出图、不落盘 */
+	public function render(){
+		$this->editorPage($this->target(), true);
+	}
+
+	/* 请求里的 path → 这次要打开的东西。名字与类型以盘上为准：新建走核心的行内改名，
+	   插件回调只拿得到路径({source:N}/),绕一圈把用户输入的名字传回来反而多余,也防了
+	   前端传错 name 把类型认歪。 */
+	private function target(){
+		$t = array('path'=>'', 'fileUrl'=>'', 'savePath'=>'', 'canWrite'=>false, 'name'=>'', 'kind'=>'', 'ver'=>'');
 		$path = $this->pathTrue($this->in['path']);
-		$args = $this->hostArgs();
+		if (!is_string($path) || $path === '') return $t;
+		if (substr($path, 0, 4) == 'http') { $t['fileUrl'] = $path; return $t; }
 
-		$fileUrl  = '';
-		$savePath = '';
-		$canWrite = false;
-		if ($path) {
-			if (substr($path, 0, 4) == 'http') {
-				$fileUrl = $path;
-			} else {
-				$fileUrl  = $this->filePathLink($path);
-				$canWrite = ActionCall('explorer.auth.fileCanWrite', $path);
-				if ($canWrite) { $savePath = $path; }
-			}
+		$t['path']     = $path;
+		$t['fileUrl']  = $this->filePathLink($path);
+		$t['canWrite'] = (bool)ActionCall('explorer.auth.fileCanWrite', $path);
+		if ($t['canWrite']) { $t['savePath'] = $path; }
+
+		$name        = (string)$this->in['name'];
+		$info        = IO::info($path);
+		$modifyTime  = '';
+		if (is_array($info) && !$info['isFolder']) {
+			if ($info['name']) { $name = $info['name']; }
+			$modifyTime = (string)_get($info, 'modifyTime');
 		}
+		$t['name'] = $name;
+		// 预览页拿它给图片 URL 换串:nginx 对图片是 max-age=30d,文件改了要能看出来
+		$t['ver'] = $modifyTime;
 
-		// 名字以盘上为准：新建走核心的行内改名，插件的回调只拿得到路径({source:N}/),
-		// 用户输入的名字不必绕一圈传回来,顺带也防了前端传错 name 把类型认歪。
-		$name = (string)$this->in['name'];
-		$info = $fileUrl && substr($path, 0, 4) != 'http' ? IO::info($path) : false;
-		if (is_array($info) && !$info['isFolder'] && $info['name']) { $name = $info['name']; }
 		$kind = $this->kindOf($name);
 		if ($kind === '' && $this->in['ext'] === 'wave') { $kind = 'json'; }
+		$t['kind'] = $kind;
+		return $t;
+	}
 
+	/* $renderOnly：只把编辑器当渲染器用——bridge.js 看到它就不装保存按钮、不做脏
+	   检测、也不写盘(见 static/app/bridge.js 的 renderMode)。 */
+	private function editorPage($t, $renderOnly){
 		$file = $this->pluginPath . 'static/app/editor.html';
-		if (!is_file($file)) {
-			header('Content-Type: text/html; charset=utf-8');
-			echo '<meta charset="utf-8"><p style="font:14px/2 sans-serif;padding:24px">'
-				. LNG('wavedrom.errNoBuild') . '</p>';
-			return;
-		}
+		if (!is_file($file)) { return $this->echoMissing(); }
 
-		$docKey = 'wdgui-doc-' . substr(md5($path . '|' . $name), 0, 16);
-		$html   = file_get_contents($file);
-		$html   = str_replace("'wdgui-doc-v1'", "'" . $docKey . "'", $html);
+		// 渲染用的自动保存键与编辑器分开:预览页起的隐藏 iframe 不该顶掉同一个文件在
+		// 别的标签页里的「有未保存改动」基线。
+		$docKey = ($renderOnly ? 'wdgui-render-' : 'wdgui-doc-')
+			. substr(md5($t['path'] . '|' . $t['name']), 0, 16);
+		$html = file_get_contents($file);
+		$html = str_replace("'wdgui-doc-v1'", "'" . $docKey . "'", $html);
 
 		$boot = '<script>var WD_HOST=' . json_encode(array(
-			'fileUrl'   => $fileUrl,
-			'savePath'  => $savePath,
-			'canWrite'  => $canWrite,
-			'kind'      => $kind,
-			'fileName'  => $name,
-			'docKey'    => $docKey,
-			'saveApi'   => $this->pluginApi . 'save',
-			'fresh'     => (bool)_get($args, 'fresh'),
-			'autoSave'  => _get($this->getConfig(), 'autoSave') == '1',
-			'csrfToken' => $this->csrfToken(),
-			'lng'       => $this->hostLang(),
-		), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';</script>' . "\n"
+			'fileUrl'    => $t['fileUrl'],
+			'savePath'   => $t['savePath'],
+			'canWrite'   => $t['canWrite'],
+			'kind'       => $t['kind'],
+			'fileName'   => $t['name'],
+			'docKey'     => $docKey,
+			'renderOnly' => $renderOnly,
+			'saveApi'    => $this->pluginApi . 'save',
+			'fresh'      => !$renderOnly && (bool)_get($this->hostArgs(), 'fresh'),
+			'autoSave'   => !$renderOnly && _get($this->getConfig(), 'autoSave') == '1',
+			'csrfToken'  => $renderOnly ? '' : $this->csrfToken(),
+			'lng'        => $this->hostLang(),
+		), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) . ';</script>' . "\n"
 		/* 只按版本号刷缓存的话,不换 version 的更新会一直命中旧 bridge.js（编辑器本体是
 		   服务端读出来的,不受影响）;带上文件 mtime。 */
 		. '<script src="' . $this->pluginHost . 'static/app/bridge.js?v=' . $this->packageVersion()
 		. '-' . filemtime($this->pluginPath . 'static/app/bridge.js') . '"></script>' . "\n";
 		echo preg_replace('/(<body[^>]*>)/i', '$1' . $boot, $html, 1);
+	}
+
+	/* 预览页：图就是内容——.wave.png / .wave.svg 直接摆原文件,.wave 走 render 路由借
+	   编辑器渲一张 SVG。配置以 JSON 放在 <script type="application/json"> 里,页面自身
+	   不需要内联脚本(文件名可能带尖括号,所以编码时把标签字符转掉)。 */
+	private function previewPage($t){
+		$file = $this->pluginPath . 'static/app/preview.html';
+		if (!is_file($file)) { return $this->echoMissing(); }
+		$js = $this->pluginHost . 'static/app/preview.js?v=' . $this->packageVersion()
+			. '-' . filemtime($this->pluginPath . 'static/app/preview.js');
+
+		$editUrl = $renderUrl = '';
+		if ($t['path'] !== '') {
+			$editUrl   = $this->pluginApi . 'index&path=' . rawurlencode($t['path']) . '&name=' . rawurlencode($t['name']);
+			$renderUrl = $this->pluginApi . 'render&path=' . rawurlencode($t['path']);
+		}
+		$cfg = json_encode(array(
+			'fileName'  => $t['name'],
+			'kind'      => $t['kind'],
+			'fileUrl'   => $t['fileUrl'],
+			'ver'       => $t['ver'],
+			'canWrite'  => $t['canWrite'],
+			'editUrl'   => $editUrl,
+			'renderUrl' => $renderUrl,
+			'lng'       => $this->previewLang(),
+		), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP);
+
+		echo str_replace(
+			array('__WD_PREVIEW_CFG__', '__WD_PREVIEW_JS__'),
+			array($cfg, $js),
+			file_get_contents($file));
+	}
+
+	private function echoMissing(){
+		header('Content-Type: text/html; charset=utf-8');
+		echo '<meta charset="utf-8"><p style="font:14px/2 sans-serif;padding:24px">'
+			. LNG('wavedrom.errNoBuild') . '</p>';
 	}
 
 	/* core.openFile 把第四个参数原样 jsonEncode 进 URL 的 args 字段（新建文件时用它
@@ -115,6 +178,14 @@ class wavedromPlugin extends PluginBase{
 			'noMeta', 'loadFail', 'saveFail', 'noFile', 'saveAs', 'newDefault', 'badName');
 		$out = array();
 		foreach ($keys as $k) { $out[$k] = LNG('wavedrom.host.' . $k); }
+		return $out;
+	}
+
+	/* 预览页的文案，同上走语言包（键名前缀 wavedrom.preview.） */
+	private function previewLang(){
+		$keys = array('edit', 'loading', 'readonly', 'noFile', 'fail', 'noMeta');
+		$out = array();
+		foreach ($keys as $k) { $out[$k] = LNG('wavedrom.preview.' . $k); }
 		return $out;
 	}
 

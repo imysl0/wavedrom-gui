@@ -10,6 +10,7 @@
   var H = window.WD_HOST;
   if (!H || !H.docKey) return;
 
+  var RENDER = !!H.renderOnly;                // 只当渲染器使：预览页起的隐藏 iframe
   var L = function (k) { return (H.lng && H.lng[k]) || k; };
   var KIND = H.kind || 'json';                 // png | svg | json；「另存为」换目标后会跟着改
   var SEED = { signal: [{ name: 'clk', wave: 'p....' }] };   // 新建文件的起点：一拍时钟
@@ -328,26 +329,59 @@
     }
   }
 
-  document.addEventListener('keydown', function (ev) {
+  function saveShortcut(ev) {
     if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
     if (ev.key !== 's' && ev.key !== 'S') return;
     ev.preventDefault(); ev.stopPropagation();
     save(true);
-  }, true);
-  window.addEventListener('beforeunload', function (ev) {
+  }
+  function warnUnsaved(ev) {
     if (!dirty || busy) return;
     ev.preventDefault();
     ev.returnValue = L('dirty');
-  });
+  }
+
+  /* ---------- 渲染模式：预览页把编辑器装进隐藏 iframe 当渲染器用 ---------- */
+  /* 图交给宿主页面塞进 <img>(SVG 走 img 不会执行里面的脚本)，这边不落盘、不装顶栏、
+     不做脏检测；自动保存键也换了一条前缀(见 app.php)，免得搅坏同一个文件在别的
+     标签页里的「有未保存改动」基线。 */
+  function post(msg) {
+    msg.app = 'wavedrom';
+    try { parent.postMessage(msg, window.location.origin); } catch (e) {}
+  }
+
+  function renderMode(loaded) {
+    hideMask();
+    if (!loaded) return post({ type: 'wd-svg', error: 'no-meta' });
+    var rendering = false;
+    window.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (rendering || ev.source !== parent || !d || d.type !== 'wd-render') return;
+      rendering = true;
+      // 不用 exportAction()：那条路按「要写回的文件后缀」选格式，源码文件(.wave)会去导 PNG。
+      // 预览页只吃矢量，所以这里直接指定 SVG；风格仍跟着原图走。
+      var act = srcKind === 'wavedrom' ? 'export-svg' : 'export-editor-svg';
+      captureExport(act, function (err, blob) {
+        if (err) { rendering = false; return post({ type: 'wd-svg', error: err.message || 'render' }); }
+        var rd = new FileReader();
+        rd.onload = function () { rendering = false; post({ type: 'wd-svg', svg: String(rd.result || '') }); };
+        rd.onerror = function () { rendering = false; post({ type: 'wd-svg', error: 'blob-read' }); };
+        rd.readAsText(blob);
+      });
+    });
+    post({ type: 'wd-ready' });
+  }
 
   /* ---------- 启动 ---------- */
   function start() {
     if (typeof window.applyDocJSON !== 'function' || typeof window.handleAct !== 'function') {
       if ((start.tries = (start.tries || 0) + 1) < 200) return setTimeout(start, 50);
+      if (RENDER) return post({ type: 'wd-svg', error: 'no-renderer' });
       hideMask(L('loadFail'));
       return;
     }
     if (!H.fileUrl) {                          // 从左侧菜单直接打开：保存时选位置，或「导出」下载到本地
+      if (RENDER) return post({ type: 'wd-svg', error: 'no-file' });
       hideMask();
       if (!saveable() && el.btn) el.btn.disabled = true;
       setStatus(L('noFile'), 'warn');
@@ -355,10 +389,14 @@
       return;
     }
     readFile(function (err, bytes) {
-      if (err) { hideMask(); setStatus(L('loadFail'), 'err'); notify(L('loadFail'), true); return; }
+      if (err) {
+        if (RENDER) { hideMask(); return post({ type: 'wd-svg', error: 'load-fail' }); }
+        hideMask(); setStatus(L('loadFail'), 'err'); notify(L('loadFail'), true); return;
+      }
       var out = decodeFile(bytes);
       var fresh = !!H.fresh || !!out.empty;         // 新建(或被截断的空文件)：先渲染一份合法内容落盘
       loadIntoEditor(out.json);
+      if (RENDER) return renderMode(!!out.json);
       if (!out.json && !out.empty) notify(L('noMeta'), true);
       setTimeout(function () {                       // 等编辑器的防抖自动保存落地，再取脏检测基线
         syncBaseline();
@@ -370,7 +408,11 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installBar);
-  else installBar();
+  if (!RENDER) {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installBar);
+    else installBar();
+    document.addEventListener('keydown', saveShortcut, true);
+    window.addEventListener('beforeunload', warnUnsaved);
+  }
   start();
 })();
