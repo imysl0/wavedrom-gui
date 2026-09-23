@@ -80,7 +80,7 @@
             {
               echo "WaveDrom-Gui $CNB_BRANCH"
               echo
-              echo "Web 可视化编辑器、wavedrom-render Skill 与 VS Code 扩展（.vsix 见附件）的版本发布。"
+              echo "Web 可视化编辑器、wavedrom-render Skill、VS Code 扩展（.vsix）与 kodbox 插件（.zip）的版本发布。"
               echo
               if [ -s LATEST_CHANGELOG.md ]; then
                 cat LATEST_CHANGELOG.md
@@ -119,6 +119,19 @@
             test -s wavedrom-gui-vscode.vsix
             ls -l wavedrom-gui-vscode.vsix
 
+        - name: 打包 kodbox 插件
+          image: node:20
+          script: |
+            set -eu
+            # 同样必须排在「准备 Release 附件」之前：kodbox/scripts/build.js 要从仓库根的
+            # index.html 生成插件里的 static/app/editor.html，改名之后会 ENOENT。
+            # zip 由 build.js 用 Node 自带 zlib 手写产出——node:20 镜像不保证有 zip/python3，
+            # 这样两端流水线可以跑完全同一条命令。
+            test -f index.html
+            node kodbox/scripts/build.js --zip wavedrom-kodbox-plugin.zip
+            test -s wavedrom-kodbox-plugin.zip
+            ls -l wavedrom-kodbox-plugin.zip
+
         - name: 准备 Release 附件
           image: node:20
           script: |
@@ -127,6 +140,7 @@
             mv index.html wavedrom-gui.html
             test -f wavedrom-gui.html
             test ! -e index.html
+            test -s wavedrom-kodbox-plugin.zip
 
         - name: 上传 Release 附件
           image: cnbcool/attachments:latest
@@ -134,6 +148,7 @@
             attachments:
               - "./wavedrom-gui.html"
               - "./vscode/wavedrom-gui-vscode.vsix"
+              - "./wavedrom-kodbox-plugin.zip"
 
         # 把远端分支实体化成真正的本地分支，供下一步 git-sync 推送
         - name: 准备待同步的分支

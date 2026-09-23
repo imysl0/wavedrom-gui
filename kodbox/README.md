@@ -12,21 +12,17 @@
 
 ## 安装
 
-1. 生成随包编辑器（仓库根或本目录里执行均可）：
+**从 Release 装（推荐，无需源码）**：下载 `wavedrom-kodbox-plugin.zip`，解压到 kodbox 的 `plugins/` 目录——包里已带顶层 `wavedrom/` 目录和构建好的编辑器，解压完就是 `plugins/wavedrom/`。然后 kodbox 后台 → 插件中心 → 找到「波形图编辑器」→ 启用，已登录的标签页刷新一次生效。
 
-   ```bash
-   cd kodbox && node scripts/build.js      # → static/app/editor.html
-   ```
+**从源码装**（本目录即插件源码，`editor.html` 是不入库的构建产物，缺它时插件页面会提示执行这条命令）：
 
-   `editor.html` 是从 `../index.html` 复制并打版本标记的产物，不入库；缺它时插件页面会提示执行这条命令。
+```bash
+cd kodbox && node scripts/build.js --zip ../wavedrom-kodbox-plugin.zip   # 生成编辑器 + 发行包
+#   只想要目录形态就省掉 --zip，然后把本目录整体拷到 kodbox 的 plugins/wavedrom
+cp -r kodbox /path/to/kodbox/plugins/wavedrom
+```
 
-2. 把本目录整体拷到 kodbox 的插件目录，名字必须是 `wavedrom`：
-
-   ```bash
-   cp -r kodbox /path/to/kodbox/plugins/wavedrom
-   ```
-
-3. kodbox 后台 → 插件 → 找到「波形图编辑器」→ 启用。已登录的标签页刷新一次生效。
+发版流水线（`.cnb.yml` 与 GitHub Actions）会跑同一条 `build.js --zip` 并把 zip 挂成 Release 附件，所以 zip 里的编辑器顶栏徽标带的是本次发版的版本号。
 
 兼容 kodbox 1.6x（开发实测于 1.69.03），无数据库、无外部依赖、不改核心文件。
 

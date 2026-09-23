@@ -56,7 +56,7 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 
 ## 产品四：kodbox 插件（beta）
 
-> 🧪 **首个版本，欢迎测试反馈**。构建 + 安装两步：`cd kodbox && node scripts/build.js`，再把 `kodbox/` 整个目录拷成 `<kodbox>/plugins/wavedrom`，后台启用即可（开发实测 kodbox 1.69.03，不改核心、无数据库、无外部依赖）。
+> 🧪 **首个版本，欢迎测试反馈**。安装：从 [Releases](https://cnb.cool/linshi-2026/wavedrom-gui/-/releases) 下载 `wavedrom-kodbox-plugin.zip`，解压到 kodbox 的 `plugins/` 目录（包里自带 `wavedrom/` 目录与构建好的编辑器），后台启用即可；也可以从源码构建：`cd kodbox && node scripts/build.js --zip ../wavedrom-kodbox-plugin.zip`。开发实测 kodbox 1.69.03，不改核心、无数据库、无外部依赖。
 
 把波形编辑器搬进自己的 kodbox：网盘里的时序图文件**直接新建、双击打开、编辑后写回原文件**，不用下载再上传。
 

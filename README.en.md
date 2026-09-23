@@ -56,7 +56,7 @@ Brings wavedrom-gui into VS Code: render ```` ```wavedrom ```` code blocks (mode
 
 ## Product 4: kodbox plugin (beta)
 
-> 🧪 **First release — testing and feedback welcome.** Two steps: `cd kodbox && node scripts/build.js`, then copy the `kodbox/` directory to `<kodbox>/plugins/wavedrom` and enable it in the admin panel (developed against kodbox 1.69.03; no core patches, no database, no external dependencies).
+> 🧪 **First release — testing and feedback welcome.** Install it by downloading `wavedrom-kodbox-plugin.zip` from [Releases](https://cnb.cool/linshi-2026/wavedrom-gui/-/releases) and extracting it into kodbox's `plugins/` directory (the archive already contains the `wavedrom/` folder and a prebuilt editor), then enable it in the admin panel; or build it from source with `cd kodbox && node scripts/build.js --zip ../wavedrom-kodbox-plugin.zip`. Developed against kodbox 1.69.03 — no core patches, no database, no external dependencies.
 
 The waveform editor inside your own kodbox: timing-diagram files in the drive are **created, opened by double-click and saved back in place** — no download-and-reupload round trip.
 
