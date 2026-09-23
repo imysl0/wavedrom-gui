@@ -7,7 +7,16 @@ kodReady.push(function(){
 	var CLAIM_IMG= '{{config.claimImage}}' == '1';
 	var EXT_WAVE = '{{config.fileExt}}';
 	var SORT     = parseInt('{{config.fileSort}}') || 120;
-	var L        = function(key, fallback){ return LNG['wavedrom.' + key] || fallback || key; };
+	// 文案在宿主输出本文件时就替换掉：页面里的 LNG 表只有核心自己的键,插件 i18n 不会并进去,
+	// 运行时查 LNG['wavedrom.xxx'] 取不到。|| 后面是键缺失(渲染成空串)时的兜底。
+	var T = {
+		appTitle:   "{{LNG['wavedrom.app.title']}}"      || '波形图',
+		appDesc:    "{{LNG['wavedrom.meta.desc']}}"      || '波形图编辑器',
+		newWave:    "{{LNG['wavedrom.new.wave']}}"       || '时序图(源文件)',
+		newSvg:     "{{LNG['wavedrom.new.wavesvg']}}"    || '时序图(SVG)',
+		newPng:     "{{LNG['wavedrom.new.wavepng']}}"    || '时序图(PNG)',
+		needFolder: "{{LNG['wavedrom.new.needFolder']}}" || '请先打开一个可写入的文件夹'
+	};
 
 	// foo.wave / foo.wave.svg / foo.wave.png；kodbox 的 ext 只取最后一个点，故按整个名字判断
 	var endsWith = function(name, suffix){ return name.slice(-suffix.length) === suffix; };
@@ -22,16 +31,53 @@ kodReady.push(function(){
 		core.openFile(API, OPEN_WITH, [path, ext, name, args]);
 	};
 
+	// 「打开方式」的候选按 ext 取(kodApp.getApp(ext))，.wave.png / .wave.svg 的真实 ext 是
+	// png / svg，光靠 fileExt 配置进不去。appSortSet 会把这两个后缀并进本插件的支持列表，
+	// 并给出该后缀下的排序权重(值越大越靠前)——取现有最小值再减一，只多一个菜单项，
+	// 绝不抢在普通图片的默认打开应用前面。
+	var claimOpenWith = function(){
+		if (!kodApp.appSortSet) return;
+		var weight = {};
+		_.each(['png', 'svg'], function(ext){
+			var list = kodApp.getApp(ext) || [], min = 0;
+			_.each(list, function(app){
+				if (app.name === APP_ID) return;
+				var v = (app.extSort && app.extSort[ext] != null) ? app.extSort[ext] : app.sort;
+				if (v < min) min = v;
+			});
+			weight[ext] = min - 1;
+		});
+		kodApp.appSortSet(APP_ID, weight);
+	};
+
+	// 并进去之后，普通照片的「打开方式」里也会带上这一项，所以右键菜单每次显示时再按
+	// 整个文件名收一遍：只有 *.wave.png / *.wave.svg 才露出来。
+	// 绑「带菜单类型命名空间」的事件——核心的 打开方式 子菜单是在上一步(无名空间的同名
+	// 事件)里重建的，命名空间事件排在它之后触发，这时改隐藏状态才不会被冲掉。
+	var FILE_MENUS = ['.menu-path-file', '.menu-path-mini-file', '.menu-path-guest-file',
+		'.menu-path-guest-file-tree', '.menu-simple-file', '.menu-fav-path-file',
+		'.menu-share-root-file', '.menu-share-file', '.menu-path-user-safe-file'];
+	Events.bind(_.map(FILE_MENUS, function(m){
+		return 'rightMenu.beforeShow@' + m;
+	}).join(' '), function(menu, app){
+		var info = (app && app.rightMenu && app.rightMenu.targetData(menu)) ||
+			(menu.$target && menu.$target.data('fileItem')) || {};
+		var kind = waveKind(info.name);
+		$.contextMenu[kind === 'png' || kind === 'svg' ? 'menuItemShow' : 'menuItemHide'](menu, APP_ID);
+	});
+
 	Events.bind('explorer.kodApp.before', function(appList){
 		appList.push({
 			name: APP_ID,
-			title: L('app.title', 'WaveDrom'),
+			title: T.appTitle,
 			ext: EXT_WAVE,
 			sort: SORT,
 			icon: 'x-item-icon x-wavedrom',
 			appFileEdit: true, appFileView: true,
 			callback: function(path, ext, name, args){ openArgs(path, ext, name, args); }
 		});
+		// 核心要等本钩子返回后才把条目交给 kodApp.add，appSortSet 得排在它之后
+		setTimeout(claimOpenWith, 0);
 
 		// .wave.png / .wave.svg 的真实 ext 是 png / svg，走不到上面的关联；
 		// kodApp.open 是所有打开动作的唯一入口(双击、打开方式、程序调用都经过它)，
@@ -47,8 +93,8 @@ kodReady.push(function(){
 
 	Events.bind('explorer.lightApp.load', function(listData){
 		listData[APP_ID] = {
-			name: L('app.title', 'WaveDrom'),
-			desc: L('meta.desc', '波形图编辑器'),
+			name: T.appTitle,
+			desc: T.appDesc,
 			category: '{{package.category}}',
 			appUrl: API,
 			openWith: OPEN_WITH,
@@ -82,11 +128,11 @@ kodReady.push(function(){
 
 	// 新建：.wave 走核心默认流程(建完自动打开)；两种图片要自己建文件再补渲染
 	Events.bind('rightMenu.newFileAdd', function(menuList){
-		menuList.push({ type:'wave', name:L('new.wave', '时序图(源文件)'), createOpen:1, appName:APP_ID });
+		menuList.push({ type:'wave', name:T.newWave, createOpen:1, appName:APP_ID });
 		if (!CLAIM_IMG) return;
-		menuList.push({ type:'wavesvg', name:L('new.wavesvg', '时序图(SVG)'),
+		menuList.push({ type:'wavesvg', name:T.newSvg,
 			callback: function(){ createFile('svg'); } });
-		menuList.push({ type:'wavepng', name:L('new.wavepng', '时序图(PNG)'),
+		menuList.push({ type:'wavepng', name:T.newPng,
 			callback: function(){ createFile('png'); } });
 	});
 
@@ -97,7 +143,7 @@ kodReady.push(function(){
 	var createFile = function(kind){
 		var root = kodApp.rootExplorer && kodApp.rootExplorer();
 		var rename = root && root.pathAction && root.pathAction.createRename;
-		if (!rename || !rename.add) { return Tips.tips(L('new.needFolder'), 'warning'); }
+		if (!rename || !rename.add) { return Tips.tips(T.needFolder, 'warning'); }
 		rename.add('file', 'wave.' + kind, function(res){
 			if (!res || !res.code || !res.info) return;      // 同名或非法名：核心把光标留在输入框里继续改
 			// 回调时行内输入框还在，取用户最终输入的名字当标签标题；
