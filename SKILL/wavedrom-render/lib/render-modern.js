@@ -80,6 +80,38 @@ function hexA(hex, a) {
   return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
 }
 
+/* ---------- 通道自定义色（与 index.html 同一套规则，逐字对齐） ----------
+   编辑器把每通道的取色写进 WaveJSON 的 color 键。只认 #rgb / #rrggbb，
+   写法不对的（如 color:"red"）不猜、按没写处理，回落到按行序轮转的自动色板——
+   编辑器导入时也是这个判定，所以同一份 JSON 两边取到的色一定相同。
+   本渲染器固定浅色画布（见文件头），自动色板仍是 C.ch 那 6 档；
+   深色 --xbox 那档提亮与它无关，浅色 #64748B 本来就没动。 */
+function lcNorm(s) {
+  if (typeof s !== 'string') return null;
+  let t = s.trim().toUpperCase();
+  if (/^#[0-9A-F]{3}$/.test(t)) t = '#' + t.slice(1).split('').map(c => c + c).join('');
+  return /^#[0-9A-F]{6}$/.test(t) ? t : null;
+}
+const lcRgb = x => { const n = parseInt(x.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const lcHex = a => '#' + a.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+const lcLum = x => { const v = lcRgb(x).map(c => c / 255).map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+const lcCr = (a, b) => { const x = lcLum(a), y = lcLum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+/* 总线数字框描边：色相沿用通道色，只把明度往下压到对该框自己的官方淡彩填充 ≥ 2.5:1。
+   不走「远离底色」那一侧推——纯白这类通道色压在淡彩上会原地推不动。达标即原样返回。 */
+function busEdge(color, fill) {
+  if (lcCr(color, fill) < 2.5) {
+    let cur = color;
+    for (let i = 0; i < 140 && lcCr(cur, fill) < 2.5; i++) {
+      const nx = lcHex(lcRgb(cur).map(v => v * .95));
+      if (nx === cur) break;
+      cur = nx;
+    }
+    color = cur;
+  }
+  return color;
+}
+const laneColorAt = (lane, idx) => lcNorm(lane && lane.color) || C.ch[(idx < 0 ? 0 : idx) % 6].toUpperCase();
+
 /* ---------- tiny SVG string helpers ---------- */
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function tag(name, attrs, body) {
@@ -105,7 +137,8 @@ function parseEntry(e) {
     return g;
   }
   if (!e || typeof e !== 'object') return { kind: 'spacer' };
-  const lane = { kind: 'lane', name: e.name || '', slots: [], nodeByT: {}, period: null, phase: null, len: 0 };
+  const lane = { kind: 'lane', name: e.name || '', slots: [], nodeByT: {}, period: null, phase: null, len: 0,
+    color: lcNorm(e.color) };   // 通道自定义色：编辑器写进 WaveJSON 的 color 键，不合法的按没写处理
   const wave = typeof e.wave === 'string' ? e.wave : '';
   if (wave.length) lane.len = wave.length;
   const data = Array.isArray(e.data) ? e.data.map(String)
@@ -436,7 +469,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
       const isDigit = g !== '=';
       out += tag('rect', { x: x0 + 1.5, y: 13, width: Math.max(4, w - 3), height: 22, rx: 2.5,
         fill: isDigit ? DIGIT_FILLS[g] : C.nodeFill,
-        stroke: isDigit ? 'rgba(27,37,54,.55)' : hexA(color, .85), 'stroke-width': 1.4 });
+        stroke: isDigit ? hexA(busEdge(color, DIGIT_FILLS[g]), .85) : hexA(color, .85), 'stroke-width': 1.4 });
       const label = s.label;
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
         /* 避让方案由 planLaneNodes 统一决定：ranges 里有 = 让开节点后居中；没有 = 节点已被抬走，按整框居中 */
@@ -811,7 +844,7 @@ function renderModern(source, opts = {}) {
       const lane = r.node;
       content += tag('line', { x1: 0, y1: r.y + r.h, x2: W, y2: r.y + r.h, stroke: C.lineSoft });
       const idx = flat.indexOf(lane);
-      const color = C.ch[(idx < 0 ? 0 : idx) % 6];
+      const color = laneColorAt(lane, idx);
       const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, plusOnly);
       // translate into place: lane track starts at namew, minus crop offset winX
       content += `<g transform="translate(${namew - winX}, ${r.y})">${body}</g>`;
@@ -1024,7 +1057,7 @@ function renderModern(source, opts = {}) {
     const cy = r.y + r.h / 2, ix = r.depth * 14;
     if (r.type === 'lane') {
       const idx = flat.indexOf(r.node);
-      const color = C.ch[(idx < 0 ? 0 : idx) % 6];
+      const color = laneColorAt(r.node, idx);
       nameLayer += tag('circle', { cx: 22 + ix, cy, r: 4.5, fill: color });
       if (r.node.name) nameLayer += tag('text', { x: 44 + ix, y: cy + 4.5, 'font-size': FONTS.signalName, 'font-weight': 500, fill: C.text, 'font-family': FONT_MONO }, esc(r.node.name));
       if ((r.node.period && r.node.period > 1) || r.node.phase) {

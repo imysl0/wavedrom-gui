@@ -189,7 +189,7 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 
 ## 两种模式的区别
 
-- **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按调色板着色、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字（含 JsonML 富文本）与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
+- **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按 `color` 键着色（没写就按调色板轮转）、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字（含 JsonML 富文本）与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
 - **传统模式（traditional）**：直接调用内嵌的**官方 WaveDrom v3.5.0** 渲染引擎（`vendor/` 内），产出官方黑白样式，支持 `default` / `narrow` 两套皮肤。
 
 两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页的宽松解析行为一致）。
@@ -205,7 +205,9 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 
 ## 支持的 WaveJSON 语法
 
-`signal`（含嵌套分组数组、`{}` 空白占位）、`wave`（全部状态字符 `01pnPNudxzhlHL=23456789|.` 与 `.` 延续、`<>` 子周期）、`data`、`node` + `edge`（覆盖全部官方箭头写法）、`head`/`foot`（`text`/`tick`/`tock`/`every`）、`config`（`hscale`/`skin`/`hbounds`）、`period`/`phase`。
+`signal`（含嵌套分组数组、`{}` 空白占位）、`wave`（全部状态字符 `01pnPNudxzhlHL=23456789|.` 与 `.` 延续、`<>` 子周期）、`data`、`node` + `edge`（覆盖全部官方箭头写法）、`head`/`foot`（`text`/`tick`/`tock`/`every`）、`config`（`hscale`/`skin`/`hbounds`）、`period`/`phase`、**`color`**（通道自定义色，wavedrom-gui 写进信号对象的键）。
+
+**`color` 的写法与边界**：只认 `#rgb` / `#rrggbb`（大小写均可），写法不对的（如 `color:"red"`）不猜、按没写处理，回落到调色板轮转——与 App 的判定逐字一致，所以同一份 JSON 两边取到的色一定相同。它管到**现代模式**的整条自绘产物：轨迹与电平线、名称列圆点、数据框描边（`=` 与 `2`–`9` 都用通道色；通道色压在该框自己的淡彩填充上不足 2.5:1 时只往暗压明度、色相不变），数据框**填充**仍是官方逐框淡彩、不跟着变。**传统模式不认这个键**（官方 WaveDrom 没有按通道换色的概念，交给它的图一律回到皮肤色），现代模式也固定浅色画布：App 里的深色主题与「自定义波形底色」不参与，两边都按浅色出图。
 
 **`head`/`foot` 的 `text` 支持官方 JsonML 富文本**：`["tspan", {"class":"h2"}, "标题"]` 这类写法，class 取 `error`/`warning`/`info`/`success`/`muted`/`h1`–`h6`，另支持 `dy`、`baseline-shift`、`font-size`/`font-weight`/`font-style`/`fill` 等内联属性。注意多段富文本要**逐段嵌套**（`["tspan", {}, "前半", ["tspan", {"class":"muted"}, "后半"]]`）——把属性对象直接放在子节点位置（`["tspan", {...}, "a", {...}, "b"]`）不是合法 JsonML，官方引擎会直接报错。现代模式按现代配色映射这些 class（error 红 / warning 橙 / info 蓝 / success 绿 / muted 灰，h1–h6 逐级放大），`baseline-shift` 会转成显式 `y` 位移，任何光栅化器都一致；传统模式交由官方引擎，上下标是否显示取决于光栅化器对 `baseline-shift` 的支持。
 
