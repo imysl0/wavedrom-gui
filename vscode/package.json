@@ -2,7 +2,7 @@
   "name": "wavedrom-gui-vscode",
   "displayName": "WaveDrom-Gui",
   "description": "%extension.description%",
-  "version": "260920.3.0",
+  "version": "260923.4.0",
   "publisher": "wavedrom-gui",
   "icon": "icon.png",
   "license": "MIT",
@@ -46,6 +46,20 @@
         "command": "wavedrom-gui.editFromPreview",
         "title": "%command.editFromPreview.title%",
         "category": "WaveDrom"
+      },
+      {
+        "command": "wavedrom-gui.savePanel",
+        "title": "%command.savePanel.title%",
+        "category": "WaveDrom",
+        "icon": "$(save)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "wavedrom-gui.savePanel",
+        "key": "ctrl+s",
+        "mac": "cmd+s",
+        "when": "activeWebviewPanelId == wavedromGuiEditor"
       }
     ],
     "menus": {
@@ -63,7 +77,19 @@
           "group": "navigation@1"
         }
       ],
+      "editor/title": [
+        {
+          "command": "wavedrom-gui.savePanel",
+          "when": "activeWebviewPanelId == wavedromGuiEditor",
+          "group": "navigation@1",
+          "enablement": "wavedromGuiDirty"
+        }
+      ],
       "commandPalette": [
+        {
+          "command": "wavedrom-gui.savePanel",
+          "when": "false"
+        },
         {
           "command": "wavedrom-gui.editFromPreview",
           "when": "false"
@@ -128,6 +154,23 @@
           ],
           "default": "auto",
           "markdownDescription": "%config.imageExportTheme.desc%"
+        },
+        "wavedrom-gui.saveMode": {
+          "type": "string",
+          "enum": [
+            "button",
+            "live"
+          ],
+          "enumItemTitles": [
+            "%config.saveMode.button%",
+            "%config.saveMode.live%"
+          ],
+          "enumDescriptions": [
+            "%config.saveMode.buttonDesc%",
+            "%config.saveMode.liveDesc%"
+          ],
+          "default": "button",
+          "markdownDescription": "%config.saveMode.desc%"
         },
         "wavedrom-gui.editorViewMode": {
           "type": "string",

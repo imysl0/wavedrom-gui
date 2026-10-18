@@ -39,13 +39,13 @@
 - 预览是 webview、拿不到 `vscode.l10n`，所以那一小段文案（编辑入口的 `aria-label` 与悬停提示）由扩展按当前语言渲染进一个隐藏的 `#wd-i18n`，`preview.js` 读它的 `data-*`（缺失则回退英文）——翻译仍只有语言包一处。
 - 命令标题与设置说明属于 VS Code 的**清单本地化**，由宿主在加载时替换，运行时改不了。
 - 排查：Output 面板选 **Extension Host**，激活时会打印一行
-  `[wavedrom-gui] i18n {"setting":"auto","envLanguage":"zh-cn","effective":"zh","l10nApi":true,"zhTableKeys":38}`。
+  `[wavedrom-gui] i18n {"setting":"auto","envLanguage":"zh-cn","effective":"zh","l10nApi":true,"zhTableKeys":45}`。
 - ⚠️ **F5 扩展开发宿主下命令标题与设置说明显示英文**：VS Code 在开发模式下直接跳过 `package.nls.<locale>.json`（工作台代码里是 `if (t.devMode || t.pseudo || !t.language) return { localized: package.nls.json }`），这是宿主行为、扩展无法绕过；消息、CodeLens 与预览文案不受此限。
 
 ## 6. 编辑器面板的加载与隔离
 
 - `editorShellPath()`：仓库内调试时 `extensionUri` 就是 `vscode/`，同级 `../index.html` 是正在改的实时界面（F5 下改动立即生效）；装了 VSIX 之后同级没有 `index.html`，回退到随包安装的 `media/editor.html`（`scripts/build.js` 从仓库根 `index.html` 拷入）。
-- 面板 HTML 由 `buildEditorHtml()` 注入：CSP、初始 WaveJSON（`location.hash`）、保存轮询脚本、界面语言、视图模式 / 左栏显隐、以及（图片目标时）`IMG = {ext, pxW, kind}`。
+- 面板 HTML 由 `buildEditorHtml()` 注入：CSP、初始 WaveJSON（`location.hash`）、保存轮询脚本、界面语言、视图模式 / 左栏显隐、脏提示的挂载代码，以及（图片目标时）`IMG = {ext, pxW, kind}`。
 - 每个编辑目标一份独立的 localStorage 键（`panelDocKey`：文档路径 + 行号 / 图片路径的 sha1 摘要）：webview 之间共享 localStorage，若都用同一个键，另一个面板的改动会被本面板的轮询当成自己的文档写回，导致 A 块被 B 的内容覆盖；按目标派生后条目数也不会无限增长。
 - 面板位置（`wavedrom-gui.editorPanelPosition`）里 `below` / `newWindow` 复用 VS Code 自己的 `workbench.action.moveEditorToBelowGroup` / `workbench.action.moveEditorToNewWindow`：这两个命令作用于**当前活动编辑器**，扩展先等面板真的取得焦点（最多 12 × 40ms）再执行，拿不到焦点就留在原地（宁可停住，也不能把预览或别的编辑器搬走）。VS Code 没有向扩展开放浮动 / 模态编辑器（公开的 `ViewColumn` 只有 `Active` / `Beside` / `1-9`），所以「浮在预览之上」做不到。
 
@@ -81,12 +81,33 @@ CodeLens 的「预览」与悬停里的「固定预览」都走 `wavedrom-gui.pr
 
 **来源标记的保持**：PNG 光栅化产物是 canvas 全新编码、不含原文件任何 iTXt，所以落盘时用 `reembedPngMarker` 重新插入 `WaveDromGui = export=<kind>`（只写 WaveJSON 会把标记弄丢，下次打开兜底判成 skill-modern，传统风格的图编辑第二轮就漂成现代）；SVG 路径同理，元数据重写时带上检测到的 kind，避免剥掉 `data-export`。
 
-## 10. 代码块写回：定位与格式校验
+## 10. 保存档：手动保存（默认）与自动实时保存
+
+`wavedrom-gui.saveMode` 在 **`setupEditorPanel` 建立面板时读一次**（非法取值与读不到都按 `button`）：改设置只影响之后打开的面板，`onDidChangeConfiguration` 提示一句，已打开的面板不中途换档——档位决定的是「宿主收到 `save` 消息时写不写盘」，中途切换会让面板里已经攒着的改动归属不明。
+
+**live（自动实时保存）** 是原有行为：`save` → `saveBack`，图片目标再 `armFlush()` 等像素（时序与预算见上一节）。
+
+**button（手动保存）** 把碰磁盘的时机交给用户：
+
+- `save` 消息只把 `{json, text}` 存进闭包里的 `pending` 并标脏，**不调 `saveBack`**；`pixels` 也只暂存 `pendingPx`，不 `armFlush`——去抖计时器在手动档根本不参与写盘，「提交」是唯一出口。
+- 提交（`commit()`）= `saveBack(saveTarget, json, text, { saveIfClean: true })` + 图片像素落盘。像素通常已经追平（`pendingPx.json === saveTarget.lastSaved`）就当场 `flushPixels`；还没到手就置 `expectFlush`，等那一帧上报时立刻补写——提交不必干等一次光栅化往返。`expectFlush` 在随后又收到 `save` 消息时作废（那一帧已不代表当前文档）。
+- `saveIfClean` 只对代码块目标有意义：代码块的改动是 `WorkspaceEdit` 应用到**已打开的 markdown 文档**，落不落盘由那份文档自己的脏态决定——`wasClean` 要**在 `applyEdit` 之前**捕获（应用编辑本身就把文档弄脏了）。文档当时干净就顺手 `doc.save()` 一步到位；脏着（用户有没保存的打字）则只应用改动、状态栏提示他按 `Ctrl+S`，绝不把用户没保存的内容一起写盘。图片目标是直接写文件，没有这一层。
+- `commit()` 在**没有待提交改动**时也不空转：live 档的写回只到 buffer，而 `ctrl+s` 键位已经被这条命令占了，所以此时它改为把那份文档落盘（用户显式按的保存，不受 `saveIfClean` 那层顾虑约束）；文档已干净或目标是图片就什么都不做。
+
+**脏标记三处同步**（`setDirty()`）：① 面板 `title` 前缀 `● `——webview 拿不到 VS Code 的原生脏点，只能自绘；② `postMessage({type:'dirty'})`，注入脚本把提示挂进 `.topbar .spacer`（编辑器界面上那根 `flex: 1` 的空隙），**画布里不放按钮、也不新增一行布局**；③ `setContext('wavedromGuiDirty', …)` 驱动标题栏按钮的 `enablement`——干净时淡显但**不移除**，藏起来会让标签跳位，也让人以为入口没了。
+
+**一颗按钮、两条触发路**：`contributes.menus["editor/title"]` 的图标点击与 `keybindings` 里的 `ctrl+s` / `mac: cmd+s` 都只带命令 id（`wavedrom-gui.savePanel`），不带面板身份；而 `activeWebviewPanelId` 上下文键的粒度只到 `viewType`（`wavedromGuiEditor`），同类型开多个面板时分不清按的是哪个。所以宿主记一个模块级的 `activeEditorCtl`：面板在 `onDidChangeViewState` 且 `active` 时认领自己，`onDidDispose` 时清掉，命令则提交它指着的那个面板。键位与菜单的 `when` 都用 `activeWebviewPanelId == wavedromGuiEditor`，只在编辑面板聚焦时生效（`index.html` 自己没绑 Ctrl+S，不抢键）。命令在 `commandPalette` 里 `when: false`，不进命令面板。
+
+**关面板时还没提交**：`WebviewPanel` 没有「关闭前否决」的钩子，问不来得及，只能事后补救——最后一份文档与像素都还在宿主内存里，`onDidDispose` 弹警告给「仍然保存 / 丢弃」，点前者照常走一次提交（含图片像素），否则什么都不写，**绝不悄悄落盘**。手动档下 `onDidChangeViewState` 的「变得不可见」**不写盘**（切走标签不等于要提交），live 档照旧落盘并提示。
+
+**文案与版本兼容**：选项显示名走 `enumItemTitles`（VS Code ≥ 1.85），而 `engines.vscode` 是 `^1.70.0`，所以档位中文名同时**前置进 `enumDescriptions`**（「手动保存 —— …」）：老宿主下拉里显示 `button` / `live`，说明行照样读得出是哪种。`config.saveMode.*` 等清单文案进 `package.nls*.json`，运行时消息（顶栏脏提示、关面板通知、状态栏）进 `l10n/bundle.l10n.zh-*.json`，`zh-cn` 与 `zh-hans` 两份必须字节一致（`test/run.js` 有断言）。
+
+## 11. 代码块写回：定位与格式校验
 
 - 定位：行号 + 内容双重要求（内容相同的重复代码块靠行号区分）→ 原文精确匹配 → 忽略空白差异匹配 → 让用户从文件现有代码块中指定目标；定位失败时不自动改写，写回保留原文件的换行风格。
 - 格式：由编辑器界面按当前代码显示模式（紧凑 / 舒缓）给出文本，扩展只做等价性校验（解析出的 JSON 与状态一致才采用），对不上就退回默认 2 空格缩进——格式可以丢，内容不能错。
 
-## 11. 打包与发布
+## 12. 打包与发布
 
 - `scripts/build.js` 在 `vscode:prepublish` 时跑（零依赖）：把 skill 的 `lib/render-modern.js` 包成浏览器 IIFE 到 `media/modern-render.browser.js`，把仓库根 `index.html` 拷成 `media/editor.html`，并把 `package.json` 的 version 按最新 git tag（`vYYMMDD.N` → `YYMMDD.N.0`）对齐。清理检出即可打包，无需 `npm install`。
 - 发布流水线（`.cnb.yml` 的 tag_push 与 `.github/workflows/release.yml`）在打 tag 后写版本号、打包 VSIX、发 Release 附件。

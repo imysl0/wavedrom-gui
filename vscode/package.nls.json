@@ -26,5 +26,11 @@
   "config.imageExportTheme.auto": "Faithful to each image's own export style (default) — detected from its embedded marker or fingerprint",
   "config.imageExportTheme.modern": "Always redraw in the modern style, regardless of the image's origin",
   "config.imageExportTheme.traditional": "Always redraw in the official WaveDrom (traditional) style, regardless of the image's origin",
-  "config.imageExportTheme.desc": "Pixel style used when an edited waveform image is saved. Applies when the editor panel is opened; panels already open keep their style. The embedded WaveJSON is always updated either way."
+  "config.imageExportTheme.desc": "Pixel style used when an edited waveform image is saved. Applies when the editor panel is opened; panels already open keep their style. The embedded WaveJSON is always updated either way.",
+  "command.savePanel.title": "Save Waveform Changes",
+  "config.saveMode.button": "Manual save",
+  "config.saveMode.live": "Automatic live save",
+  "config.saveMode.buttonDesc": "Manual save — edits stay in the panel until you click the save icon in its tab (or press Ctrl+S with the panel focused); the canvas and preview keep redrawing live (default)",
+  "config.saveMode.liveDesc": "Automatic live save — every change is written back to the target file as soon as it happens, like the \"autosave\" switch in the kodbox plugin",
+  "config.saveMode.desc": "When the editor panel writes changes back to the target file. With **Manual save** (default) an image is written in one step; a Markdown code block is written into the open document, and the file is saved too only when that document had no unsaved edits of its own — otherwise the extension just applies the edit and leaves Ctrl+S to you, so your own unsaved typing never lands on disk by accident. This setting is read when a panel opens; panels already open keep the mode they started with."
 }

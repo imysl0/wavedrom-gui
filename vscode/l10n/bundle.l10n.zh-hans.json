@@ -36,5 +36,12 @@
   "WaveDrom: renderer not available": "WaveDrom: 波形渲染器未加载",
   "WaveDrom: This diagram in the preview is stale — reopen the preview and try again": "WaveDrom: 预览里的图表已过期，重新打开预览后再试",
   "WaveDrom: Write-back failed — {0}": "WaveDrom: 写回失败 — {0}",
-  "Waveform renderer not loaded — reopen the preview": "波形渲染库未加载，请重新打开预览"
+  "Waveform renderer not loaded — reopen the preview": "波形渲染库未加载，请重新打开预览",
+  "Not saved yet · Ctrl+S to commit": "有改动没写进文件 · Ctrl+S 提交",
+  "Save anyway": "仍然保存",
+  "Discard": "丢弃",
+  "WaveDrom: {0} still has unsaved edits — the last frame is held in memory": "WaveDrom: {0} 还有没保存的改动，最后一帧画面仍在扩展内存里",
+  "WaveDrom: File saved": "WaveDrom: 文件已保存",
+  "WaveDrom: No WaveDrom editor panel is open": "WaveDrom: 没有打开的 WaveDrom 编辑面板",
+  "WaveDrom: save mode applies to editor panels opened from now on": "WaveDrom: 保存方式对之后打开的面板生效"
 }

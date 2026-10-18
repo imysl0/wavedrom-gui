@@ -26,5 +26,11 @@
   "config.imageExportTheme.auto": "原风格保真（默认）——按图片内嵌标记 / 指纹检测到的导出来源重绘",
   "config.imageExportTheme.modern": "一律按现代渲染重绘，无论图片来源",
   "config.imageExportTheme.traditional": "一律按 WaveDrom 官方（传统）渲染重绘，无论图片来源",
-  "config.imageExportTheme.desc": "编辑波形图片保存时像素使用的风格。在编辑面板打开时生效，已打开的面板保持原风格。无论选哪种，内嵌的 WaveJSON 都会更新为编辑后的内容。"
+  "config.imageExportTheme.desc": "编辑波形图片保存时像素使用的风格。在编辑面板打开时生效，已打开的面板保持原风格。无论选哪种，内嵌的 WaveJSON 都会更新为编辑后的内容。",
+  "command.savePanel.title": "保存波形改动",
+  "config.saveMode.button": "手动保存",
+  "config.saveMode.live": "自动实时保存",
+  "config.saveMode.buttonDesc": "手动保存 —— 改动只攒在面板里，点标签栏的保存图标（或面板聚焦时按 Ctrl+S）才写回目标；画布与预览照常实时重绘（默认）",
+  "config.saveMode.liveDesc": "自动实时保存 —— 改一下就立刻写回目标文件，与可道云插件的「自动保存」一致",
+  "config.saveMode.desc": "编辑器面板何时把改动写回目标文件。**手动保存**（默认）下，图片一步写回文件；markdown 代码块是先写进已打开的文档，只有那份文档当时没有你自己的未保存编辑时才顺手把文件也保存，否则只应用编辑、Ctrl+S 留给你按——免得把你没保存的内容一起落盘。这一项在面板打开时读一次，已打开的面板保持它开始时的档位。"
 }

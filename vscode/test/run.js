@@ -25,6 +25,9 @@ function offAt(text, pos) {
 /* ---- 伪 vscode 模块，让 extension.js 可在纯 Node 环境加载 ---- */
 const fakeConfig = {}; // 单测里临时改设置用；键不存在时走扩展自己的默认值
 const fakeCommands = []; // 记录 executeCommand 的调用
+const contextKeys = {}; // executeCommand('setContext', key, value) 落下的上下文键（标题栏按钮可用态）
+const savedDocs = []; // doc.save() 被调过的文档路径（手动档「顺手保存文件」）
+let fakeWarnResult = null; // showWarningMessage 的返回值（测试里设成要点的那个按钮标签）
 const fakePanels = []; // 记录 createWebviewPanel 的入参
 const fakeMessages = []; // 记录 showWarningMessage / showErrorMessage
 const statusMessages = []; // 记录 setStatusBarMessage（图片像素落盘的提示时机）
@@ -45,7 +48,7 @@ const fakeVscode = {
   env: { uriScheme: 'vscodium', language: 'en' },
   window: {
     showErrorMessage(m) { fakeMessages.push(['error', m]); },
-    showWarningMessage(m) { fakeMessages.push(['warn', m]); },
+    showWarningMessage(m, ...items) { fakeMessages.push(['warn', m, items]); return Promise.resolve(fakeWarnResult); },
     showInformationMessage(m) { fakeMessages.push(['info', m]); },
     setStatusBarMessage(m) { statusMessages.push(m); },
     showQuickPick: async p => p[0],
@@ -57,11 +60,12 @@ const fakeVscode = {
     createWebviewPanel(viewType, title, column, options) {
       const panel = {
         viewType, title, column, options, active: fakeNewPanelActive, disposed: false, visible: true,
+        _disposeCbs: [], _viewStateCbs: [], _posted: [],
         webview: {
           html: '', _onMsg: null,
           onDidReceiveMessage(cb) { this._onMsg = cb; return { dispose() {} }; },
+          postMessage(m) { panel._posted.push(m); return Promise.resolve(true); },
         },
-        _disposeCbs: [], _viewStateCbs: [],
         onDidDispose(cb) { this._disposeCbs.push(cb); return { dispose() {} }; },
         onDidChangeViewState(cb) { this._viewStateCbs.push(cb); return { dispose() {} }; },
         fireViewState(visible) { this.visible = visible; this._viewStateCbs.forEach(cb => cb({ webviewPanel: this })); },
@@ -100,19 +104,30 @@ const fakeVscode = {
         uri: { fsPath: p, scheme: 'file' },
         getText: () => rec.text,
         positionAt: off => posAt(rec.text, off),
+        /* 真 TextDocument 有 isDirty / save()：手动档提交时「文档本来干净就顺手保存文件」这条
+           分支要靠它们跑起来。applyEdit 把干净文档弄脏，save() 再清回去。 */
+        get isDirty() { return rec.isDirty === true; },
+        save: async () => { rec.isDirty = false; savedDocs.push(p); return true; },
       };
     },
     applyEdit: async we => {
       const rec = fakeDocs.get(we._uri.fsPath);
       const s = offAt(rec.text, we._range.start), e = offAt(rec.text, we._range.end);
       rec.text = rec.text.slice(0, s) + we._text + rec.text.slice(e);
+      rec.isDirty = true; // 应用编辑会把干净文档弄脏（与真宿主一致）
       return true;
     },
   },
   ViewColumn: { Active: -1, Beside: -2, One: 1, Two: 2 },
   commands: {
     registerCommand: (id, fn) => { fakeRegisteredCommands[id] = fn; return { dispose() {} }; },
-    executeCommand: async cmd => { fakeCommands.push(cmd); return undefined; },
+    executeCommand: async (cmd, ...args) => {
+      /* setContext 只记键值：fakeCommands 断言的是「有没有把别的编辑器搬走」这类命令，
+         标题栏按钮可用态那种后台上下文写入不该混进去 */
+      if (cmd === 'setContext') { contextKeys[args[0]] = args[1]; return undefined; }
+      fakeCommands.push(cmd);
+      return undefined;
+    },
   },
 };
 const origLoad = Module._load;
@@ -437,8 +452,17 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     const store = { 'wdgui-code-compact': mode };
     let armed = null, tick = null;
     const posted = [];
+    const listeners = {};
+    const mkEl = () => ({ style: {}, appendChild(c) { this.child = c; } });
+    const spacer = mkEl(); // .topbar .spacer：脏提示就挂在这条空的弹性区里
+    const doc = {
+      querySelector: sel => (sel === '.topbar .spacer' ? spacer : null),
+      createElement: mkEl,
+    };
     const sandbox = {
-      window: {}, JSON, encodeURIComponent, decodeURIComponent, console,
+      window: { addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); } },
+      document: doc,
+      JSON, encodeURIComponent, decodeURIComponent, console,
       location: { hash: '' },
       /* index.html 的存储读写已统一走安全助手，沙箱里接到同一 store 上 */
       tryGet: k => (k in store ? store[k] : null),
@@ -456,7 +480,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     armed();                                   // 面板打开：记下初始文档，之后不回写
     store[keyA] = JSON.stringify(nextDoc);      // 用户改动
     tick();
-    return { posted, ok: true };
+    return { posted, ok: true, spacer, listeners, doc };
   };
 
   const compactRun = runPoller('1');
@@ -468,6 +492,20 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const relaxRun = runPoller('0');
   ok(relaxRun.ok && relaxRun.posted.length === 1, '舒缓模式：改动后发出一封保存消息');
   ok(relaxRun.posted[0].text.split('\n').some(l => /^ +"name": "bus",$/.test(l)), '舒缓模式：对象展开为多行（写回风格确实跟随模式）');
+
+  /* 手动档的脏提示：宿主发 dirty 进来时界面在顶栏弹性区挂一句话，提交后收起。
+     话术由宿主给（跟着扩展语言走），界面只负责挂与收——画布里不放保存按钮。 */
+  const hintRun = runPoller('1');
+  const fireDirty = on => (hintRun.listeners.message || []).forEach(fn => fn({ data: { type: 'dirty', on, text: '有改动没写进文件' } }));
+  ok(hintRun.listeners && (hintRun.listeners.message || []).length === 1, '轮询脚本监听了宿主发来的消息');
+  fireDirty(true);
+  ok(hintRun.spacer.child && hintRun.spacer.child.textContent === '有改动没写进文件', '脏时顶栏挂出提示文案');
+  ok(hintRun.spacer.style.display === 'flex' && hintRun.spacer.child.style.display === '', '提示挂在 .spacer 里，不新占布局、不盖画布');
+  fireDirty(false);
+  ok(hintRun.spacer.child.style.display === 'none', '提交后提示收起（元素留着，下次改动直接复用）');
+  hintRun.doc.querySelector = () => null; // 界面结构变了：只是不显示提示，不该抛错
+  fireDirty(true);
+  ok(hintRun.spacer.child.style.display === 'none', '顶栏结构找不到时静默跳过，轮询照跑');
 
   /* ---- 6c. 图片目标：轮询脚本把当前画面随 pixels 消息上报（PNG 按原图宽对齐比例） ---- */
   ok(/var IMG = null;/.test(h1), '代码块目标不注入画面上报（IMG = null）');
@@ -501,7 +539,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
         return { getAttribute: k => (k === 'width' ? 120 : k === 'height' ? 88 : null) };
       },
       XMLSerializer: class { serializeToString() { return '<svg data-editor-export="1"></svg>'; } },
-      window: { WaveDromModern: { renderModern: () => ({ svg: '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"></svg>' }) } },
+      window: { addEventListener: () => {}, WaveDromModern: { renderModern: () => ({ svg: '<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150"></svg>' }) } },
       cssVar: name => (name === '--bg' ? '#101418' : ''),
       Image: class { set src(v) { if (this.onload) this.onload(); } },
       URL: { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} },
@@ -896,6 +934,9 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(ce2 && ce2.enum.join() === 'auto,modern,traditional' && ce2.default === 'auto', 'package.json：设置声明三档枚举、默认 auto');
 
   /* ---- 8g-2. 像素落盘保留来源标记（回归：传统图第二轮编辑漂成现代） ---- */
+  /* 8g-2 与 9b 测的是「自动实时保存」那一档的写盘时机；默认档现在是「手动保存」，
+     所以这里显式开 live，9b 结束再关掉，另由 9c 覆盖手动档。 */
+  fakeConfig.saveMode = 'live';
   const tradPath = path.join(tmp, 'open-loop.png');
   fs.writeFileSync(tradPath, meta.pngInsertITXt(meta.pngInsertITXt(meta.pngMakeFenceSkeleton(), 'WaveJSON', json1), 'WaveDromGui', 'export=wavedrom'));
   fakePanels.length = 0;
@@ -1173,6 +1214,141 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(pxWritten(pxDoc6), '切走标签立即落盘（不等去抖）');
   ok(statusMessages.length === toastAfterSave6 + 1, '「已重绘并保存」只在切走 / 关闭那次弹');
   ok(toastBase >= 0 && toastAfterSave4 > toastBase, '（前提）图片元数据写回本身会提示一条，基线取在它之后');
+  delete fakeConfig.saveMode; // 9b 测完 live 档，下面回到「不设任何配置」的默认档
+
+  /* ---- 9c. 手动保存档（默认）：改动先攒在宿主，提交才碰磁盘 ---- */
+  ok(ext.__test.saveMode() === 'button', 'saveMode：未设置时默认手动保存（button）');
+  fakeConfig.saveMode = 'nope';
+  ok(ext.__test.saveMode() === 'button', 'saveMode：非法取值回退 button');
+  delete fakeConfig.saveMode;
+
+  const pxDocA = JSON.stringify({ signal: [{ name: 'pa', wave: '1.' }] });
+  const pxDocB = JSON.stringify({ signal: [{ name: 'pb', wave: '0.' }] });
+  const pxDocC = JSON.stringify({ signal: [{ name: 'pc', wave: '1.' }] });
+  const saveViaTitle = () => fakeRegisteredCommands['wavedrom-gui.savePanel']();
+
+  /* 改动到手不碰文件，但三处状态都要跟上：标题 ●、按钮可用态、面板顶栏提示 */
+  fs.writeFileSync(pxPath, png2);
+  const mPanel = openImg();
+  const mTitle0 = mPanel.title;
+  ok(/^WaveDrom Editor — |^WaveDrom 编辑 — /.test(mTitle0), '面板标题未加脏标记时保持原样');
+  mPanel.webview._onMsg({ type: 'save', json: pxDocA, text: null });
+  ok(fs.readFileSync(pxPath).equals(png2), '手动档：save 消息不写文件');
+  ok(mPanel.title === '● ' + mTitle0, '手动档：标题前缀 ●（webview 拿不到原生脏点，只能自绘）');
+  ok(contextKeys.wavedromGuiDirty === true, '手动档：脏时点亮标题栏那颗按钮（setContext wavedromGuiDirty）');
+  ok(mPanel._posted.some(m => m.type === 'dirty' && m.on === true), '手动档：面板顶栏收到脏提示');
+  ok(/\.topbar \.spacer/.test(mPanel.webview.html), '面板注入了顶栏脏提示的挂载代码（画布内不放保存按钮）');
+  mPanel.webview._onMsg({ type: 'pixels', json: pxDocA, png: png1.toString('base64') });
+  ok(fs.readFileSync(pxPath).equals(png2), '手动档：像素到手也不自动写盘（live 档才会）');
+  await new Promise(r => setTimeout(r, FLUSH_MS));
+  ok(fs.readFileSync(pxPath).equals(png2), '手动档：去抖计时器不会替用户写盘（只有提交会）');
+
+  /* 提交：元数据 + 同源像素一次落盘，脏标记三处一起撤 */
+  await saveViaTitle();
+  ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(
+    meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern'),
+    meta.WD_PNG_KEYWORD, pxDocA)), '提交：像素与元数据一起写回，来源标记照旧固化');
+  ok(mPanel.title === mTitle0, '提交后标题去掉 ●');
+  ok(contextKeys.wavedromGuiDirty === false, '提交后按钮回到淡显（位置不动）');
+  ok(mPanel._posted.slice(-1)[0].type === 'dirty' && mPanel._posted.slice(-1)[0].on === false, '提交后撤掉面板顶栏提示');
+
+  /* 像素比提交晚到手：先写元数据，那一帧到了立刻补写（提交不必干等画面）。
+     这里不能用「文件字节变没变」判断补写：png1 / png2 像素相同、只差 iTXt，补写后的
+     字节序列与只写元数据的结果恰好一致，所以改看落盘的副作用（刷新 Markdown 预览）。 */
+  const mPanel2 = openImg();
+  mPanel2.webview._onMsg({ type: 'save', json: pxDocB, text: null });
+  await saveViaTitle();
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDocB, '提交时像素还没跟上：元数据先写回');
+  ok(!fakeCommands.includes('markdown.preview.refresh'), '那一帧还没到手时不写像素（也就不会刷预览）');
+  mPanel2.webview._onMsg({ type: 'pixels', json: pxDocB, png: png2.toString('base64') });
+  ok(fakeCommands.includes('markdown.preview.refresh'), '晚到的一帧像素到手后立刻补写（提交不必干等画面）');
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDocB, '补写仍带上刚提交的那份元数据');
+  /* 提交后又改了：脏标记重新亮起，晚到的旧帧不许再写盘 */
+  mPanel2.webview._onMsg({ type: 'save', json: pxDocC, text: null });
+  ok(mPanel2.title.indexOf('● ') === 0, '提交后再改动：脏标记重新亮起');
+
+  /* 关面板：不写盘，改成事后补救（VS Code 不给 WebviewPanel 关闭前否决的钩子） */
+  const mPanel3 = openImg();
+  const beforeClose = fs.readFileSync(pxPath);
+  mPanel3.webview._onMsg({ type: 'save', json: pxDocA, text: null });
+  mPanel3.webview._onMsg({ type: 'pixels', json: pxDocA, png: png1.toString('base64') });
+  fakeMessages.length = 0;
+  fakeWarnResult = 'Save anyway';
+  mPanel3.dispose();
+  ok(fs.readFileSync(pxPath).equals(beforeClose), '手动档：关面板不写盘');
+  ok(fakeMessages.length === 1 && fakeMessages[0][0] === 'warn' && /unsaved|没保存/.test(fakeMessages[0][1]), '关面板时提示还有未保存的改动');
+  ok(fakeMessages[0][2].includes('Save anyway') && fakeMessages[0][2].includes('Discard'), '通知给出「仍然保存 / 丢弃」两颗按钮');
+  await new Promise(r => setTimeout(r, 20));
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDocA, '点「仍然保存」：宿主手里的最后一份文档照常落盘');
+
+  /* 选丢弃：什么都不写；此时没有活动面板，命令只提示一句 */
+  const mPanel4 = openImg();
+  const beforeDiscard = fs.readFileSync(pxPath);
+  mPanel4.webview._onMsg({ type: 'save', json: pxDocB, text: null });
+  fakeWarnResult = 'Discard';
+  fakeMessages.length = 0;
+  mPanel4.dispose();
+  await new Promise(r => setTimeout(r, 20));
+  ok(fs.readFileSync(pxPath).equals(beforeDiscard), '点「丢弃」：绝不悄悄写文件');
+  fakeWarnResult = null;
+  fakeMessages.length = 0;
+  await saveViaTitle();
+  ok(fakeMessages.length === 1 && fakeMessages[0][0] === 'info' && /No WaveDrom editor panel/.test(fakeMessages[0][1]), '没有活动面板时保存命令只提示、不写任何东西');
+
+  /* 代码块目标：文档本来干净 → 提交顺手保存文件；文档已被用户改脏 → 只应用编辑 */
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n\n正文\n');
+  const mFence = fakeVscode.window.createWebviewPanel('x', 'WaveDrom Editor — writeback.md', 1);
+  setupEditorPanel(mFence, { kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A, null, null);
+  mFence.webview._onMsg({ type: 'save', json: A2, text: null });
+  ok(getDoc().indexOf('p.......') < 0, '手动档：代码块改动没写进文档（不再实时改 buffer）');
+  savedDocs.length = 0;
+  await saveViaTitle();
+  ok(JSON.parse(firstFenceBody(getDoc())).signal[0].wave === 'p.......', '提交：改动写进 markdown 文档');
+  ok(savedDocs.includes(mdPath), '干净文档：提交顺手把文件也保存（一步到位）');
+  // 用户自己在文档里有未保存编辑时，不代按 Ctrl+S
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n\n正文\n');
+  fakeDocs.get(mdPath).isDirty = true;
+  const mFence2 = fakeVscode.window.createWebviewPanel('x', 'WaveDrom Editor — writeback.md', 1);
+  setupEditorPanel(mFence2, { kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A, null, null);
+  mFence2.webview._onMsg({ type: 'save', json: A2, text: null });
+  savedDocs.length = 0;
+  await saveViaTitle();
+  ok(JSON.parse(firstFenceBody(getDoc())).signal[0].wave === 'p.......', '脏文档：提交仍把改动应用到 buffer');
+  ok(savedDocs.length === 0, '脏文档：不代用户 save()，免得把他没保存的内容一起落盘');
+  mFence2.dispose();
+
+  /* Ctrl+S 被面板接走了，「没有待提交改动」时它也别空转：live 档的写回只到 buffer，
+     键位就替用户把那份文档落盘；文档已经干净时什么都不做。 */
+  setDoc('# t\n\n```wavedrom\n' + A + '\n```\n\n正文\n');
+  fakeConfig.saveMode = 'live';
+  const mLiveFence = fakeVscode.window.createWebviewPanel('x', 'WaveDrom Editor — writeback.md', 1);
+  setupEditorPanel(mLiveFence, { kind: 'fence', docPath: mdPath, line: 2, fenceRaw: A }, A, null, null);
+  savedDocs.length = 0;
+  mLiveFence.webview._onMsg({ type: 'save', json: A2, text: null });
+  await new Promise(r => setTimeout(r, 20));              // saveBack 是异步的，等它跑完
+  ok(JSON.parse(firstFenceBody(getDoc())).signal[0].wave === 'p.......', 'live 档：改动实时进 buffer');
+  ok(savedDocs.length === 0, 'live 档：只改 buffer，文件仍等用户保存');
+  await saveViaTitle();
+  ok(savedDocs.includes(mdPath), 'live 档按 Ctrl+S：没有待提交改动时替用户把文档落盘');
+  savedDocs.length = 0;
+  await saveViaTitle();
+  ok(savedDocs.length === 0, '文档已干净：不再空转一次保存');
+  mLiveFence.dispose();
+  delete fakeConfig.saveMode;
+
+  /* 贡献点：命令 / 标题栏按钮 / 键位 / 设置声明 */
+  const saveCmd = pkg.contributes.commands.find(c => c.command === 'wavedrom-gui.savePanel');
+  ok(saveCmd && saveCmd.category === 'WaveDrom' && saveCmd.icon === '$(save)', 'package.json：注册了带 $(save) 图标的保存命令');
+  const titleMenu = pkg.contributes.menus['editor/title'].find(m => m.command === 'wavedrom-gui.savePanel');
+  ok(titleMenu && titleMenu.when.includes('activeWebviewPanelId == wavedromGuiEditor'), 'package.json：按钮只出现在波形编辑面板的标签栏');
+  ok(titleMenu.enablement === 'wavedromGuiDirty', 'package.json：干净时按钮淡显（enablement 走脏标记）');
+  const saveKb = pkg.contributes.keybindings.find(k => k.command === 'wavedrom-gui.savePanel');
+  ok(saveKb && saveKb.key === 'ctrl+s' && saveKb.mac === 'cmd+s' && saveKb.when === titleMenu.when, 'package.json：面板聚焦时 Ctrl/Cmd+S 走这颗保存');
+  ok(pkg.contributes.menus.commandPalette.some(m => m.command === 'wavedrom-gui.savePanel' && m.when === 'false'), 'package.json：命令面板里不露这条（没有面板时它无意义）');
+  const smProp = pkg.contributes.configuration.properties['wavedrom-gui.saveMode'];
+  ok(smProp && smProp.enum.join(',') === 'button,live' && smProp.default === 'button', 'package.json：saveMode 两档、默认 button');
+  ok(smProp.enumItemTitles.length === 2 && smProp.enumDescriptions.length === 2, 'package.json：选项名与说明各两条（老版本靠说明行兜住中文名）');
+  mPanel.dispose(); mPanel2.dispose();
 
   /* ---- 10. 中英双语：扩展宿主 l10n 包 + package.nls 包 ---- */
   const readJson = f => JSON.parse(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'));

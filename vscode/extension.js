@@ -443,6 +443,27 @@ function reembedPngMarker(rasterized, imgKind, jsonText) {
   );
 }
 
+/* ---------------- 手动保存档：标题栏那颗按钮与它的控制器 ----------------
+ * 一颗按钮要能同时被「标题栏点击」和「Ctrl+S 键位」触发，而这两条路都只带一个命令 id、
+ * 不带面板身份，所以宿主这边记着「当前活动的是哪个编辑面板」。VS Code 的
+ * activeWebviewPanelId 上下文键只到 viewType 粒度，同类型多面板时仍得靠这个引用。 */
+let activeEditorCtl = null; // { commit, isDirty } —— 由 setupEditorPanel 建立/清理
+
+/* 标题栏按钮的可用态：脏才亮起，干净时淡显但位置不动（藏起来会让标签跳、也让人以为入口没了）。
+   老版本宿主没有 setContext 这条命令，失败就退化成「按钮恒可用」，不影响功能。 */
+function setDirtyContext(v) {
+  try { Promise.resolve(vscode.commands.executeCommand('setContext', 'wavedromGuiDirty', !!v)).catch(() => {}); }
+  catch (e) { /* 命令不存在：按钮恒可用 */ }
+}
+
+async function savePanelCommand() {
+  if (!activeEditorCtl) {
+    vscode.window.showInformationMessage(t('WaveDrom: No WaveDrom editor panel is open'));
+    return;
+  }
+  await activeEditorCtl.commit();
+}
+
 function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null) {
   if (target.kind === 'image') {
     const theme = imageExportTheme();
@@ -465,9 +486,18 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
 
   const saveTarget = Object.assign({}, target); // fenceRaw 会随每次保存演进
   const isImage = saveTarget.kind === 'image';
+  /* 手动档（默认）：改动先攒在这里，标题栏那颗保存 / Ctrl+S 才写回。live 档保持历史行为，
+     下面每个分支都按这个开关分岔——像素上报两档都要收（提交与「关面板后仍然保存」都靠它），
+     区别只是「谁去碰磁盘、什么时候」。 */
+  const manual = saveMode() === 'button';
+  let pending = null;      // 手动档攒着没写回的改动 { json, text }
+  let dirty = false;       // 有待提交改动（驱动标题 ● 与按钮可用态）
+  let expectFlush = false; // 已提交但那一帧像素还没到手，等它到了立刻落盘
+  const baseTitle = panel.title;
   /* 图片目标的像素写回：webview 在轮询里（250ms 一次）把当前画面光栅化后随 pixels 消息
      上报，这里暂存内存，停手 250ms 后或面板关闭/切走时落盘。webview 销毁后就渲染不出新图
      了，所以「关闭即写回」依赖宿主手里始终有最新一份像素——这正是渲染提前到轮询里的原因。
+     「关闭即写回」只在 live 档成立；手动档下关面板不写盘，改成事后通知补救（见 onDidDispose）。
 
      去抖只需 250ms：「用户停手了吗」这件事界面已经判断过了——所有改动都汇到 update()，它把
      localStorage 的落盘推迟 400ms（persist 去抖），所以到达宿主的改动天生就是「停手 400ms
@@ -508,26 +538,100 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
     flushTimer = setTimeout(() => { flushTimer = null; flushPixels(false); }, FLUSH_MS);
   };
 
+  const refreshCtx = () => { try { if (panel.active) setDirtyContext(dirty); } catch (e) {} };
+  /* 脏态三处同步：标签标题的 ●（webview 拿不到 VS Code 的原生脏点，只能自绘）、
+     标题栏按钮的可用态、面板顶栏中间那句提示。提示走 .topbar .spacer 那条空的弹性区，
+     不新占布局、也不会盖住画布；画布里不加保存按钮，那颗归标签栏。 */
+  const setDirty = (v) => {
+    if (dirty === v) return;
+    dirty = v;
+    panel.title = v ? '● ' + baseTitle : baseTitle;
+    try { panel.webview.postMessage({ type: 'dirty', on: v, text: t('Not saved yet · Ctrl+S to commit') }); }
+    catch (e) { /* 面板正在销毁 */ }
+    refreshCtx();
+  };
+
+  /* 一次提交：先写文档（saveBack 内部更新 lastSaved），再落与它同源的那一帧像素。
+     像素通常比 save 消息晚几毫秒到手，届时 expectFlush 会接住它。 */
+  const commit = async () => {
+    if (!pending) {
+      /* 面板里没有待提交的改动时，这条键位也别空转：live 档的元数据写回只到 markdown
+         文档的 buffer（文件仍归用户保存），既然 Ctrl+S 被我们接了，就顺手替他把这份
+         文档落盘；图片目标本就直接写文件，没有要补的。这是用户显式按下的保存，
+         与 saveIfClean 那条「自动写回不该捎带用户没保存的内容」的顾虑无关。 */
+      if (isImage || typeof saveTarget.docPath !== 'string') return false;
+      try {
+        const doc = await vscode.workspace.openTextDocument(saveTarget.docPath);
+        if (!doc.isDirty) return false;
+        await doc.save();
+        vscode.window.setStatusBarMessage(t('WaveDrom: File saved'), 3000);
+        return true;
+      } catch (e) { return false; }
+    }
+    const p = pending;
+    pending = null;
+    expectFlush = false;
+    setDirty(false);
+    await saveBack(saveTarget, p.json, p.text, { saveIfClean: true });
+    if (isImage) {
+      if (pendingPx && pendingPx.json === saveTarget.lastSaved) flushPixels(false);
+      else expectFlush = true;
+    }
+    return true;
+  };
+  const ctl = { commit, isDirty: () => dirty };
+  if (panel.active) { activeEditorCtl = ctl; setDirtyContext(false); }
+
   panel.webview.onDidReceiveMessage(msg => {
     if (msg.type === 'save' && msg.json) {
-      saveBack(saveTarget, msg.json, msg.text);
-      if (isImage) armFlush();
+      if (manual) {
+        pending = { json: msg.json, text: msg.text };
+        expectFlush = false; // 上一轮提交等的那帧像素已经不代表当前文档了
+        setDirty(true);
+      } else {
+        saveBack(saveTarget, msg.json, msg.text);
+        if (isImage) armFlush();
+      }
     } else if (msg.type === 'pixels' && isImage && msg.json) {
       pendingPx = {
         json: msg.json,
         svg: typeof msg.svg === 'string' ? msg.svg : null,
         png: typeof msg.png === 'string' ? Buffer.from(msg.png, 'base64') : null,
       };
-      armFlush();
+      if (!manual) armFlush();
+      else if (expectFlush && pendingPx.json === saveTarget.lastSaved) { expectFlush = false; flushPixels(false); }
     } else if (msg.type === 'export' && msg.name && typeof msg.b64 === 'string') {
       exportFromPanel(saveTarget, msg.name, msg.b64);
     }
   });
-  /* 切走面板标签：先把画面落盘（这次弹提示——面板看不见了），回来时预览就是新的
-     （placePanel 搬动面板也会触发，此时 pendingPx 多半为空，自然跳过） */
-  panel.onDidChangeViewState(ev => { if (!ev.webviewPanel.visible) flushPixels(true); });
-  /* 关闭面板：onDidDispose 时 webview 已销毁，落盘宿主手里的最后一份像素 */
-  panel.onDidDispose(() => flushPixels(true));
+  /* 切走面板标签：live 档先把画面落盘（这次弹提示——面板看不见了），回来时预览就是新的
+     （placePanel 搬动面板也会触发，此时 pendingPx 多半为空，自然跳过）；手动档不写盘。
+     顺带认一下「现在活动的是不是我」，标题栏那颗按钮得知道按下去该提交哪个面板。 */
+  panel.onDidChangeViewState(ev => {
+    if (ev.webviewPanel.active) { activeEditorCtl = ctl; refreshCtx(); }
+    if (!ev.webviewPanel.visible && !manual) flushPixels(true);
+  });
+  /* 关闭面板：live 档落盘宿主手里的最后一份像素（webview 已销毁，没人能再渲染）；
+     手动档不写盘，但 VS Code 不给 WebviewPanel「关闭前否决」的钩子，问不来得及，
+     只能事后补救——最后一份文档与像素都还在宿主手里，点「仍然保存」照常落盘，
+     不点就丢弃，绝不悄悄写文件。 */
+  panel.onDidDispose(() => {
+    if (activeEditorCtl === ctl) { activeEditorCtl = null; setDirtyContext(false); }
+    if (!manual) { flushPixels(true); return; }
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    if (!pending) return;
+    const p = pending; pending = null;
+    const name = path.basename(isImage ? saveTarget.imgPath : saveTarget.docPath);
+    const keep = t('Save anyway');
+    Promise.resolve(vscode.window.showWarningMessage(
+      t('WaveDrom: {0} still has unsaved edits — the last frame is held in memory', name),
+      keep, t('Discard'),
+    )).then(choice => {
+      if (choice !== keep) return;
+      saveBack(saveTarget, p.json, p.text, { saveIfClean: true });
+      if (isImage && pendingPx && pendingPx.json === saveTarget.lastSaved) flushPixels(false);
+    });
+  });
 }
 
 /* 面板导出的落盘：系统保存框默认定位到来源文件所在目录（图片 = 原图路径，
@@ -625,6 +729,18 @@ function editorSidePanel() {
     const v = vscode.workspace.getConfiguration('wavedrom-gui').get('editorSidePanel');
     return v === 'auto' ? 'auto' : 'shown';
   } catch (e) { return 'shown'; }
+}
+
+/* 保存档（wavedrom-gui.saveMode）：
+   button = 「手动保存」（默认）：改动只攒在扩展宿主内存里，点标题栏那颗保存（或面板内 Ctrl+S）
+            才写回目标文件；画布与面板里的预览照常实时重绘，碰磁盘的时机由用户决定。
+   live   = 「自动实时保存」：改一下就写回（本扩展的历史行为），与可道云插件的「自动保存」开关对齐。
+   取值非法或读不到时按 button */
+function saveMode() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('saveMode');
+    return v === 'live' ? 'live' : 'button';
+  } catch (e) { return 'button'; }
 }
 
 /* 编辑器界面来源：仓库内调试时 extensionUri 就是 vscode/，同级 ../index.html 是正在改的
@@ -785,6 +901,30 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
       } catch (e) { rasterDone(); }
     }, 0);
   }
+  /* ---- 手动档的脏提示：宿主每次改动把 dirty 状态发进来，界面在顶栏中间显示一句话 ----
+     画布里不放保存按钮（那颗归标签栏），这里只是告诉用户「现在还没写盘」。
+     借用 .topbar .spacer 那条本来就空着的弹性区：不新占布局、不盖画布，窄布局下自动省略号。 */
+  var hint = null;
+  window.addEventListener('message', function (ev) {
+    var d = ev && ev.data;
+    if (!d || d.type !== 'dirty') return;
+    try {
+      var host = document.querySelector('.topbar .spacer');
+      if (!host) return;
+      if (!d.on) { if (hint) hint.style.display = 'none'; return; }
+      if (!hint) {
+        host.style.display = 'flex';
+        host.style.alignItems = 'center';
+        hint = document.createElement('div');
+        hint.style.cssText = 'margin:0 auto;padding:2px 10px;border-radius:999px;font-size:11.5px;'
+          + 'line-height:1.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;'
+          + 'opacity:.78;cursor:default;background:rgba(127,127,127,.14);border:1px solid rgba(127,127,127,.3)';
+        host.appendChild(hint);
+      }
+      hint.textContent = d.text || '';
+      hint.style.display = '';
+    } catch (e) { /* 界面结构变了就放弃这句提示，不影响编辑 */ }
+  });
   setTimeout(function () {
     try { last = localStorage.getItem(KEY); } catch (e) {}
     armed = true;
@@ -853,7 +993,7 @@ function writeText(json, displayText) {
   return JSON.stringify(parsed, null, 2);
 }
 
-async function saveBack(target, json, displayText) {
+async function saveBack(target, json, displayText, opts) {
   let text;
   try { text = writeText(json, displayText); }
   catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Invalid JSON, save skipped')); return; }
@@ -861,6 +1001,10 @@ async function saveBack(target, json, displayText) {
   if (target.kind === 'fence') {
     try {
       const doc = await vscode.workspace.openTextDocument(target.docPath);
+      /* 干净与否要在 applyEdit 之前问：应用编辑本身就会把文档弄脏。
+         opts.saveIfClean（手动档的提交）只在用户当时没有未保存编辑时代按 Ctrl+S——
+         他自己在文件里改的东西不该被这次写回一起落盘 */
+      const wasClean = doc.isDirty === false && typeof doc.save === 'function';
       let hit = findFence(doc.getText(), [target.fenceRaw, target.lastSaved], target.line);
       if (!hit) {
         /* 兜底：精确与规范化都匹配不到（文件被大改）时，列出全部 wavedrom
@@ -894,7 +1038,14 @@ async function saveBack(target, json, displayText) {
       we.replace(doc.uri, new vscode.Range(doc.positionAt(startOff), doc.positionAt(endOff)), insert + nl);
       await vscode.workspace.applyEdit(we);
       target.lastSaved = insert;
-      vscode.window.setStatusBarMessage(t('WaveDrom: Code block updated (press Ctrl+S to save the file)'), 3000);
+      if (opts && opts.saveIfClean && wasClean) {
+        try {
+          await doc.save();
+          vscode.window.setStatusBarMessage(t('WaveDrom: File saved'), 3000);
+        } catch (e) { /* 代按 Ctrl+S 失败：文档已经是脏的，用户自己按一次即可 */ }
+      } else {
+        vscode.window.setStatusBarMessage(t('WaveDrom: Code block updated (press Ctrl+S to save the file)'), 3000);
+      }
     } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Write-back failed — {0}', e.message)); }
     return;
   }
@@ -1176,6 +1327,8 @@ async function activate(ctx) {
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.editFromPreview', editFromPreviewCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.previewFence', previewFenceCommand));
   ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.openImage', openImageCommand));
+  /* 标题栏那颗保存与面板内的 Ctrl+S 共用它（贡献点在 package.json 的 editor/title / keybindings） */
+  ctx.subscriptions.push(vscode.commands.registerCommand('wavedrom-gui.savePanel', savePanelCommand));
   ctx.subscriptions.push(vscode.window.registerUriHandler({ handleUri }));
   ctx.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'markdown' }, makeCodeLensProvider()));
   ctx.subscriptions.push(vscode.languages.registerHoverProvider({ language: 'markdown' }, makeHoverProvider()));
@@ -1189,6 +1342,11 @@ async function activate(ctx) {
     if (ev.affectsConfiguration('wavedrom-gui.imageExportTheme')) {
       /* 图片输出主题在面板建立时生效：已打开的编辑面板拿着旧 kind，提示重开 */
       vscode.window.showInformationMessage(t('WaveDrom: image export theme applies to editor panels opened from now on'));
+    }
+    /* 保存档同样是面板建立时读一次：已开着的面板按它建立时那一档走完，避免中途换档把
+       用户已经攒下的待提交改动突然写盘（或突然不写） */
+    if (ev.affectsConfiguration('wavedrom-gui.saveMode')) {
+      vscode.window.showInformationMessage(t('WaveDrom: save mode applies to editor panels opened from now on'));
     }
     if (!ev.affectsConfiguration('wavedrom-gui.previewEditAffordance')) return;
     try { Promise.resolve(vscode.commands.executeCommand('markdown.preview.refresh')).catch(() => {}); }
@@ -1209,6 +1367,7 @@ module.exports = {
   deactivate,
   __test: {
     FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel,
+    saveMode, savePanelCommand, setDirtyContext,
     withCacheBust,
     languageSetting, uiLang, zhStrings, t, editLink, handleUri,
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
