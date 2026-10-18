@@ -27,7 +27,7 @@
 
 点开后是可视化编辑器（面板里加载的就是这个单文件编辑器界面：仓库内调试时直接读 `../index.html`，装 VSIX 后读随包安装的构建拷贝 `media/editor.html`，两者内容一致）；**改动写回 Markdown 中的这个代码块**，写回格式跟随编辑器的代码显示模式（舒缓 / 紧凑）。什么时候写回由 `wavedrom-gui.saveMode` 决定（默认**手动保存**：改动先攒在面板里，点标签栏那颗保存图标或按 `Ctrl+S` 提交；也可选**自动实时保存**），详见[设置](#设置)。
 
-手动保存档下「有改动没提交」有三处提示：面板**标题前多一个 `●`**、**波形顶栏浮出**「有改动没写进文件 · Ctrl+S 提交」、**标签栏那颗保存图标亮起**（干净时淡显但位置不动，免得标签跳）。
+手动保存档下「有改动没提交」有三处提示：面板**标题前缀 `!`**（提交后换成 `✓`）、**波形顶栏那颗胶囊**——「! 有改动没写进文件」右侧就挂着**一颗描边的「保存」**，点它和点标签栏那颗是同一个命令（提交后胶囊变成绿色的「✓ 已保存」，停 3 秒自己收起）、**标签栏那颗保存图标亮起**（干净时淡显但位置不动，免得标签跳）。面板收得很窄时胶囊会先省略文案、再整颗收起，那时状态仍由标题前缀承担。
 
 铅笔按钮与 VS Code 工具栏图标同风格：单色描边、无边框无底色，常显 60% 不透明度，悬停浮现底色。
 
@@ -97,7 +97,7 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
   - `button` = **手动保存**（默认）：改动只攒在面板里，画布与面板内的预览照常实时重绘，但**不碰磁盘**；点编辑面板**标签栏的保存图标**、或面板聚焦时按 `Ctrl+S`（macOS `Cmd+S`）才提交
   - `live` = **自动实时保存**：改一下就立刻写回，和可道云插件的「自动保存」一致，也是本扩展此前的行为
 
-  提交之后**标题的 `●`、顶栏提示、标签栏按钮三处同时消掉**，一眼能看出「已经落盘」。markdown 代码块还多一层安全处理：提交时改动先写进已打开的文档，**只有那份文档当时没有你自己的未保存编辑**才顺手把文件也保存；否则只应用改动并提示你按 `Ctrl+S`——免得把你没保存的内容一起落盘。这一项**在面板打开时读一次**，已打开的面板保持它开始时的档位（改设置后会提示）。
+  提交之后**标题前缀从 `!` 换成 `✓`、顶栏胶囊变绿「已保存」（停 3 秒后收起）、标签栏按钮淡显**，三处一起跟上，一眼能看出「已经落盘」。markdown 代码块还多一层安全处理：提交时改动先写进已打开的文档，**只有那份文档当时没有你自己的未保存编辑**才顺手把文件也保存；否则只应用改动并提示你按 `Ctrl+S`——免得把你没保存的内容一起落盘。这一项**在面板打开时读一次**，已打开的面板保持它开始时的档位（改设置后会提示）。
   ⚠️ 手动档下直接关面板：VS Code 不给 webview 面板「关闭前否决」的钩子，只能事后补救——最后一份改动与画面仍在扩展宿主内存里，通知点「仍然保存」照常落盘，点「丢弃」或关掉通知就丢弃，**绝不会悄悄写文件**。
   （选项名「手动保存 / 自动实时保存」由 VS Code 的 `enumItemTitles` 渲染，需要 1.85 及以上；更早的宿主下拉列表里显示 `button` / `live`，中文说明仍跟在选项后面。）
 
@@ -171,7 +171,7 @@ Three ways into the editor — pick any:
 
 Clicking through opens the visual editor (the panel loads that single-file editor UI: inside the repo it reads `../index.html` directly, and with the installed VSIX it reads the packaged copy `media/editor.html` — same content); **edits are written back into that Markdown code block**, in the code display mode the editor is using (comfortable / compact). *When* they are written back is decided by `wavedrom-gui.saveMode` (**Manual save** by default — edits pile up in the panel until you click the save icon in its tab or press `Ctrl+S`; **Automatic live save** writes each change as it happens), see [Settings](#settings).
 
-In Manual save mode three things tell you that something is still uncommitted: a **`●` in front of the panel title**, a **"Not saved yet · Ctrl+S to commit" pill in the waveform's top bar**, and the **save icon in the tab bar lighting up** (it greys out when clean but never moves, so tabs don't jump).
+In Manual save mode three things tell you that something is still uncommitted: a **`!` in front of the panel title** (it becomes `✓` once committed), a **pill in the waveform's top bar** — "! Not saved yet" with an **outlined Save button** right next to the wording, which runs the very same command as the tab-bar icon (after a commit the pill turns into a green "✓ Saved" and collapses a few seconds later) — and the **save icon in the tab bar lighting up** (it greys out when clean but never moves, so tabs don't jump). When the panel gets very narrow the pill shortens its wording and then steps aside entirely; the title prefix keeps carrying the state.
 
 The pencil button matches VS Code's own toolbar icons: monochrome stroke, no border or background, 60% opacity at rest and a background on hover.
 
@@ -241,7 +241,7 @@ Where to change them (three options):
   - `button` = **Manual save** (default): edits stay inside the panel — the canvas and the panel's own preview keep redrawing live, but **nothing touches the disk** until you click the **save icon in the editor panel's tab bar** or press `Ctrl+S` (macOS `Cmd+S`) with the panel focused
   - `live` = **Automatic live save**: every change is written back as it happens, like the "autosave" switch in the kodbox plugin — which is also this extension's previous behaviour
 
-  Committing clears **the `●` in the title, the top-bar hint and the tab-bar icon all at once**, so it is obvious the change has landed. A Markdown code block gets one extra safety step: committing applies the edit to the open document, and the file itself is saved too **only when that document had no unsaved edits of its own**; otherwise the extension only applies the edit and tells you to press `Ctrl+S` — so your own uncommitted typing never ends up on disk by accident. This setting is read **once when a panel opens**; panels already open keep the mode they started with (changing it shows a notice).
+  Committing updates **the title prefix from `!` to `✓`, the top-bar pill to a green "Saved" (which collapses after a few seconds) and the tab-bar icon to its faded look all at once**, so it is obvious the change has landed. A Markdown code block gets one extra safety step: committing applies the edit to the open document, and the file itself is saved too **only when that document had no unsaved edits of its own**; otherwise the extension only applies the edit and tells you to press `Ctrl+S` — so your own uncommitted typing never ends up on disk by accident. This setting is read **once when a panel opens**; panels already open keep the mode they started with (changing it shows a notice).
   ⚠️ Closing the panel while Manual save still has uncommitted edits: VS Code gives a webview panel no "veto before dispose" hook, so this can only be a post-hoc remedy — the last document and the last frame are still in the extension host's memory, and the notification's "Save anyway" writes them to disk; choosing "Discard" or dismissing the notification drops them. It **never writes the file silently**.
   (The "Manual save / Automatic live save" labels come from VS Code's `enumItemTitles`, which needs 1.85 or newer; on older hosts the dropdown shows `button` / `live` with the description text after each option.)
 

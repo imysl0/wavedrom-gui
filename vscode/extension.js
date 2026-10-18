@@ -491,7 +491,7 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
      区别只是「谁去碰磁盘、什么时候」。 */
   const manual = saveMode() === 'button';
   let pending = null;      // 手动档攒着没写回的改动 { json, text }
-  let dirty = false;       // 有待提交改动（驱动标题 ● 与按钮可用态）
+  let dirty = false;       // 有待提交改动（驱动标题前缀 !/✓、顶栏胶囊与按钮可用态）
   let expectFlush = false; // 已提交但那一帧像素还没到手，等它到了立刻落盘
   const baseTitle = panel.title;
   /* 图片目标的像素写回：webview 在轮询里（250ms 一次）把当前画面光栅化后随 pixels 消息
@@ -539,15 +539,26 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
   };
 
   const refreshCtx = () => { try { if (panel.active) setDirtyContext(dirty); } catch (e) {} };
-  /* 脏态三处同步：标签标题的 ●（webview 拿不到 VS Code 的原生脏点，只能自绘）、
-     标题栏按钮的可用态、面板顶栏中间那句提示。提示走 .topbar .spacer 那条空的弹性区，
-     不新占布局、也不会盖住画布；画布里不加保存按钮，那颗归标签栏。 */
+  /* 保存状态三处同步：标签标题的前缀、标题栏按钮的可用态、面板顶栏中间那颗胶囊。
+     前缀用 ! / ✓ 而不是以前那颗点——点太容易被当成文件名的一部分，! 才像「有事没处理」。
+     标题拿不到颜色（panel.title 是纯文本，VS Code 不给它上色），所以「绿色对号」只成立在
+     胶囊上；标签栏那边 ✓ 就是标签本来的字色。webview 拿不到 VS Code 的原生脏点，只能自绘。
+     胶囊走 .topbar .spacer 那条空的弹性区，不新占布局、也不盖住画布；里面那颗「保存」与
+     标签栏那颗是同一个命令——原先按钮只挂在标签栏，实测太隐蔽，看不见那颗。 */
+  const postSaveState = (state) => {
+    try {
+      panel.webview.postMessage({
+        type: 'saveState', state,
+        text: state === 'dirty' ? t('Not saved yet') : t('Saved'),
+        btn: t('Save'),
+      });
+    } catch (e) { /* 面板正在销毁 */ }
+  };
   const setDirty = (v) => {
     if (dirty === v) return;
     dirty = v;
-    panel.title = v ? '● ' + baseTitle : baseTitle;
-    try { panel.webview.postMessage({ type: 'dirty', on: v, text: t('Not saved yet · Ctrl+S to commit') }); }
-    catch (e) { /* 面板正在销毁 */ }
+    panel.title = v ? '! ' + baseTitle : '✓ ' + baseTitle;
+    postSaveState(v ? 'dirty' : 'saved');
     refreshCtx();
   };
 
@@ -587,11 +598,17 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
       if (manual) {
         pending = { json: msg.json, text: msg.text };
         expectFlush = false; // 上一轮提交等的那帧像素已经不代表当前文档了
-        setDirty(true);
+        /* 胶囊那颗「保存」把「上报当前文档」和「提交」合成一封发来：改动落在界面侧要等它
+           400ms 的落盘去抖、再到这里最多 250ms 的轮询，抢在这个窗口按保存会写回旧内容，
+           所以按钮先就地取最新文档再连 commit 一起送。带 commit 就不必先标脏再翻回来。 */
+        if (msg.commit) commit();
+        else setDirty(true);
       } else {
         saveBack(saveTarget, msg.json, msg.text);
         if (isImage) armFlush();
       }
+    } else if (msg.type === 'commit' && manual) {
+      commit();     // 按钮取不到文档时的兜底：按宿主手里已有的那份提交
     } else if (msg.type === 'pixels' && isImage && msg.json) {
       pendingPx = {
         json: msg.json,
@@ -901,29 +918,94 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
       } catch (e) { rasterDone(); }
     }, 0);
   }
-  /* ---- 手动档的脏提示：宿主每次改动把 dirty 状态发进来，界面在顶栏中间显示一句话 ----
-     画布里不放保存按钮（那颗归标签栏），这里只是告诉用户「现在还没写盘」。
-     借用 .topbar .spacer 那条本来就空着的弹性区：不新占布局、不盖画布，窄布局下自动省略号。 */
-  var hint = null;
+  /* ---- 手动档的保存状态胶囊：宿主把状态发进来，界面在顶栏中间挂一颗胶囊 ----
+     三态：dirty（警示色 +「!」+ 描边的「保存」）/ saved（绿勾「已保存」，停 3 秒自己收起）/
+     idle（立刻收起）。话术全由宿主给（跟着扩展语言走），界面只管挂、切、收。
+     借用 .topbar .spacer 那条本来就空着的弹性区：不新占布局、不盖画布。
+     弹性区的 min-width 显式给 0（flex 项默认 min-width:auto，塞进胶囊后就不肯再收缩），收缩时
+     先省略文案（只有文案带 min-width:0）。Chromium 在这里并不会把胶囊的 min-width:auto 兜到
+     内容宽（实测 340px 时胶囊底被压到 38px、按钮仍占 47px，整颗顶出圆角底盖到右侧「设置」上），
+     所以放不下时按 pillFit() 两级降级：先收文案、再整颗收起。反过来撑开胶囊也不划算——430px
+     以下顶栏内容宽会从 430 涨到 480，把「设置/导入/导出」整排挤出可视区。 */
+  var pill = null, pillIc = null, pillTx = null, pillBtn = null, pillTimer = null;
+  var PILL_BASE = 'margin:0 auto;max-width:100%;display:inline-flex;align-items:center;gap:8px;'
+    + 'padding:3px 4px 3px 11px;border-radius:999px;font-size:11.5px;line-height:1.75;white-space:nowrap';
+  var PILL_DIRTY = PILL_BASE + ';background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink)';
+  var PILL_SAVED = PILL_BASE + ';padding:2px 11px;background:var(--acc-veil);border:1px solid var(--node-line);color:var(--acc-text)';
+  /* 胶囊上那颗保存：先就地取当前文档（buildJSON 是编辑器的实时状态，绕开界面 400ms 的落盘
+     去抖与这里 250ms 的轮询），连同 commit 标记一起发给宿主；取不到就退回 localStorage 那份，
+     连那份都没有时只发一封 commit，让宿主按手里已有的内容提交。 */
+  function pillSave() {
+    var v = null;
+    try { if (typeof buildJSON === 'function') v = JSON.stringify(buildJSON()); } catch (e) { v = null; }
+    if (!v) { try { v = localStorage.getItem(KEY); } catch (e) { v = null; } }
+    if (v) { try { JSON.parse(v); } catch (e) { v = null; } }
+    if (v) {
+      last = v;
+      try { storeSet(KEY, v); } catch (e) {}   // 与轮询对齐，免得同一份内容再报一次、把标签翻回脏
+      try { vs.postMessage({ type: 'save', json: v, text: displayText(v), commit: true }); } catch (e) {}
+      if (IMG) sendPixels();
+    } else {
+      try { vs.postMessage({ type: 'commit' }); } catch (e) {}
+    }
+  }
+  /* 放不下就少显示一点：文案先让位（图标 + 按钮是主角），连按钮都放不下就整颗收起。
+     量的是胶囊自己的内容宽与弹性区实宽——两者都是布局结果，不写死断点。 */
+  function pillFit() {
+    var host = pill && pill.parentNode;
+    if (!host) return;
+    pillTx.style.display = '';
+    if (pill.scrollWidth > host.clientWidth + 1) {
+      pillTx.style.display = 'none';
+      if (pill.scrollWidth > host.clientWidth + 1) { pill.style.display = 'none'; pillTx.style.display = ''; }
+    }
+  }
+  function pillBuild() {
+    var host = document.querySelector('.topbar .spacer');
+    if (!host) return false;
+    host.style.display = 'flex';
+    host.style.alignItems = 'center';
+    host.style.minWidth = '0';
+    pill = document.createElement('div');
+    pillIc = document.createElement('span');
+    pillIc.style.cssText = 'font-weight:700;font-family:var(--font-mono)';
+    pillTx = document.createElement('span');
+    pillTx.style.cssText = 'min-width:0;overflow:hidden;text-overflow:ellipsis';
+    pillBtn = document.createElement('button');
+    pillBtn.type = 'button';
+    pillBtn.style.cssText = 'flex:none;border:1px solid var(--warn-line);cursor:pointer;font:inherit;'
+      + 'font-weight:600;padding:2px 11px;border-radius:999px;background:transparent;color:var(--warn-ink)';
+    pillBtn.addEventListener('click', pillSave);
+    pill.appendChild(pillIc); pill.appendChild(pillTx); pill.appendChild(pillBtn);
+    host.appendChild(pill);
+    return true;
+  }
   window.addEventListener('message', function (ev) {
     var d = ev && ev.data;
-    if (!d || d.type !== 'dirty') return;
+    if (!d || d.type !== 'saveState') return;
     try {
-      var host = document.querySelector('.topbar .spacer');
-      if (!host) return;
-      if (!d.on) { if (hint) hint.style.display = 'none'; return; }
-      if (!hint) {
-        host.style.display = 'flex';
-        host.style.alignItems = 'center';
-        hint = document.createElement('div');
-        hint.style.cssText = 'margin:0 auto;padding:2px 10px;border-radius:999px;font-size:11.5px;'
-          + 'line-height:1.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;'
-          + 'opacity:.78;cursor:default;background:rgba(127,127,127,.14);border:1px solid rgba(127,127,127,.3)';
-        host.appendChild(hint);
+      if (d.state === 'idle') { if (pill) pill.style.display = 'none'; return; }
+      if (!pill && !pillBuild()) return;
+      if (pillTimer) { clearTimeout(pillTimer); pillTimer = null; }
+      if (d.state === 'dirty') {
+        pill.style.cssText = PILL_DIRTY;
+        pillIc.textContent = '!';
+        pillTx.textContent = d.text || '';
+        pillBtn.textContent = d.btn || '';
+        pillBtn.style.display = '';
+        pillFit();
+      } else {
+        pill.style.cssText = PILL_SAVED;
+        pillIc.textContent = '\u2713';
+        pillTx.textContent = d.text || '';
+        pillBtn.style.display = 'none';
+        pillFit();
+        pillTimer = setTimeout(function () { pillTimer = null; if (pill) pill.style.display = 'none'; }, 3000);
       }
-      hint.textContent = d.text || '';
-      hint.style.display = '';
-    } catch (e) { /* 界面结构变了就放弃这句提示，不影响编辑 */ }
+      /* 这里不再补一句 pill.style.display = ''：上面两个分支都是整条 cssText 赋值，里面已经
+         写了 display:inline-flex，再把它清成空串就退回块级，gap 随之失效、图标和文案会挤在一起
+         （收起态靠 display='none'，下一次 cssText 赋值会连 display 一起换回来）。 */
+    } catch (e) { /* 界面结构变了就放弃这颗胶囊，不影响编辑 */ }
   });
   setTimeout(function () {
     try { last = localStorage.getItem(KEY); } catch (e) {}

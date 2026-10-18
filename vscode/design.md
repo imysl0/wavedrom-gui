@@ -45,7 +45,7 @@
 ## 6. 编辑器面板的加载与隔离
 
 - `editorShellPath()`：仓库内调试时 `extensionUri` 就是 `vscode/`，同级 `../index.html` 是正在改的实时界面（F5 下改动立即生效）；装了 VSIX 之后同级没有 `index.html`，回退到随包安装的 `media/editor.html`（`scripts/build.js` 从仓库根 `index.html` 拷入）。
-- 面板 HTML 由 `buildEditorHtml()` 注入：CSP、初始 WaveJSON（`location.hash`）、保存轮询脚本、界面语言、视图模式 / 左栏显隐、脏提示的挂载代码，以及（图片目标时）`IMG = {ext, pxW, kind}`。
+- 面板 HTML 由 `buildEditorHtml()` 注入：CSP、初始 WaveJSON（`location.hash`）、保存轮询脚本、界面语言、视图模式 / 左栏显隐、保存状态胶囊的挂载代码，以及（图片目标时）`IMG = {ext, pxW, kind}`。
 - 每个编辑目标一份独立的 localStorage 键（`panelDocKey`：文档路径 + 行号 / 图片路径的 sha1 摘要）：webview 之间共享 localStorage，若都用同一个键，另一个面板的改动会被本面板的轮询当成自己的文档写回，导致 A 块被 B 的内容覆盖；按目标派生后条目数也不会无限增长。
 - 面板位置（`wavedrom-gui.editorPanelPosition`）里 `below` / `newWindow` 复用 VS Code 自己的 `workbench.action.moveEditorToBelowGroup` / `workbench.action.moveEditorToNewWindow`：这两个命令作用于**当前活动编辑器**，扩展先等面板真的取得焦点（最多 12 × 40ms）再执行，拿不到焦点就留在原地（宁可停住，也不能把预览或别的编辑器搬走）。VS Code 没有向扩展开放浮动 / 模态编辑器（公开的 `ViewColumn` 只有 `Active` / `Beside` / `1-9`），所以「浮在预览之上」做不到。
 
@@ -94,13 +94,17 @@ CodeLens 的「预览」与悬停里的「固定预览」都走 `wavedrom-gui.pr
 - `saveIfClean` 只对代码块目标有意义：代码块的改动是 `WorkspaceEdit` 应用到**已打开的 markdown 文档**，落不落盘由那份文档自己的脏态决定——`wasClean` 要**在 `applyEdit` 之前**捕获（应用编辑本身就把文档弄脏了）。文档当时干净就顺手 `doc.save()` 一步到位；脏着（用户有没保存的打字）则只应用改动、状态栏提示他按 `Ctrl+S`，绝不把用户没保存的内容一起写盘。图片目标是直接写文件，没有这一层。
 - `commit()` 在**没有待提交改动**时也不空转：live 档的写回只到 buffer，而 `ctrl+s` 键位已经被这条命令占了，所以此时它改为把那份文档落盘（用户显式按的保存，不受 `saveIfClean` 那层顾虑约束）；文档已干净或目标是图片就什么都不做。
 
-**脏标记三处同步**（`setDirty()`）：① 面板 `title` 前缀 `● `——webview 拿不到 VS Code 的原生脏点，只能自绘；② `postMessage({type:'dirty'})`，注入脚本把提示挂进 `.topbar .spacer`（编辑器界面上那根 `flex: 1` 的空隙），**画布里不放按钮、也不新增一行布局**；③ `setContext('wavedromGuiDirty', …)` 驱动标题栏按钮的 `enablement`——干净时淡显但**不移除**，藏起来会让标签跳位，也让人以为入口没了。
+**保存状态三处同步**（`setDirty()` → `postSaveState()`）：① 面板 `title` 前缀 `! ` / `✓ `——webview 拿不到 VS Code 的原生脏点，只能自绘；用 `!` 而不是以前那颗点，是因为点容易被当成文件名的一部分，而 `!` 才读得出「有事没处理」；`panel.title` 是纯文本、拿不到颜色，所以「绿色对号」只成立在胶囊上。② `postMessage({type:'saveState', state, text, btn})`，注入脚本把胶囊挂进 `.topbar .spacer`（编辑器界面上那根 `flex: 1 1 0` 的空隙，不新增一行布局、也不盖画布），三态：`dirty` 走 `--warn-*` 警示色并带**一颗描边的「保存」**（原先按钮只挂在标签栏，实测太隐蔽）、`saved` 走 `--acc-*` 绿勾并 `setTimeout(3000)` 自己收起、`idle` 立刻收起。话术全由宿主给（跟着扩展语言走），界面只管挂、切、收。③ `setContext('wavedromGuiDirty', …)` 驱动标题栏按钮的 `enablement`——干净时淡显但**不移除**，藏起来会让标签跳位，也让人以为入口没了。
+
+**胶囊里那颗「保存」= 一封带 commit 的消息**：改动从界面到宿主有 `persist` 的 400ms 落盘去抖与轮询的 250ms 两趟延迟，抢在这个窗口里点保存会提交**上一版**内容。所以按钮先就地调 `buildJSON()`（编辑器的实时状态）取文档，随 `{type:'save', json, text, commit:true}` 一起送出，宿主 `pending = …` 后立刻 `commit()`；同时把 `last` 与 `localStorage` 一起对齐，免得轮询随后又把同一份内容报一次、把标签翻回脏。`buildJSON()` 拿不到时退回 `localStorage` 那份，连那份也没有就只发 `{type:'commit'}`，按宿主手里已有的 `pending` 提交。
+
+**窄面板里的两级降级**（`pillFit()`）：`.topbar .spacer` 是 `flex: 1 1 0`，面板收到 340px 时它只剩 38px，而图标 + 按钮就要 86px——Chromium 在这里不会把胶囊的 `min-width:auto` 兜到内容宽，硬塞的结果是按钮顶出胶囊的圆角底、盖到右侧「设置」上（实测）。所以按 `pill.scrollWidth` 与 `host.clientWidth` 比：放不下先收文案（只留「! 保存」），连图标 + 按钮都放不下就整颗收起，状态由标签前缀继续承担。反向的两种写法都试过硬撑（`min-width: max-content`）与连按钮一起缩（`min-width:0` 在胶囊上），前者 430px 以下顶栏内容宽从 430 涨到 480、把「设置/导入/导出」整排挤出可视区，后者就是那个顶出圆角底的样子。
 
 **一颗按钮、两条触发路**：`contributes.menus["editor/title"]` 的图标点击与 `keybindings` 里的 `ctrl+s` / `mac: cmd+s` 都只带命令 id（`wavedrom-gui.savePanel`），不带面板身份；而 `activeWebviewPanelId` 上下文键的粒度只到 `viewType`（`wavedromGuiEditor`），同类型开多个面板时分不清按的是哪个。所以宿主记一个模块级的 `activeEditorCtl`：面板在 `onDidChangeViewState` 且 `active` 时认领自己，`onDidDispose` 时清掉，命令则提交它指着的那个面板。键位与菜单的 `when` 都用 `activeWebviewPanelId == wavedromGuiEditor`，只在编辑面板聚焦时生效（`index.html` 自己没绑 Ctrl+S，不抢键）。命令在 `commandPalette` 里 `when: false`，不进命令面板。
 
 **关面板时还没提交**：`WebviewPanel` 没有「关闭前否决」的钩子，问不来得及，只能事后补救——最后一份文档与像素都还在宿主内存里，`onDidDispose` 弹警告给「仍然保存 / 丢弃」，点前者照常走一次提交（含图片像素），否则什么都不写，**绝不悄悄落盘**。手动档下 `onDidChangeViewState` 的「变得不可见」**不写盘**（切走标签不等于要提交），live 档照旧落盘并提示。
 
-**文案与版本兼容**：选项显示名走 `enumItemTitles`（VS Code ≥ 1.85），而 `engines.vscode` 是 `^1.70.0`，所以档位中文名同时**前置进 `enumDescriptions`**（「手动保存 —— …」）：老宿主下拉里显示 `button` / `live`，说明行照样读得出是哪种。`config.saveMode.*` 等清单文案进 `package.nls*.json`，运行时消息（顶栏脏提示、关面板通知、状态栏）进 `l10n/bundle.l10n.zh-*.json`，`zh-cn` 与 `zh-hans` 两份必须字节一致（`test/run.js` 有断言）。
+**文案与版本兼容**：选项显示名走 `enumItemTitles`（VS Code ≥ 1.85），而 `engines.vscode` 是 `^1.70.0`，所以档位中文名同时**前置进 `enumDescriptions`**（「手动保存 —— …」）：老宿主下拉里显示 `button` / `live`，说明行照样读得出是哪种。`config.saveMode.*` 等清单文案进 `package.nls*.json`，运行时消息（顶栏脏提示、关面板通知、状态栏）进 `l10n/bundle.l10n.zh-*.json`（顶栏胶囊是 `Not saved yet` / `Saved` / `Save` 三条，符号 `!` 与 `✓` 由界面自己画、不进语言包），`zh-cn` 与 `zh-hans` 两份必须字节一致（`test/run.js` 有断言）。
 
 ## 11. 代码块写回：定位与格式校验
 

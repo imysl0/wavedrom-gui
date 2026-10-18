@@ -453,8 +453,39 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     let armed = null, tick = null;
     const posted = [];
     const listeners = {};
-    const mkEl = () => ({ style: {}, appendChild(c) { this.child = c; } });
-    const spacer = mkEl(); // .topbar .spacer：脏提示就挂在这条空的弹性区里
+    const timers = [];          // 除 1200ms 武装定时器以外的 setTimeout（胶囊那 3 秒收起就算在这里）
+    const liveRef = { doc: nextDoc };  // 模拟编辑器的实时文档：buildJSON 每次都读它
+    /* style 得按真 DOM 的语义来：整条 cssText 赋值会把已有属性全冲掉。先前这里是个普通对象，
+       「赋完 cssText 又把 display 清成空串」这种写法在测试里照样绿，真浏览器里胶囊却退回块级、
+       gap 失效——所以这里补一个会解析 cssText 的代理，样式行为对齐浏览器。 */
+    const mkStyle = () => {
+      const p = {};
+      const apply = v => {
+        for (const k of Object.keys(p)) delete p[k];
+        String(v).split(';').forEach(s => {
+          const i = s.indexOf(':');
+          if (i > 0) p[s.slice(0, i).trim().replace(/-([a-z])/g, (m, c) => c.toUpperCase())] = s.slice(i + 1).trim();
+        });
+      };
+      return new Proxy(p, {
+        get: (t, k) => (k === 'cssText' ? Object.keys(t).map(x => x + ':' + t[x]).join(';')
+          : (typeof k === 'string' && !(k in t) ? '' : t[k])),
+        set: (t, k, v) => { if (k === 'cssText') apply(v); else t[k] = v; return true; },
+      });
+    };
+    /* parentNode 与两个宽度是给 pillFit 量位置用的：内容宽按「可见子元素的 offsetWidth 之和
+       加 gap」近似，弹性区实宽由用例直接改 clientWidth，这样极窄面板的两级降级也能在单测里跑到 */
+    const mkEl = () => ({ style: mkStyle(), children: [], handlers: {}, textContent: '',
+      parentNode: null, clientWidth: 1e5, offsetWidth: 0, pad: 0,
+      get scrollWidth() {
+        let w = this.pad;
+        this.children.forEach(c => { if (c.style.display !== 'none') w += c.offsetWidth + 8; });
+        return w;
+      },
+      appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+      addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
+      fire(type) { (this.handlers[type] || []).forEach(fn => fn()); } });
+    const spacer = mkEl(); // .topbar .spacer：保存状态胶囊就挂在这条空的弹性区里
     const doc = {
       querySelector: sel => (sel === '.topbar .spacer' ? spacer : null),
       createElement: mkEl,
@@ -469,8 +500,18 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
       storeSet: (k, v) => { store[k] = v; },
       localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
       acquireVsCodeApi: () => ({ postMessage: m => posted.push(m) }),
-      setTimeout: fn => { armed = fn; return 1; },
+      /* 轮询脚本现在有两类延时定时器（1200ms 武装、3000ms 收起），只能按延时分开收，
+         否则后注册的那个会把武装函数覆盖掉；触发与撤销都把它从队列里摘走，更接近真浏览器 */
+      setTimeout: (fn, ms) => {
+        if (ms === 1200) { armed = fn; return 0; }
+        const t = { fn, ms, id: timers.length + 1 };
+        timers.push(t);
+        return t.id;
+      },
+      clearTimeout: id => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); },
       setInterval: fn => { tick = fn; return 2; },
+      /* 真页面上 buildJSON 就是编辑器的实时状态，胶囊那颗按钮靠它抢在落盘去抖之前取到最新内容 */
+      buildJSON: () => liveRef.doc,
     };
     vm.createContext(sandbox);
     vm.runInContext(hookSrc, sandbox);
@@ -480,7 +521,8 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
     armed();                                   // 面板打开：记下初始文档，之后不回写
     store[keyA] = JSON.stringify(nextDoc);      // 用户改动
     tick();
-    return { posted, ok: true, spacer, listeners, doc };
+    const runTimer = t => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1); t.fn(); };
+    return { posted, ok: true, spacer, listeners, doc, timers, liveRef, runTimer, tick: () => tick() };
   };
 
   const compactRun = runPoller('1');
@@ -493,19 +535,81 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(relaxRun.ok && relaxRun.posted.length === 1, '舒缓模式：改动后发出一封保存消息');
   ok(relaxRun.posted[0].text.split('\n').some(l => /^ +"name": "bus",$/.test(l)), '舒缓模式：对象展开为多行（写回风格确实跟随模式）');
 
-  /* 手动档的脏提示：宿主发 dirty 进来时界面在顶栏弹性区挂一句话，提交后收起。
-     话术由宿主给（跟着扩展语言走），界面只负责挂与收——画布里不放保存按钮。 */
-  const hintRun = runPoller('1');
-  const fireDirty = on => (hintRun.listeners.message || []).forEach(fn => fn({ data: { type: 'dirty', on, text: '有改动没写进文件' } }));
-  ok(hintRun.listeners && (hintRun.listeners.message || []).length === 1, '轮询脚本监听了宿主发来的消息');
-  fireDirty(true);
-  ok(hintRun.spacer.child && hintRun.spacer.child.textContent === '有改动没写进文件', '脏时顶栏挂出提示文案');
-  ok(hintRun.spacer.style.display === 'flex' && hintRun.spacer.child.style.display === '', '提示挂在 .spacer 里，不新占布局、不盖画布');
-  fireDirty(false);
-  ok(hintRun.spacer.child.style.display === 'none', '提交后提示收起（元素留着，下次改动直接复用）');
-  hintRun.doc.querySelector = () => null; // 界面结构变了：只是不显示提示，不该抛错
-  fireDirty(true);
-  ok(hintRun.spacer.child.style.display === 'none', '顶栏结构找不到时静默跳过，轮询照跑');
+  /* 手动档的保存状态胶囊：宿主发三态进来（dirty / saved / idle），界面在顶栏弹性区挂一颗。
+     脏态是警示色 + 描边的「保存」按钮，保存态是绿勾、停 3 秒自己收起。话术全由宿主给。 */
+  const pillRun = runPoller('1');
+  const fireState = m => (pillRun.listeners.message || []).forEach(fn => fn({ data: m }));
+  ok(pillRun.listeners && (pillRun.listeners.message || []).length === 1, '轮询脚本监听了宿主发来的消息');
+  fireState({ type: 'dirty', on: true }); // 旧协议
+  ok(pillRun.spacer.children.length === 0, '旧的 dirty 消息不再被认，界面只认 saveState 三态');
+  const DIRTY_MSG = { type: 'saveState', state: 'dirty', text: '有改动没写进文件', btn: '保存' };
+  fireState(DIRTY_MSG);
+  const pill = pillRun.spacer.children[0];
+  ok(pill && pill.children.length === 3, '脏时顶栏挂出胶囊：状态符号 + 文案 + 保存按钮');
+  ok(pill.children[0].textContent === '!' && pill.children[1].textContent === '有改动没写进文件', '脏态前缀是 ! 而不是那颗点');
+  ok(pill.children[2].textContent === '保存' && pill.children[2].style.display !== 'none',
+    '脏态把「保存」按钮露在文案右侧（原先只挂标签栏，实测太隐蔽）');
+  ok(/--warn-/.test(pill.style.cssText) && /--warn-/.test(pill.children[2].style.cssText)
+    && /background:transparent/.test(pill.children[2].style.cssText), '脏态与按钮都走警示色 token，按钮是描边不是实心');
+  /* 回归：cssText 里的 display 不能被随后清成空串——清了就退回块级，图标与文案挤在一起（headless 量到的） */
+  ok(pill.style.display === 'inline-flex' && /gap:8px/.test(pill.style.cssText),
+    '胶囊是带 gap 的 flex（cssText 里的 display 没被后续清空抹掉）');
+  ok(pillRun.spacer.style.display === 'flex' && pillRun.spacer.style.minWidth === '0',
+    '胶囊仍挂在不占布局的 .spacer 里，且弹性区允许收缩（不顶开顶栏右侧那排按钮）');
+  ok(pill.children[1].style.minWidth === '0' && /flex:none/.test(pill.children[2].style.cssText),
+    '窄到放不下时省略的是文案，按钮 flex:none 保住');
+
+  /* 极窄面板的两级降级：文案先让位，连图标 + 按钮都放不下就整颗收起（标签上的 ! 还在） */
+  [pill.children[0], pill.children[1], pill.children[2]].forEach((c, i) => { c.offsetWidth = [6, 92, 47][i]; });
+  pill.pad = 17;                                   // 左右内边距 11 + 4 加两条 1px 边框
+  pillRun.spacer.clientWidth = 90;                 // 弹性区只剩 90px：图标 + 按钮要 86px
+  fireState(DIRTY_MSG);
+  ok(pill.children[1].style.display === 'none' && pill.style.display === 'inline-flex',
+    '放不下文案时省略号都不够，直接收掉文案，只留图标 + 按钮');
+  pillRun.spacer.clientWidth = 60;                 // 连图标 + 按钮都塞不进去
+  fireState(DIRTY_MSG);
+  ok(pill.style.display === 'none' && pill.children[1].style.display === '',
+    '连图标 + 按钮都放不下时整颗收起（文案恢复待用，状态仍由标签前缀 ! 承担）');
+  pillRun.spacer.clientWidth = 1e5;
+  fireState(DIRTY_MSG);
+  ok(pill.style.display === 'inline-flex' && pill.children[2].style.display === '',
+    '位置又够了：同一颗胶囊回来，按钮重新露出');
+
+  /* 那颗按钮：就地取编辑器实时文档，连 commit 一起发一封，不等 400ms 落盘去抖 + 250ms 轮询 */
+  pillRun.liveRef.doc = { signal: [{ name: 'now', wave: '3..', data: ['click'] }] };
+  const postedBefore = pillRun.posted.length;
+  pill.children[2].fire('click');
+  const clickMsg = pillRun.posted[postedBefore];
+  ok(pillRun.posted.length === postedBefore + 1, '点「保存」只发一封消息（上报当前文档与提交合并成一次）');
+  ok(clickMsg && clickMsg.type === 'save' && clickMsg.commit === true, '这封消息带 commit：宿主收到即提交');
+  ok(clickMsg && clickMsg.json === JSON.stringify(pillRun.liveRef.doc), '按钮送的是编辑器实时文档，不是轮询里那份旧的');
+  const afterClick = pillRun.posted.length;
+  pillRun.tick();
+  ok(pillRun.posted.length === afterClick, '按钮已同步 last 与 localStorage：轮询不会把同一份内容再报一次（标签不翻回脏）');
+
+  /* saved / idle */
+  fireState({ type: 'saveState', state: 'saved', text: '已保存' });
+  ok(pill.children[0].textContent === '\u2713' && /--acc-/.test(pill.style.cssText), '提交后胶囊换成绿色 ✓「已保存」');
+  ok(pill.children[2].style.display === 'none', '已保存态收起按钮（此刻没有待提交的东西）');
+  const hide = pillRun.timers.find(t => t.ms === 3000);
+  ok(hide, '「已保存」挂一个自动收起的计时器，不长期占着顶栏');
+  pillRun.runTimer(hide);
+  ok(pill.style.display === 'none', '计时器到点：胶囊自己收起');
+  fireState(DIRTY_MSG);
+  ok(pill.style.display === 'inline-flex' && pill.children[0].textContent === '!', '再次改动：同一颗胶囊复用，立刻回到脏态');
+  ok(pillRun.timers.length === 0, '脏态不带自动收起的计时器');
+  fireState({ type: 'saveState', state: 'saved', text: '已保存' });
+  ok(pillRun.timers.length === 1, '保存态挂一个收起计时器');
+  fireState(DIRTY_MSG);
+  ok(pillRun.timers.length === 0, '保存后又改动：旧计时器撤下，否则它会把新的脏态胶囊提前收起');
+  fireState({ type: 'saveState', state: 'idle' });
+  ok(pill.style.display === 'none', 'idle：宿主让撤就立刻撤');
+
+  /* 顶栏结构找不到（界面改版）时只放弃胶囊，不该抛错、更不该带停轮询 */
+  const noDomRun = runPoller('1');
+  noDomRun.doc.querySelector = () => null;
+  (noDomRun.listeners.message || []).forEach(fn => fn({ data: DIRTY_MSG }));
+  ok(noDomRun.spacer.children.length === 0, '顶栏结构变了就静默跳过，挂不出胶囊也不报错');
 
   /* ---- 6c. 图片目标：轮询脚本把当前画面随 pixels 消息上报（PNG 按原图宽对齐比例） ---- */
   ok(/var IMG = null;/.test(h1), '代码块目标不注入画面上报（IMG = null）');
@@ -1227,17 +1331,17 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   const pxDocC = JSON.stringify({ signal: [{ name: 'pc', wave: '1.' }] });
   const saveViaTitle = () => fakeRegisteredCommands['wavedrom-gui.savePanel']();
 
-  /* 改动到手不碰文件，但三处状态都要跟上：标题 ●、按钮可用态、面板顶栏提示 */
+  /* 改动到手不碰文件，但三处状态都要跟上：标题前缀 !、按钮可用态、面板顶栏胶囊 */
   fs.writeFileSync(pxPath, png2);
   const mPanel = openImg();
   const mTitle0 = mPanel.title;
   ok(/^WaveDrom Editor — |^WaveDrom 编辑 — /.test(mTitle0), '面板标题未加脏标记时保持原样');
   mPanel.webview._onMsg({ type: 'save', json: pxDocA, text: null });
   ok(fs.readFileSync(pxPath).equals(png2), '手动档：save 消息不写文件');
-  ok(mPanel.title === '● ' + mTitle0, '手动档：标题前缀 ●（webview 拿不到原生脏点，只能自绘）');
+  ok(mPanel.title === '! ' + mTitle0, '手动档：标题前缀 ! ——比那颗点更像「有事没处理」，也不会被当成文件名（webview 拿不到原生脏点，只能自绘）');
   ok(contextKeys.wavedromGuiDirty === true, '手动档：脏时点亮标题栏那颗按钮（setContext wavedromGuiDirty）');
-  ok(mPanel._posted.some(m => m.type === 'dirty' && m.on === true), '手动档：面板顶栏收到脏提示');
-  ok(/\.topbar \.spacer/.test(mPanel.webview.html), '面板注入了顶栏脏提示的挂载代码（画布内不放保存按钮）');
+  ok(mPanel._posted.some(m => m.type === 'saveState' && m.state === 'dirty' && m.btn), '手动档：面板顶栏收到脏态（连按钮文案一起给）');
+  ok(/\.topbar \.spacer/.test(mPanel.webview.html), '面板注入了顶栏状态胶囊的挂载代码（按钮就在胶囊里）');
   mPanel.webview._onMsg({ type: 'pixels', json: pxDocA, png: png1.toString('base64') });
   ok(fs.readFileSync(pxPath).equals(png2), '手动档：像素到手也不自动写盘（live 档才会）');
   await new Promise(r => setTimeout(r, FLUSH_MS));
@@ -1248,9 +1352,21 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(fs.readFileSync(pxPath).equals(meta.pngReplaceITXt(
     meta.pngInsertITXt(png1, meta.WD_EXPORT_KEYWORD, 'export=skill-modern'),
     meta.WD_PNG_KEYWORD, pxDocA)), '提交：像素与元数据一起写回，来源标记照旧固化');
-  ok(mPanel.title === mTitle0, '提交后标题去掉 ●');
+  ok(mPanel.title === '\u2713 ' + mTitle0, '提交后标题前缀换成 ✓：落盘这件事留在标签上，不只是撤掉标记');
   ok(contextKeys.wavedromGuiDirty === false, '提交后按钮回到淡显（位置不动）');
-  ok(mPanel._posted.slice(-1)[0].type === 'dirty' && mPanel._posted.slice(-1)[0].on === false, '提交后撤掉面板顶栏提示');
+  ok(mPanel._posted.slice(-1)[0].type === 'saveState' && mPanel._posted.slice(-1)[0].state === 'saved', '提交后顶栏胶囊切到「已保存」');
+
+  /* 胶囊那颗「保存」是同一命令的另一条入口：文档随 commit 一起送来，宿主立刻落盘 */
+  mPanel.webview._onMsg({ type: 'save', json: pxDocC, text: null, commit: true });
+  await new Promise(r => setTimeout(r, 0));
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDocC, '带 commit 的 save 消息：立刻写回它带来的那份文档');
+  ok(mPanel.title === '\u2713 ' + mTitle0, '那颗按钮不会先标脏再翻回来（标题一直停在 ✓）');
+  ok(mPanel._posted.filter(m => m.state === 'dirty').length === 1, '全程只发过一次脏态（按钮那次提交没把它抖出来）');
+  /* 按钮取不到文档时的兜底：只发 commit，宿主按手里已有的那份提交 */
+  mPanel.webview._onMsg({ type: 'save', json: pxDocA, text: null });
+  mPanel.webview._onMsg({ type: 'commit' });
+  await new Promise(r => setTimeout(r, 0));
+  ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDocA, '兜底的 commit 消息：按宿主手里已有的 pending 提交');
 
   /* 像素比提交晚到手：先写元数据，那一帧到了立刻补写（提交不必干等画面）。
      这里不能用「文件字节变没变」判断补写：png1 / png2 像素相同、只差 iTXt，补写后的
@@ -1265,7 +1381,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(meta.pngExtractWaveJSON(fs.readFileSync(pxPath)) === pxDocB, '补写仍带上刚提交的那份元数据');
   /* 提交后又改了：脏标记重新亮起，晚到的旧帧不许再写盘 */
   mPanel2.webview._onMsg({ type: 'save', json: pxDocC, text: null });
-  ok(mPanel2.title.indexOf('● ') === 0, '提交后再改动：脏标记重新亮起');
+  ok(mPanel2.title.indexOf('! ') === 0, '提交后再改动：前缀从 ✓ 换回 !');
 
   /* 关面板：不写盘，改成事后补救（VS Code 不给 WebviewPanel 关闭前否决的钩子） */
   const mPanel3 = openImg();
