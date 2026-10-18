@@ -2430,9 +2430,10 @@ function laneCharPositions(lane) {
 const chColors = () => [cssVar('--ch1'), cssVar('--ch2'), cssVar('--ch3'), cssVar('--ch4'), cssVar('--ch5'), cssVar('--ch6')];
 
 const DIGIT_FILLS = { 2: '#ffffff', 3: '#ffffb4', 4: '#ffe0b9', 5: '#b9e0ff', 6: '#ccfdfe', 7: '#cdfdc5', 8: '#f0c1fb', 9: '#f5c2c0' };
-/* 总线数字框的描边色：色相沿用通道色，只把明度往下压到对该框填充 ≥ 2.5:1。
+/* 总线数字框的描边色（浅色画布那一路）：色相沿用通道色，只把明度往下压到对该框填充 ≥ 2.5:1。
    八档官方填充全是淡彩，所以「往下压」对任何通道色都成立；已经达标的原样返回。
-   没走 wbPush 是因为它挑「远离底色」的一侧推——纯白这类通道色压在淡彩上会原地推不动。 */
+   没走 wbPush 是因为它挑「远离底色」的一侧推——纯白这类通道色压在淡彩上会原地推不动。
+   深色画布上数字框要先蒙一层底色，前提变了，描边归 digitBox() 另算。 */
 function busEdge(color, fill) {
   if (lcCr(color, fill) >= 2.5) return color;
   let cur = color;
@@ -2442,6 +2443,22 @@ function busEdge(color, fill) {
     cur = nx;
   }
   return cur;
+}
+/* 深色画布上的总线数字框。八档官方淡彩压在雾蓝底 #0A1226 上实测 11.85–18.63:1，同一批色
+   在浅色画布上只有 1.01–1.40 —— 深色侧亮成一片，跟浅色侧不是一套观感。于是深色画布上给数字框
+   蒙一层画布底色（0.75 淡彩 + 0.25 底色，与 x 框的半透明蒙版同一条路子），框底降到 7.04–10.56。
+   蒙版算成实色而不是 fill-opacity：导出的 SVG 嵌到别的底色上不会透出去。
+   蒙完框底就是 L 0.35–0.55 的中调，另外两件事跟着变：
+     · 描边不能再走 busEdge 的「往淡彩里压暗」（那个前提没了意义），改成以画布为基准保色相推到 3:1；
+     · 标签墨正好跨过 wbSide 的翻墨临界（L = 0.179），两套墨谁在框底上更高用谁，逐框各算各的。
+   浅色画布一律原样返回，字节级不变；笔刷小样画在面板底上，那是在展示色卡本身，由 laneSVG 的
+   noVeil 传 null 关掉。 */
+const DIGIT_VEIL = .75;
+function digitBox(g, color, bg) {
+  if (!bg || wbSide(bg) !== 'dark') return { fill: DIGIT_FILLS[g], stroke: busEdge(color, DIGIT_FILLS[g]), ink: '#1B2536' };
+  const fill = wbMix(DIGIT_FILLS[g], bg, 1 - DIGIT_VEIL);
+  const deep = WBG_FAMILY.light.ink, pale = WBG_FAMILY.dark.ink;   // #1B2536 / #E8EEF9
+  return { fill, stroke: wbPush(color, bg, 3), ink: lcCr(pale, fill) >= lcCr(deep, fill) ? pale : deep };
 }
 const GLYPHS = [
   { c: '0', name: '低电平' }, { c: '1', name: '高电平' },
@@ -3060,13 +3077,14 @@ function adoptState(st) {
 
 /* ---------- 迷你波形渲染 ---------- */
 const HI = 13, LO = 35, MID = 24;
-function laneSVG(lane, colCount, color, cropX) {
+function laneSVG(lane, colCount, color, cropX, noVeil) {
   const W = gridCellW() * (lane.period || 1), H = 48, len = laneLen(lane);
   const crop = +cropX || 0, vw = colCount * gridCellW();
   const positions = laneCharPositions(lane);
   const ph = lane.phase || 0;
   const X = t => (t - ph) * W;
   const NS = 'http://www.w3.org/2000/svg';
+  const veilBg = noVeil ? null : lcBg();   // 数字框蒙色拿它当底色；null = 不蒙（笔刷小样）
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'mini');
   svg.setAttribute('width', vw); svg.setAttribute('height', H);
@@ -3199,16 +3217,17 @@ function laneSVG(lane, colCount, color, cropX) {
       const lastP = positions[e - 1];
       const w = lastP ? (lastP.x + lastP.w - x0) : 0;
       const isDigit = g !== '=';
+      const dbox = isDigit ? digitBox(g, color, veilBg) : null;
       const box = document.createElementNS(NS, 'rect');
       box.setAttribute('x', x0 + 1.5); box.setAttribute('y', 13);
       box.setAttribute('width', Math.max(4, w - 3)); box.setAttribute('height', 22);
       box.setAttribute('rx', 2.5);
-      box.setAttribute('fill', isDigit ? DIGIT_FILLS[g] : cssVar('--node-fill'));
+      box.setAttribute('fill', isDigit ? dbox.fill : cssVar('--node-fill'));
       /* 描边交给通道色（= 框一直是这么画的，数字框以前写死了一层灰黑，换色没反应）。
-         通道色的可选门槛按「画布底色」算，而数字框的填充是官方逐框淡彩，两者不是一回事：
-         深色主题上的亮通道色压在淡彩里几乎看不见，所以再对该框自己的底色压一次明度、色相不动。
-         达标即原样返回 → 浅色画布 + 常见通道色等于直接用，不额外变暗。 */
-      box.setAttribute('stroke', isDigit ? hexA(busEdge(color, DIGIT_FILLS[g]), .85) : hexA(color, .85));
+         通道色的可选门槛按「画布底色」算，而浅色画布上数字框的填充是官方逐框淡彩，两者不是一回事：
+         亮通道色压在淡彩里几乎看不见，所以再对该框自己的底色压一次明度、色相不动。
+         达标即原样返回 → 浅色画布 + 常见通道色等于直接用，不额外变暗。深色画布归 digitBox() 另算。 */
+      box.setAttribute('stroke', isDigit ? hexA(dbox.stroke, .85) : hexA(color, .85));
       box.setAttribute('stroke-width', 1.4);
       svg.appendChild(box);
       const label = s.label;
@@ -3220,7 +3239,7 @@ function laneSVG(lane, colCount, color, cropX) {
         tx.setAttribute('x', (lo + hi) / 2); tx.setAttribute('y', 29);
         tx.setAttribute('text-anchor', 'middle');
         tx.setAttribute('font-size', '14'); tx.style.fontFamily = 'var(--font-mono)';
-        tx.setAttribute('fill', isDigit ? '#1B2536' : color);
+        tx.setAttribute('fill', isDigit ? dbox.ink : color);
         const shown = fitLabel(label, avail); // 过长只省略显示，不压缩字距
         tx.textContent = shown;
         if (shown !== String(label)) { // 被省略 → 登记该框覆盖的每一格，悬停时弹出完整标签
@@ -3340,7 +3359,7 @@ function glyphSample(ch) {
   const lead = SAMPLE_LEAD[ch];
   if (lead) { fake.slots[0] = { glyph: lead }; fake.slots[1] = { glyph: ch }; }
   else fake.slots[0] = { glyph: ch };
-  const svg = laneSVG(fake, lead ? 2 : 1, cssVar('--glyph-sample'));
+  const svg = laneSVG(fake, lead ? 2 : 1, cssVar('--glyph-sample'), 0, true);
   svg.setAttribute('width', 30); svg.setAttribute('height', 18);
   svg.setAttribute('viewBox', (lead ? 22 : 0) + ' 0 36 48');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
@@ -5870,7 +5889,7 @@ function openPop(lane, t, anchor) {
 function extendSample() {
   const fake = newLane('', []);
   fake.slots[0] = { glyph: '1' }; fake.slots[1] = null;
-  const svg = laneSVG(fake, 2, cssVar('--glyph-sample'));
+  const svg = laneSVG(fake, 2, cssVar('--glyph-sample'), 0, true);
   svg.setAttribute('width', 30); svg.setAttribute('height', 18);
   svg.setAttribute('viewBox', '18 0 36 48');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
