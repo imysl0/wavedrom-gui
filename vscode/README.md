@@ -101,6 +101,12 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
   ⚠️ 手动档下直接关面板：VS Code 不给 webview 面板「关闭前否决」的钩子，只能事后补救——最后一份改动与画面仍在扩展宿主内存里，通知点「仍然保存」照常落盘，点「丢弃」或关掉通知就丢弃，**绝不会悄悄写文件**。
   （选项名「手动保存 / 自动实时保存」由 VS Code 的 `enumItemTitles` 渲染，需要 1.85 及以上；更早的宿主下拉列表里显示 `button` / `live`，中文说明仍跟在选项后面。）
 
+- **`wavedrom-gui.busJoin`** — 相邻两个**总线数据块**之间怎么接（只管自绘的现代渲染出图，官方渲染那张图不受它影响）：
+  - `split`（默认）：各画各的圆角框，中间留一道发丝缝
+  - `joined`：两端斜切、在拍界上对成一个 X，也就是 WaveDrom 官方本来怎么画就怎么画
+
+  这一项是**起始偏好**，优先级与编辑器界面里的三层一致：**文档钉了档（`config.busJoin`）> 面板里 设置 → 外观 选过的 > 这一项**。所以它只在两处起作用：① 扩展自己出图时（悬浮预览、预览面板——没有面板状态可参考，直接用它；改这一项会清掉按代码块内容缓存的 SVG 并重画）；② 面板首次打开、界面里还没选过时，把它种进面板偏好。用户在面板里选过一次之后就以面板的选择为准，改这一项不再覆盖。想让某一篇文档固定某种接法，用面板里左栏**「图表」→ 波形 →「总线数据块」**钉档，它会写 `config.busJoin` 进代码块、跟着文件走。
+
 - **`wavedrom-gui.language`** — 扩展界面的语言：
   - `auto`（默认）：跟随 VS Code 的显示语言；判断不出语言时按中文
   - `zh`：固定简体中文；`en`：固定英文
@@ -244,6 +250,12 @@ Where to change them (three options):
   Committing updates **the title prefix from `!` to `✓`, the top-bar pill to a green "Saved" (which collapses after a few seconds) and the tab-bar icon to its faded look all at once**, so it is obvious the change has landed. A Markdown code block gets one extra safety step: committing applies the edit to the open document, and the file itself is saved too **only when that document had no unsaved edits of its own**; otherwise the extension only applies the edit and tells you to press `Ctrl+S` — so your own uncommitted typing never ends up on disk by accident. This setting is read **once when a panel opens**; panels already open keep the mode they started with (changing it shows a notice).
   ⚠️ Closing the panel while Manual save still has uncommitted edits: VS Code gives a webview panel no "veto before dispose" hook, so this can only be a post-hoc remedy — the last document and the last frame are still in the extension host's memory, and the notification's "Save anyway" writes them to disk; choosing "Discard" or dismissing the notification drops them. It **never writes the file silently**.
   (The "Manual save / Automatic live save" labels come from VS Code's `enumItemTitles`, which needs 1.85 or newer; on older hosts the dropdown shows `button` / `live` with the description text after each option.)
+
+- **`wavedrom-gui.busJoin`** — how two neighbouring **bus data boxes** join (it drives the self-drawn modern renderer only; official renders are unaffected):
+  - `split` (default): each box keeps its own rounded outline with a hairline gap between them
+  - `joined`: both ends chamfer and meet in an X on the beat boundary — the way official WaveDrom draws it
+
+  This setting is a **starting preference**, and precedence is the same as inside the editor UI: **a document that pins `config.busJoin` > the choice made under Settings → Look in the panel > this setting**. It therefore only takes effect in two places: ① when the extension renders by itself (hover preview, preview panel — there is no panel state to consult, so this is used directly; changing it drops the per-code-block SVG cache and redraws); ② seeding a panel that is opened for the first time, before the UI has any stored choice. Once you pick a style inside the panel, the panel's own choice wins and this setting stops overriding it. To pin one style to a particular document, use **Chart → Waveform → "Bus boxes"** in the panel: it writes `config.busJoin` into the code block and travels with the file.
 
 - **`wavedrom-gui.language`** — the language of the extension's own UI:
   - `auto` (default): follows VS Code's display language; when it cannot be determined, Chinese is used

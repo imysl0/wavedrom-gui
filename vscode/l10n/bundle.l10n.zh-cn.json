@@ -45,5 +45,6 @@
   "WaveDrom: {0} still has unsaved edits — the last frame is held in memory": "WaveDrom: {0} 还有没保存的改动，最后一帧画面仍在扩展内存里",
   "WaveDrom: File saved": "WaveDrom: 文件已保存",
   "WaveDrom: No WaveDrom editor panel is open": "WaveDrom: 没有打开的 WaveDrom 编辑面板",
-  "WaveDrom: save mode applies to editor panels opened from now on": "WaveDrom: 保存方式对之后打开的面板生效"
+  "WaveDrom: save mode applies to editor panels opened from now on": "WaveDrom: 保存方式对之后打开的面板生效",
+  "WaveDrom: bus box style applies to previews and panels opened from now on": "WaveDrom: 总线数据块衔接档影响预览重绘与之后打开的面板（面板里已选过的以面板为准）"
 }

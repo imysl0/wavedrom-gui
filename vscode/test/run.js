@@ -33,6 +33,7 @@ const fakeMessages = []; // 记录 showWarningMessage / showErrorMessage
 const statusMessages = []; // 记录 setStatusBarMessage（图片像素落盘的提示时机）
 let fakeNewPanelActive = true; // 新建面板是否立即成为活动编辑器（用于测「始终没拿到焦点」）
 let fakeUriHandler = null; // registerUriHandler 注册进来的处理器
+let fakeConfigChangeHandler = null; // onDidChangeConfiguration 注册进来的处理器（改设置后的联动）
 let fakeCodeLensProvider = null;
 let fakeCodeLensSelector = null;
 let fakeHoverProvider = null;
@@ -95,7 +96,7 @@ const fakeVscode = {
     getConfiguration: () => ({
       get: (key, dflt) => (Object.prototype.hasOwnProperty.call(fakeConfig, key) ? fakeConfig[key] : dflt),
     }),
-    onDidChangeConfiguration: () => ({ dispose() {} }),
+    onDidChangeConfiguration: h => { fakeConfigChangeHandler = h; return { dispose() {} }; },
     onDidChangeTextDocument: () => ({ dispose() {} }),
     openTextDocument: async p => {
       const rec = fakeDocs.get(p);
@@ -1120,6 +1121,57 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(parseLoose("{ signal: [ { name: 'a', wave: '01' } ] } // 注释\n").signal.length === 1, 'parseLoose：单引号/免尾逗号/注释均可');
   ok(findFenceAtLine(lensDoc2.getText(), 2)[1].trim() === A2 && findFenceAtLine(lensDoc2.getText(), 8)[1].trim() === B, 'findFenceAtLine：按行号定位各围栏');
   ok(findFenceAtLine(lensDoc2.getText(), 0) === null, 'findFenceAtLine：非围栏行返回 null');
+
+  /* ---- 8e-2. 总线数据块衔接档（wavedrom-gui.busJoin）---- */
+  /* 设置项是「起始偏好」：宿主自己渲染 hover/预览时直接用它，面板则在建立时把它种进
+     localStorage 一次。文档钉了档（config.busJoin）由渲染器压过两者，两个方向都要覆盖，
+     否则容易只改一边生效、另一边悄悄不一致。 */
+  const { busJoinPref, renderSvgCached, svgCache } = ext.__test;
+  ok(busJoinPref() === 'split', 'busJoin：未设置时默认分开成框（与编辑器默认一致）');
+  fakeConfig.busJoin = 'joined';
+  ok(busJoinPref() === 'joined', 'busJoin：设成 joined 时读到 joined');
+  fakeConfig.busJoin = '乱填的';
+  ok(busJoinPref() === 'split', 'busJoin：非法取值回退 split');
+  delete fakeConfig.busJoin;
+  const BUSJSON = '{ "signal": [ { "name": "addr", "wave": "2345", "data": ["A0", "A1", "A2", "A3"] } ] }';
+  const busSplit = renderSvg(BUSJSON).svg;
+  fakeConfig.busJoin = 'joined';
+  const busJoined = renderSvg(BUSJSON).svg;
+  delete fakeConfig.busJoin;
+  ok(busSplit.includes('rx="2.5"') && !busSplit.includes('stroke-linejoin'), 'renderSvg：默认档画独立圆角框，不出斜切');
+  ok(busJoined.includes('stroke-linejoin="round"') && !busJoined.includes('rx="2.5"'), 'renderSvg：joined 档改画斜切相连路径');
+  const DOC_SPLIT = '{ "config": { "busJoin": "split" }, "signal": [ { "wave": "2345", "data": ["A", "B", "C", "D"] } ] }';
+  const DOC_JOIN = '{ "config": { "busJoin": "joined" }, "signal": [ { "wave": "2345", "data": ["A", "B", "C", "D"] } ] }';
+  fakeConfig.busJoin = 'joined';
+  ok(renderSvg(DOC_SPLIT).svg.includes('rx="2.5"'), 'renderSvg：文档钉 split 压过设置项的 joined');
+  fakeConfig.busJoin = 'split';
+  ok(renderSvg(DOC_JOIN).svg.includes('stroke-linejoin="round"'), 'renderSvg：文档钉 joined 压过设置项的 split');
+  delete fakeConfig.busJoin;
+  fakePanels.length = 0;
+  const joinPanel = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(joinPanel, { kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 }, A2, null, null);
+  ok(joinPanel.webview.html.includes(`localStorage.setItem('wdgui-bus-join', "split")`),
+    'buildEditorHtml：默认档作为面板 localStorage 起始偏好种进去（仅未设置过时）');
+  fakeConfig.busJoin = 'joined';
+  fakePanels.length = 0;
+  const joinPanel2 = fakeVscode.window.createWebviewPanel('x', 'x', 1);
+  setupEditorPanel(joinPanel2, { kind: 'fence', docPath: mdPath, fenceRaw: A2, line: 2 }, A2, null, null);
+  ok(joinPanel2.webview.html.includes(`localStorage.setItem('wdgui-bus-join', "joined")`), 'buildEditorHtml：joined 时种 joined');
+  delete fakeConfig.busJoin;
+  const bjProp = pkgJson.contributes.configuration.properties['wavedrom-gui.busJoin'];
+  ok(bjProp && bjProp.enum.join(',') === 'split,joined' && bjProp.default === 'split', 'package.json：busJoin 声明两档、默认 split');
+  ok(!!pkgJson.contributes.configuration.properties['wavedrom-gui.busJoin'].markdownDescription, 'package.json：busJoin 有说明文案');
+  /* 改设置后的联动：hover 按围栏内容缓存 SVG，缓存不清就会一直顶着旧档 */
+  renderSvgCached(BUSJSON);
+  ok(svgCache.size > 0, 'renderSvgCached：同一段代码渲染一次后进缓存');
+  fakeMessages.length = 0;
+  fakeConfigChangeHandler({ affectsConfiguration: k => k === 'wavedrom-gui.busJoin' });
+  ok(svgCache.size === 0, '改 busJoin 后清空 hover 的 SVG 缓存（否则旧档一直顶着）');
+  ok(fakeMessages.some(([kind, msg]) => kind === 'info' && /bus box style/.test(msg)), '改 busJoin 后提示「已打开的面板需重开」');
+  renderSvgCached(BUSJSON);
+  fakeMessages.length = 0;
+  fakeConfigChangeHandler({ affectsConfiguration: () => false });
+  ok(svgCache.size > 0 && fakeMessages.length === 0, '无关配置变更不动缓存也不提示');
 
   /* 8b-2. 图片引用的 CodeLens：只有内嵌 WaveJSON 的图片才有 */
   const imgLensDoc = {

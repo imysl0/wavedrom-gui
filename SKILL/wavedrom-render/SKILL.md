@@ -156,6 +156,7 @@ node render.js -              # 从 stdin 读取 WaveJSON
 | `--node-scale` | 数字 | `1` | **仅现代模式**：节点圆标缩放 |
 | `--node-inset` | `0`–`9` | `4` | **仅现代模式**：节点圆标相对连线端点的内缩像素（0 = 贴住端点） |
 | `--node-mode` | `letter` \| `bare` \| `dot` | `bare` | **仅现代模式**：节点标记形态——`letter` 描边圆 + 字母 / `bare` 字母 + 半透明白底（无描边）/ `dot` 实心小圆点 |
+| `--bus-join` | `split` \| `joined` | `split` | **仅现代模式**：相邻两个总线数据块怎么接——`split` 各画各的圆角框、中间留一道发丝缝（默认，与网页版编辑区一致）/ `joined` 两端斜切、在拍界上对成一个 X（官方 WaveDrom 的画法）。文档自己写了 `config.busJoin` 时**以文档为准**，这个选项只顶替没钉档的文档 |
 | `--auto-scale` | `on` \| `off` | `on` | **仅现代模式**：自动缩放——按最宽的 `data` 标签自动抬高 `hscale`，让标签放得下。只增不减：文档里显式写了更大的 `hscale`（如 `config.hscale: 4`）时以其为准，不被压低 |
 | `--auto-scale-max` | `1`–`8` | `2` | **仅现代模式**：自动缩放的倍数上限。到上限仍放不下的标签**改为省略显示**（`开头…末尾字符`，绝不做字距压缩），不会把图拉得极宽 |
 | `--no-auto-scale` | — | — | 等价于 `--auto-scale off` |
@@ -189,7 +190,7 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 
 ## 两种模式的区别
 
-- **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按 `color` 键着色（没写就按调色板轮转）、数据框逐色（官方 2–9 配色）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字（含 JsonML 富文本）与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
+- **现代模式（modern，默认）**：复刻 wavedrom-gui 编辑区的自绘 SVG —— 浅色主题、每条信号按 `color` 键着色（没写就按调色板轮转）、数据框逐色（官方 2–9 配色）、总线数据块衔接两档（`config.busJoin`，见下）、节点圆标、`period/phase/hscale`、`hbounds` 裁剪、head/foot 文字（含 JsonML 富文本）与 tick 刻度、分组与占位行、节点箭头（`edge`）。几何逻辑逐字移植自 `index.html` 的 `laneSVG` 与网格布局，配色固定为浅色（与 App 的导出一致）。
 - **传统模式（traditional）**：直接调用内嵌的**官方 WaveDrom v3.5.0** 渲染引擎（`vendor/` 内），产出官方黑白样式，支持 `default` / `narrow` 两套皮肤。
 
 两种模式吃同一份 WaveJSON。输入既可是严格 JSON，也可是宽松写法：`//` 注释、不带引号的键、尾逗号、单引号（与 App 代码页的宽松解析行为一致）。
@@ -203,9 +204,16 @@ cat wave.json | node render.js - --out out/w.png --scale 3
 - **到上限仍放不下 → 省略显示**：标签按字符省略为「开头…末尾字符」（如 `一骑红尘妃子笑` → `一骑…笑`），空间再不够就只留开头，始终在数据框宽度内以正常字距显示尽可能多的字符；不再使用 `textLength` 压缩字距（那样会把汉字挤成一团）。
 - 想要标签**完整显示**：把 `--auto-scale-max` 调大（例如中文长标签常用 3–4），或在 WaveJSON 里直接写更大的 `config.hscale`。
 
+## 总线数据块怎么衔接
+
+- **两档**：`split`（默认）相邻两块各画各的圆角框，中间留一道发丝缝；`joined` 两端斜切、在拍界上对成一个 X，也就是官方 WaveDrom 的画法。
+- **谁说了算**：文档里的 `config.busJoin` > `--bus-join` > 默认 `split`，两边各测过一遍、文档档确实压得住命令行档。App 侧还有第三层「设置 → 外观」的本地偏好，但它不进 JSON——写进文档的只有 `config.busJoin`，所以一份没钉档的 JSON 交给本 skill 就走 `--bus-join`（不给则 `split`），出图与 App 编辑区的默认档一致。
+- **只改衔接形状**：框底淡彩、跟随通道色的描边、字号都不动。斜切会吃掉数据框两端各至多 `0.15` 格宽的可写区间，因此**放不下的标签在 `joined` 档可能多省略一点**；`split` 档的省略与改动前逐字节相同（那两端的垫量为 0）。斜切路径的 `d` 串与编辑区逐条比对一致（24/24）。
+- **传统模式不受影响**：官方引擎本来就画斜切相连，`--bus-join` 对 `--mode traditional` 没有意义，`config.busJoin` 这个键官方也不认（按键不存在处理，不报错）。
+
 ## 支持的 WaveJSON 语法
 
-`signal`（含嵌套分组数组、`{}` 空白占位）、`wave`（全部状态字符 `01pnPNudxzhlHL=23456789|.` 与 `.` 延续、`<>` 子周期）、`data`、`node` + `edge`（覆盖全部官方箭头写法）、`head`/`foot`（`text`/`tick`/`tock`/`every`）、`config`（`hscale`/`skin`/`hbounds`）、`period`/`phase`、**`color`**（通道自定义色，wavedrom-gui 写进信号对象的键）。
+`signal`（含嵌套分组数组、`{}` 空白占位）、`wave`（全部状态字符 `01pnPNudxzhlHL=23456789|.` 与 `.` 延续、`<>` 子周期）、`data`、`node` + `edge`（覆盖全部官方箭头写法）、`head`/`foot`（`text`/`tick`/`tock`/`every`）、`config`（`hscale`/`skin`/`hbounds`/`busJoin`）、`period`/`phase`、**`color`**（通道自定义色，wavedrom-gui 写进信号对象的键）。
 
 **`color` 的写法与边界**：只认 `#rgb` / `#rrggbb`（大小写均可），写法不对的（如 `color:"red"`）不猜、按没写处理，回落到调色板轮转——与 App 的判定逐字一致，所以同一份 JSON 两边取到的色一定相同。它管到**现代模式**的整条自绘产物：轨迹与电平线、名称列圆点、数据框描边（`=` 与 `2`–`9` 都用通道色；通道色压在该框自己的淡彩填充上不足 2.5:1 时只往暗压明度、色相不变），数据框**填充**仍是官方逐框淡彩、不跟着变。**传统模式不认这个键**（官方 WaveDrom 没有按通道换色的概念，交给它的图一律回到皮肤色），现代模式也固定浅色画布：App 里的深色主题与「自定义波形底色」不参与，两边都按浅色出图。
 

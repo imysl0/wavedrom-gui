@@ -16,6 +16,8 @@
  *   --node-scale <n>              modern node marker scale (default 1)
  *   --node-inset <0-9>            modern edge-anchored node inset in px (default 4)
  *   --node-mode <letter|bare|dot> modern node marker style (default bare)
+ *   --bus-join <split|joined>     bus data boxes: separate rounded boxes (default)
+ *                                 or official-style chamfered runs joined at the beat
  *   --auto-scale <on|off>         auto horizontal scale so wide bus labels fit
  *                                 (default: on)
  *   --auto-scale-max <n>          upper bound for auto scale (1-8, default 2);
@@ -56,6 +58,7 @@ function parseArgs(argv) {
     else if (a === '--node-scale') o.nodeScale = parseFloat(argv[++i]);
     else if (a === '--node-inset') o.nodeInset = parseInt(argv[++i], 10);
     else if (a === '--node-mode') o.nodeMode = argv[++i];
+    else if (a === '--bus-join') o.busJoin = argv[++i];
     else if (a === '--auto-scale') o.autoScale = argv[++i] !== 'off';
     else if (a === '--no-auto-scale') o.autoScale = false;
     else if (a === '--auto-scale-max') o.autoScaleMax = parseInt(argv[++i], 10);
@@ -73,7 +76,7 @@ Usage:
                  [--out PATH] [--scale N] [--skin default|narrow]
                  [--node-pos lm|c|...] [--node-scale N] [--node-inset 0-9]
                  [--node-mode letter|bare|dot] [--auto-scale on|off]
-                 [--auto-scale-max N] [--no-meta] [--strict]
+                 [--auto-scale-max N] [--bus-join split|joined] [--no-meta] [--strict]
   node render.js -   (read WaveJSON from stdin)
 
 Modes:
@@ -88,6 +91,13 @@ Auto scale (modern mode, on by default):
   at --auto-scale-max (default 2). It never shrinks a hscale that the WaveJSON
   sets explicitly. Labels that still do not fit inside their cell are elided
   (start…last character) instead of being squeezed.
+
+Bus join (modern mode only):
+  "split" (default) draws every value as its own rounded box, with a hairline gap
+  between neighbours; "joined" chamfers the two ends so they meet in an X on the
+  beat boundary, the way official WaveDrom draws it. A busJoin key inside the
+  WaveJSON config overrides --bus-join either way. Traditional mode is the
+  official engine, which always draws the joined look.
 `;
 
 /* Loose WaveJSON parse: try strict JSON first, then evaluate as a JS object
@@ -125,7 +135,7 @@ function main() {
 
   const res = o.mode === 'traditional'
     ? renderTraditional(source, { skin: o.skin })
-    : renderModern(source, { nodePos: o.nodePos, nodeScale: o.nodeScale, nodeInset: o.nodeInset, nodeMode: o.nodeMode, autoScale: o.autoScale, autoScaleMax: o.autoScaleMax });
+    : renderModern(source, { nodePos: o.nodePos, nodeScale: o.nodeScale, nodeInset: o.nodeInset, nodeMode: o.nodeMode, autoScale: o.autoScale, autoScaleMax: o.autoScaleMax, busJoin: o.busJoin });
 
   // Resolve output base name. Default (no --out): same convention as the app —
   // wavdrom_gui_<title> if the chart has a head title, else

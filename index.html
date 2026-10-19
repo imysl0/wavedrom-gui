@@ -283,6 +283,18 @@ svg { display: block; }
 .set-cat[aria-expanded="true"] .cat-sum { display: none; }
 .set-body { display: none; padding-bottom: 2px; }
 .set-body.on { display: block; }
+
+/* 总线数据块的小样与提示：strip 是「一小块画布」，底色取当前波形底色 */
+.jc-strip { display: block; line-height: 0; border-radius: 4px; overflow: hidden; flex: none; }
+.jc-hint {
+  flex: 1; min-width: 0; padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; text-align: left; white-space: nowrap;
+  font-size: 11.5px; color: var(--faint);
+}
+.jc-hint b { font-weight: 600; color: var(--acc-text); }
+.jc-hint:hover { color: var(--muted); }
+.jc-hint:hover b { text-decoration: underline; text-underline-offset: 3px; }   /* 点它跳外观：给个链接样的暗示 */
+#setPop button { white-space: nowrap; }
 /* 单行选项：标签 …… 当前值 › —— N 选 1 压成一行，点开二级弹层再选 */
 .set-row {
   display: flex; align-items: center; gap: 8px; width: 100%;
@@ -1564,6 +1576,7 @@ html[data-mobile] {
       <div class="field"><label for="autoScaleMax" data-i18n="自动缩放上限">自动缩放上限</label><select id="autoScaleMax"><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option><option value="5">5×</option><option value="6">6×</option><option value="7">7×</option><option value="8">8×</option></select></div>
       <div class="field"><label for="hscale" data-i18n="水平缩放">水平缩放</label><input type="range" id="hscale" min="1" max="8" step="1" value="1"><span class="val" id="hscaleVal">1</span></div>
       <div class="field"><label for="skin" data-i18n="皮肤">皮肤</label><select id="skin"><option value="default" data-i18n="default（标准）">default（标准）</option><option value="narrow" data-i18n="narrow（紧凑）">narrow（紧凑）</option></select></div>
+      <div class="field"><label for="busJoin" data-i18n="总线数据块">总线数据块</label><select id="busJoin"><option value="auto" data-i18n="自动">自动</option><option value="split" data-i18n="分开成框">分开成框</option><option value="joined" data-i18n="斜切相连">斜切相连</option></select><span id="busJoinHint"></span></div>
       <div class="cfg-group" data-i18n="裁剪">裁剪</div>
       <div class="field"><label for="hbMin" data-i18n="起始拍">起始拍</label><input type="number" id="hbMin" min="0" step="1" data-i18n-ph="—（不裁剪）" placeholder="—（不裁剪）"></div>
       <div class="field"><label for="hbMax" data-i18n="结束拍">结束拍</label><input type="number" id="hbMax" min="0" step="1" data-i18n-ph="—（不裁剪）" placeholder="—（不裁剪）"></div>
@@ -1702,6 +1715,8 @@ const I18N_EN = {
   '标题区': 'Header', '标题文字': 'Title text', '刻度（0 起）': 'Ticks (from 0)', '刻度（倒标）': 'Ticks (reversed)',
   '隔几拍标一次': 'Label every', '底部区': 'Footer', '底部文字': 'Footer text',
   '波形': 'Waveform', '水平缩放': 'H-scale', '皮肤': 'Skin', '图表': 'Chart',
+  '总线数据块': 'Bus boxes', '分开成框': 'Separate', '斜切相连': 'Joined',
+  '跟随外观 · ': 'Follows Appearance · ', '去 设置 → 外观 改这个默认档': 'Change this default under Settings → Appearance',
   'default（标准）': 'default (standard)', 'narrow（紧凑）': 'narrow (compact)',
   '裁剪': 'Crop', '起始拍': 'From cycle', '结束拍': 'To cycle',
   '—（不裁剪）': '— (no crop)',
@@ -1939,6 +1954,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = i18n(el.dataset.i18nPh); });
   closePop(); closeMoreMenu(); closeSetPop(); closeWaveBgPop(); // 动态浮层内容不随语言刷新，直接收起避免中英混排
   renderGrid(); renderEdges(); renderBrushUI();
+  renderBusJoinHint(); // 「跟随外观 · X」那半句是 JS 拼的，data-i18n 刷不到
   syncDeglitchUI(); // 预览底栏开关的开/关字随语言重排
   if ($('#nodeLinkMask').classList.contains('open')) renderNodeLinks(); // 标题与提示随语言重排
   updateChainBtn();
@@ -2625,6 +2641,9 @@ const state = {
   head: { text: '', tick: null, every: null, tock: null },
   foot: { text: '', tick: null, every: null, tock: null },
   hscale: 1, skin: 'default',
+  busJoinPref: tryGet('wdgui-bus-join') === 'joined' ? 'joined' : 'split',   // 外观里的偏好档：split = 各画各的圆角框；joined = 官方那种 ≫ 斜切相连
+  busJoinDoc: 'auto',      // 图表设置里本文档的档：auto = 跟随偏好；'split' / 'joined' = 钉死，写进 config.busJoin
+  busJoin: 'split',        // 生效值 = 上面两者的结果，laneSVG 只认它
   hb: null,            // 横向裁剪 [起始拍, 结束拍)，右端开区间（官方 hbounds 语义）
   extras: {}, cfgExtras: {},
   tool: { type: 'select' },
@@ -2751,6 +2770,10 @@ function baseGlyphAt(lane, t) {
 }
 
 /* ---------- 序列化 ---------- */
+/* 生效档 = 文档钉的那档，没钉就用外观偏好。两处控件各写各的来源，读的人只有一个 state.busJoin */
+function applyBusJoin() {
+  state.busJoin = state.busJoinDoc === 'split' || state.busJoinDoc === 'joined' ? state.busJoinDoc : state.busJoinPref;
+}
 function laneLen(lane) {
   let last = -1;
   lane.slots.forEach((s, t) => { if (s) last = t; });
@@ -2914,6 +2937,7 @@ function buildJSON() {
   const cfg = {};
   if (state.hscale > 1) cfg.hscale = state.hscale;
   if (state.skin !== 'default') cfg.skin = state.skin;
+  if (state.busJoinDoc !== 'auto') cfg.busJoin = state.busJoinDoc;
   if (state.hb && state.hb[1] > state.hb[0]) cfg.hbounds = state.hb;
   Object.assign(cfg, state.cfgExtras);
   if (Object.keys(cfg).length) out.config = cfg;
@@ -3044,7 +3068,7 @@ function parseDoc(j) {
     edges: [], rawEdges: [],
     head: { text: '', tick: null, every: null, tock: null },
     foot: { text: '', tick: null, every: null, tock: null },
-    hscale: 1, skin: 'default', hb: null, extras: {}, cfgExtras: {},
+    hscale: 1, skin: 'default', busJoinDoc: 'auto', hb: null, extras: {}, cfgExtras: {},
   };
   (Array.isArray(j.edge) ? j.edge : []).forEach(e => {
     if (typeof e !== 'string') { st.rawEdges.push(e); return; }
@@ -3058,18 +3082,19 @@ function parseDoc(j) {
   const c = j.config || {};
   if (typeof c.hscale === 'number') st.hscale = Math.min(8, Math.max(1, Math.round(c.hscale)));
   if (typeof c.skin === 'string' && c.skin) st.skin = c.skin;
+  st.busJoinDoc = (c.busJoin === 'joined' || c.busJoin === 'split') ? c.busJoin : 'auto';
   if (Array.isArray(c.hbounds) && c.hbounds.length === 2) {
     const a = Math.max(0, Math.floor(+c.hbounds[0] || 0)), b = Math.ceil(+c.hbounds[1] || 0);
     if (b > a) st.hb = [a, b];
   }
-  Object.keys(c).forEach(k => { if (!['hscale', 'skin', 'hbounds'].includes(k)) st.cfgExtras[k] = c[k]; });
+  Object.keys(c).forEach(k => { if (!['hscale', 'skin', 'hbounds', 'busJoin'].includes(k)) st.cfgExtras[k] = c[k]; });
   Object.keys(j).forEach(k => { if (!['signal', 'edge', 'head', 'foot', 'config'].includes(k)) st.extras[k] = j[k]; });
   return st;
 }
 function adoptState(st) {
   state.tree = st.tree; state.edges = st.edges; state.rawEdges = st.rawEdges;
   state.head = st.head; state.foot = st.foot;
-  state.hscale = st.hscale; state.skin = st.skin;
+  state.hscale = st.hscale; state.skin = st.skin; state.busJoinDoc = st.busJoinDoc || 'auto'; applyBusJoin();
   state.hb = st.hb || null;
   state.extras = st.extras; state.cfgExtras = st.cfgExtras;
   collapsedGroups.clear(); // 文档重建后旧分组 id 失效
@@ -3137,6 +3162,40 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
     M(x0, firstHalf); d += `H${x0 + w / 2}V${secondHalf}`; Hline(x1);
     lvl = pos ? 'lo' : 'hi';
   };
+  /* ---- 相连档（config.busJoin = 'joined'）共用的收口几何 ----
+     端点落在拍界 x 上，看邻格的字形决定怎么收：
+       邻格是数据块 / x 框 → 收成尖顶，尖顶正落在拍界上；相邻两块的尖顶重合，描边交叉成 X（官方那个 ≫）
+       邻格是高电平        → 收成一条斜边，上轨接出去（斜到下轨内侧）
+       邻格是低电平        → 收成一条斜边，下轨接出去
+       邻格是 z            → 收成尖，落在中线上
+       通道到头            → 平口
+     s = 斜切的水平量，取该格宽的 15%（官方比例），窄块自动收缩到放得下为止。 */
+  const joinEnd = (nb, x, side, s) => {
+    const inw = v => (side === 'L' ? x + v : x - v);            // 往块内收 v
+    if (nb === null) return { t: x, b: x };
+    if (isData(nb) || nb === 'x' || nb === 'X') return { t: inw(s), b: inw(s), ax: x, ay: MID };
+    if ('1hHpPuU'.includes(nb)) return { t: x, b: inw(2 * s) };
+    if ('0lLndD'.includes(nb)) return { t: inw(2 * s), b: x };
+    return { t: inw(1.4 * s), b: inw(1.4 * s), ax: x, ay: MID };
+  };
+  const joinShape = (xa, xb, cellw, gL, gR) => {
+    const s = Math.max(1.5, Math.min(cellw * .15, (xb - xa - 4) / 2));
+    const LE = joinEnd(gL, xa, 'L', s), RE = joinEnd(gR, xb, 'R', s);
+    let d = `M${LE.t} 13L${RE.t} 13`;
+    if (RE.ax !== undefined) d += `L${RE.ax} ${RE.ay}`;
+    d += `L${RE.b} 35L${LE.b} 35`;
+    if (LE.ax !== undefined) d += `L${LE.ax} ${LE.ay}`;
+    return { d: d + 'Z', LE: LE, RE: RE };
+  };
+  /* 标签只占纵向 19~29 那一条（基线 29、字号 14）：斜边在这一条里收进去多少才是事。
+     尖顶正落在拍界上，所以文字高度上斜边离拍界最近、让出的量比上下轨处小得多；
+     照上下轨的收进量算会把可用宽度白砍一半，一格一值的长标签全得省略。 */
+  const lerpX = (p, q, yy) => p[0] + (q[0] - p[0]) * (yy - p[1]) / (q[1] - p[1]);
+  const joinPad = (E, side) => {
+    const at = yy => E.ax === undefined ? lerpX([E.t, 13], [E.b, 35], yy)
+      : (yy <= E.ay ? lerpX([E.t, 13], [E.ax, E.ay], yy) : lerpX([E.ax, E.ay], [E.b, 35], yy));
+    return side === 'L' ? Math.max(at(19), at(29)) : Math.min(at(19), at(29));
+  };
   let lastEnd = 0;
   while (t < len) {
     const s = slots[t];
@@ -3177,10 +3236,22 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
       }
       const lastP = positions[e - 1];
       const w = lastP ? (lastP.x + lastP.w - x0) : 0;
-      const box = document.createElementNS(NS, 'rect');
-      box.setAttribute('x', x0 + 2); box.setAttribute('y', 13);
-      box.setAttribute('width', Math.max(4, w - 4)); box.setAttribute('height', 22);
-      box.setAttribute('rx', 2.5);
+      /* 相连档里 x 框也得接上：它自己也是带斜切的一段，否则数据块的尖顶和它之间留一道缝 */
+      const nxg = (e < len && slots[e]) ? slots[e].glyph : null;
+      const xShape = () => {
+        if (state.busJoin !== 'joined') {
+          const r = document.createElementNS(NS, 'rect');
+          r.setAttribute('x', x0 + 2); r.setAttribute('y', 13);
+          r.setAttribute('width', Math.max(4, w - 4)); r.setAttribute('height', 22);
+          r.setAttribute('rx', 2.5);
+          return r;
+        }
+        const p = document.createElementNS(NS, 'path');
+        p.setAttribute('d', joinShape(x0, x0 + w, cw, pg, nxg).d);
+        p.setAttribute('stroke-linejoin', 'round');
+        return p;
+      };
+      const box = xShape();
       box.setAttribute('fill', hexA(cssVar('--xbox'), .13));
       box.setAttribute('stroke', hexA(cssVar('--xbox'), g === 'X' ? .55 : .3));
       box.setAttribute('stroke-width', 1.4);
@@ -3188,10 +3259,7 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
       const clipId = `xhatch${++xclipSeq}`;
       const cp = document.createElementNS(NS, 'clipPath');
       cp.setAttribute('id', clipId);
-      const cr = document.createElementNS(NS, 'rect');
-      cr.setAttribute('x', x0 + 2); cr.setAttribute('y', 13);
-      cr.setAttribute('width', Math.max(4, w - 4)); cr.setAttribute('height', 22);
-      cr.setAttribute('rx', 2.5);
+      const cr = xShape();
       cp.appendChild(cr);
       svg.appendChild(cp);
       const hg = document.createElementNS(NS, 'g');
@@ -3218,22 +3286,34 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
       const w = lastP ? (lastP.x + lastP.w - x0) : 0;
       const isDigit = g !== '=';
       const dbox = isDigit ? digitBox(g, color, veilBg) : null;
-      const box = document.createElementNS(NS, 'rect');
-      box.setAttribute('x', x0 + 1.5); box.setAttribute('y', 13);
-      box.setAttribute('width', Math.max(4, w - 3)); box.setAttribute('height', 22);
-      box.setAttribute('rx', 2.5);
-      box.setAttribute('fill', isDigit ? dbox.fill : cssVar('--node-fill'));
       /* 描边交给通道色（= 框一直是这么画的，数字框以前写死了一层灰黑，换色没反应）。
          通道色的可选门槛按「画布底色」算，而浅色画布上数字框的填充是官方逐框淡彩，两者不是一回事：
          亮通道色压在淡彩里几乎看不见，所以再对该框自己的底色压一次明度、色相不动。
          达标即原样返回 → 浅色画布 + 常见通道色等于直接用，不额外变暗。深色画布归 digitBox() 另算。 */
-      box.setAttribute('stroke', isDigit ? hexA(dbox.stroke, .85) : hexA(color, .85));
+      const boxFill = isDigit ? dbox.fill : cssVar('--node-fill');
+      const boxLine = isDigit ? hexA(dbox.stroke, .85) : hexA(color, .85);
+      const ng = (e < len && slots[e]) ? slots[e].glyph : null;
+      let padL = 1.5, padR = 1.5;   // 标签可用区要从左右端各让出的量
+      const box = document.createElementNS(NS, state.busJoin === 'joined' ? 'path' : 'rect');
+      if (state.busJoin === 'joined') {
+        const sh = joinShape(x0, x0 + w, cw, pg, ng);
+        padL = joinPad(sh.LE, 'L') - x0; padR = x0 + w - joinPad(sh.RE, 'R');
+        box.setAttribute('d', sh.d);
+        box.setAttribute('stroke-linejoin', 'round');
+      } else {
+        box.setAttribute('x', x0 + 1.5); box.setAttribute('y', 13);
+        box.setAttribute('width', Math.max(4, w - 3)); box.setAttribute('height', 22);
+        box.setAttribute('rx', 2.5);
+      }
+      box.setAttribute('fill', boxFill);
+      box.setAttribute('stroke', boxLine);
       box.setAttribute('stroke-width', 1.4);
       svg.appendChild(box);
       const label = s.label;
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
         /* 避让方案由 planLaneNodes 统一决定：ranges 里有 = 让开节点后居中；没有 = 节点已被抬走，按整框居中 */
-        const [lo, hi] = nodePlan.ranges.get(t) || [x0 + 4, x0 + w - 4];
+        const [lo0, hi0] = nodePlan.ranges.get(t) || [x0 + 4, x0 + w - 4];
+        const lo = Math.max(lo0, x0 + padL), hi = Math.min(hi0, x0 + w - padR);
         const avail = hi - lo;
         const tx = document.createElementNS(NS, 'text');
         tx.setAttribute('x', (lo + hi) / 2); tx.setAttribute('y', 29);
@@ -3366,6 +3446,58 @@ function glyphSample(ch) {
   return svg;
 }
 
+/* 「总线数据块」的小样：三拍总线，中间两个衔接处正是要比的东西。
+   临时把档位与水平缩放摆成缩略图该有的取值，再叫 laneSVG 真画一次——不另画一套示意图，
+   渲染器以后怎么改，小样就怎么变。水平缩放钉回 1×：它只示意衔接形状，不该跟着缩放走。
+   底下蒙一条当前波形底色、数字框照画布那样蒙色，深色主题里看到的亮暗才是实际出图的亮暗。 */
+function busJoinSample(join, px) {
+  const keepJoin = state.busJoin, keepHs = state.hscale;
+  let svg;
+  try {
+    state.busJoin = join; state.hscale = 1;
+    const fake = newLane('', []);
+    [['3', 'A'], ['4', 'B'], ['5', 'C']].forEach(([g, l], i) => { fake.slots[i] = { glyph: g, label: l }; });
+    svg = laneSVG(fake, 3, cssVar('--glyph-sample'), 0, false);
+  } finally {
+    state.busJoin = keepJoin; state.hscale = keepHs;   // 万一 laneSVG 抛了，也别把画布留在小样的档位上
+  }
+  svg.setAttribute('width', px); svg.setAttribute('height', Math.round(px * 28 / 124));
+  svg.setAttribute('viewBox', '-2 10 124 28');
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  const strip = h('span', { class: 'jc-strip' });
+  strip.style.background = lcBg();
+  strip.appendChild(svg);
+  return strip;
+}
+const BUS_JOIN_CAPS = () => [['split', i18n('分开成框')], ['joined', i18n('斜切相连')]];
+const busJoinPrefCap = () => i18n(state.busJoinPref === 'joined' ? '斜切相连' : '分开成框');
+/* 图表设置右边那一格：钉了档 = 该档小样；自动 = 一句可点的「跟随外观 · X」 */
+function renderBusJoinHint() {
+  const host = document.querySelector('#busJoinHint');
+  if (!host) return;
+  host.textContent = '';
+  if (state.busJoinDoc === 'split' || state.busJoinDoc === 'joined') { host.appendChild(busJoinSample(state.busJoinDoc, 124)); return; }
+  const b = h('button', { class: 'jc-hint', type: 'button', title: i18n('去 设置 → 外观 改这个默认档') });
+  b.appendChild(document.createTextNode(i18n('跟随外观 · ')));
+  b.appendChild(h('b', null, busJoinPrefCap()));
+  b.addEventListener('click', ev => { ev.stopPropagation(); openAppearanceSettings(); });
+  host.appendChild(b);
+}
+/* 提示点一下跳到 设置 → 外观：收起图表设置，菜单直接展开「外观」这一类 */
+function openAppearanceSettings() {
+  document.querySelector('#cfgMask').classList.remove('open');
+  settingsCatOpen = 'look';
+  const wrap = document.querySelector('#m-settings'), menu = wrap.querySelector('.menu');
+  closeMenus();
+  buildSettingsMenu(menu);
+  menu.classList.add('open');
+  positionMenu(wrap, menu);
+}
+function setBusJoinPref(v) {
+  state.busJoinPref = v; storeSet('wdgui-bus-join', v);
+  applyBusJoin(); renderGrid(); renderEdges();
+  renderBusJoinHint();   // 图表设置可能正开着：那句「跟随外观 · X」说的是这个偏好，得当场改口
+}
 /* ---------- 分享链接压缩：lz-string v1.5.0 (MIT, github.com/pieroxy/lz-string) ----------
    仅用于「复制分享链接（压缩）」。整库包在 IIFE 内、只暴露 LZShare：
    既不污染全局 LZString，其内部 r/t/n/i 等短名也不会与页面标识符冲突。 */
@@ -3777,6 +3909,7 @@ function setWaveBg(hex) {
   wbgRemember(v);
   applyWaveBg();
   renderGrid(); renderEdges();   // 通道色与边线标签是渲染时烘进 DOM 的，底色一变必须重画
+  renderBusJoinHint();           // 图表设置里那张小样也蒙底色，改完底色要跟上
   if (wbgPop) wbgPanelRefresh(); // 面板留着可继续微调：选中勾、预览块与「N 色可选」都要跟着换
   if (wbgPop && wbgPop.onChange) wbgPop.onChange();
 }
@@ -4705,6 +4838,7 @@ function renderSettings() {
     skinSel.appendChild(o);
     skinSel.value = state.skin;
   }
+  $('#busJoin').value = state.busJoinDoc; renderBusJoinHint();
   $('#hbMin').value = state.hb ? state.hb[0] : '';
   $('#hbMax').value = state.hb ? state.hb[1] : '';
 }
@@ -6769,9 +6903,11 @@ function closeSetPop() { if (setPopEl) { setPopEl.classList.remove('on'); setPop
 function openSetPop(anchor, items, isActive, onPick) {
   closeSetPop();
   const pop = h('div', { id: 'setPop' });
-  items.forEach(([v, label, tip]) => {
+  items.forEach(([v, label, tip, pic]) => {
     const on = isActive(v);
-    const b = h('button', { class: on ? 'active' : '', title: tip || label }, label);
+    const b = h('button', { class: on ? 'active' : '', title: tip || label });
+    if (pic) b.appendChild(pic());
+    b.appendChild(h('span', null, label));
     if (on) { const ck = icon('<path d="m3 8.5 3 3 7-7" stroke-width="1.6"/>', 12); ck.setAttribute('class', 'ck'); b.appendChild(ck); }
     b.addEventListener('click', ev => { ev.stopPropagation(); closeSetPop(); onPick(v); });
     pop.appendChild(b);
@@ -6880,6 +7016,9 @@ function buildSettingsMenu(menu) {
       root.dataset.zebra = v === 'on' ? '1' : '0';
       storeSet('wdgui-zebra', v === 'on' ? '1' : '0');
     });
+    /* 总线数据块怎么衔接：偏好档，管所有没在图表设置里钉死的文档 */
+    row(body, i18n('总线数据块'), BUS_JOIN_CAPS().map(([v, cap]) => [v, cap, cap, () => busJoinSample(v, 124)]),
+      () => (state.busJoinPref === 'joined' ? 'joined' : 'split'), v => setBusJoinPref(v));
     row(body, i18n('界面字体'), FONT_CHOICES.map(x => [x[0], i18n(x[1])]), () => state_font.ui, v => {
       state_font.ui = v; storeSet('wdgui-uifont', v); applyFonts();
     });
@@ -7766,6 +7905,11 @@ function bindSettings() {
   $('#autoScale').addEventListener('change', e => setAutoscale(e.target.value === 'on'));
   $('#autoScaleMax').addEventListener('change', e => setAutoscaleCap(e.target.value));
   $('#skin').addEventListener('change', e => { state.skin = e.target.value; update(); });
+  /* 本文档钉档：走 cfg 提交，进撤销流，并跟着 JSON 走；选回「自动」则整个键不写 */
+  $('#busJoin').addEventListener('change', e => {
+    commitTag = 'cfg'; state.busJoinDoc = e.target.value; applyBusJoin(); scheduleUpdate();
+    renderBusJoinHint();   // 落库是防抖的，右边那一格（小样 / 跟随外观）要立刻换
+  });
   const hbSet = () => {
     commitTag = 'cfg';
     const a = $('#hbMin').value, b = $('#hbMax').value;
@@ -7865,6 +8009,10 @@ function applyTheme(t) {
   storeSet('wdgui-theme', t);
   applyWaveBg();   // 自定义底色深浅主题各存一份，切主题换那一份的 hex 重算墨色
   renderGrid(); renderEdges(); renderBrushUI(); renderPreview();
+  /* 小样蒙的是当前波形底色，底色或主题一变就得重画；设置菜单开着也一并重排（语言/档名都变了） */
+  renderBusJoinHint();
+  const sm = document.querySelector('#m-settings .menu');
+  if (sm && sm.classList.contains('open')) buildSettingsMenu(sm);
   if (wbgPop) wbgPanelRefresh();   // 底色面板开着时切主题：tint 整套换成另一侧的 36 色
 }
 

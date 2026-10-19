@@ -32,5 +32,10 @@
   "config.saveMode.live": "Automatic live save",
   "config.saveMode.buttonDesc": "Manual save — edits stay in the panel until you click the save icon in its tab (or press Ctrl+S with the panel focused); the canvas and preview keep redrawing live (default)",
   "config.saveMode.liveDesc": "Automatic live save — every change is written back to the target file as soon as it happens, like the \"autosave\" switch in the kodbox plugin",
-  "config.saveMode.desc": "When the editor panel writes changes back to the target file. With **Manual save** (default) an image is written in one step; a Markdown code block is written into the open document, and the file is saved too only when that document had no unsaved edits of its own — otherwise the extension just applies the edit and leaves Ctrl+S to you, so your own unsaved typing never lands on disk by accident. This setting is read when a panel opens; panels already open keep the mode they started with."
+  "config.saveMode.desc": "When the editor panel writes changes back to the target file. With **Manual save** (default) an image is written in one step; a Markdown code block is written into the open document, and the file is saved too only when that document had no unsaved edits of its own — otherwise the extension just applies the edit and leaves Ctrl+S to you, so your own unsaved typing never lands on disk by accident. This setting is read when a panel opens; panels already open keep the mode they started with.",
+  "config.busJoin.split": "Separate boxes",
+  "config.busJoin.joined": "Joined with chamfers",
+  "config.busJoin.splitDesc": "Separate boxes — every bus value gets its own rounded box with a hairline gap between them (default)",
+  "config.busJoin.joinedDesc": "Joined — adjacent values of the same bus merge into one run with ≫ chamfers meeting on the beat, the official WaveDrom look",
+  "config.busJoin.desc": "How adjacent bus value boxes join in the self-drawn canvas and in modern-style exports. A starting preference only: a document that pins its own style in the editor (Chart settings → Bus boxes, stored as `config.busJoin` in the WaveJSON) always wins, and so does a choice you have already made inside the editor panel (Settings → Appearance). The official WaveDrom engine ignores this — it has one fixed style."
 }

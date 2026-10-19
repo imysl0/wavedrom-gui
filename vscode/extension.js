@@ -341,8 +341,9 @@ function renderSvg(jsonText) {
   catch (e) { return { err: t('WaveDrom: Failed to parse WaveJSON — {0}', e.message) }; }
   try {
     /* autoScale: false —— 扩展的职责是按原图风格忠实重绘，几何必须跟随文档自己的
-       config.hscale，不能被自动缩放改写（渲染器默认是自动缩放开的，skill 侧用它） */
-    const r = mod.renderModern(doc, { autoScale: false });
+       config.hscale，不能被自动缩放改写（渲染器默认是自动缩放开的，skill 侧用它）。
+       busJoin: 起始偏好档，文档钉了档由渲染器自己覆盖回来 */
+    const r = mod.renderModern(doc, { autoScale: false, busJoin: busJoinPref() });
     const svg = String((r && r.svg) || '').replace(/^<\?xml[^>]*\?>\s*/, '');
     return svg ? { svg } : { err: t('WaveDrom: Failed to render — {0}', 'empty output') };
   } catch (e) { return { err: t('WaveDrom: Failed to render — {0}', e.message) }; }
@@ -760,6 +761,19 @@ function saveMode() {
   } catch (e) { return 'button'; }
 }
 
+/* 总线数据块怎么衔接（wavedrom-gui.busJoin）：split = 各画各的圆角框（默认），joined = 官方那种 ≫ 斜切相连。
+   这一项只是**起始偏好**，与编辑器里的三层优先级对齐：
+     文档钉了档（config.busJoin）> 编辑器面板 设置 → 外观 里选过的 > 这一项。
+   所以它只在两个地方起作用：① 宿主自己渲染 hover/预览时（没有面板状态可参考，直接用它）；
+   ② 面板首次打开、localStorage 里还没有 'wdgui-bus-join' 时，把它种进去。用户在面板里选过一次之后，
+   面板里的选择就是权威，改这个设置不再覆盖——和 language 那一项的处理完全一致。 */
+function busJoinPref() {
+  try {
+    const v = vscode.workspace.getConfiguration('wavedrom-gui').get('busJoin');
+    return v === 'joined' ? 'joined' : 'split';
+  } catch (e) { return 'split'; }
+}
+
 /* 编辑器界面来源：仓库内调试时 extensionUri 就是 vscode/，同级 ../index.html 是正在改的
    实时界面（F5 下改动立即生效，无需先构建）；装了 VSIX 之后同级没有 index.html，回退到
    随包安装的 media/editor.html（scripts/build.js 从仓库根 index.html 拷入）。 */
@@ -785,8 +799,12 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
        auto（默认）= 不碰布局偏好，但把「实时预览 / WaveJSON 代码」右侧窗写成收起
        （wdgui-show-preview / wdgui-show-code = 0，编辑器两个都关时整个右栏隐藏）——
        窄面板里右侧窗只会挤占空间，需要时面板内从编辑器设置 → 视图 → 窗口显示恢复。
-       simple 布局下右栏本就收起（底部按钮切换），不碰这两个键。面板内仍可临时切换。 */
+       simple 布局下右栏本就收起（底部按钮切换），不碰这两个键。面板内仍可临时切换。
+     - 总线数据块衔接（wdgui-bus-join）：同样只在没设置过时种一份 wavedrom-gui.busJoin，
+       之后面板里 设置 → 外观 的选择优先；文档自己钉了档（config.busJoin）则由编辑器与渲染器
+       按「文档 > 偏好」压过这一切。 */
   const init = `<script>try { if (!localStorage.getItem('wdgui-lang')) localStorage.setItem('wdgui-lang', ${JSON.stringify(uiLang())});`
+    + ` if (!localStorage.getItem('wdgui-bus-join')) localStorage.setItem('wdgui-bus-join', ${JSON.stringify(busJoinPref())});`
     + (editorViewMode() === 'simple' ? ` localStorage.setItem('wdgui-viewmode', 'simple');` : '')
     + (editorViewMode() === 'auto' ? ` localStorage.setItem('wdgui-show-preview', '0'); localStorage.setItem('wdgui-show-code', '0');` : '')
     + (editorSidePanel() === 'shown' ? ` localStorage.setItem('wdgui-side-dock', '1');` : '')
@@ -863,7 +881,10 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
         if (ex === null && IMG.kind === 'skill-modern' && window.WaveDromModern && typeof window.WaveDromModern.renderModern === 'function') {
           try {
             var srcDoc = JSON.parse(localStorage.getItem(KEY) || 'null');
-            var rr = window.WaveDromModern.renderModern(srcDoc, { autoScale: false }); // 同上：预览按文档 hscale 忠实呈现
+            /* 同上：预览按文档 hscale 忠实呈现；衔接档取面板当时的偏好档，
+               文档若钉了档，渲染器会按 config.busJoin 自己压回来（与画布同一套优先级） */
+            var prefJoin = (typeof state !== 'undefined' && state.busJoinPref) || 'split';
+            var rr = window.WaveDromModern.renderModern(srcDoc, { autoScale: false, busJoin: prefJoin });
             /* 模板字符串里的正则：\s \d 必须双写反斜杠，否则转义被模板吃掉变成字面量 */
             var mstr = String(rr.svg).replace(/^<\\?xml[^>]*\\?>\\s*/, '');
             var mw = parseInt((mstr.match(/<svg[^>]*\\swidth="([\\d.]+)"/) || [])[1], 10);
@@ -1430,6 +1451,12 @@ async function activate(ctx) {
     if (ev.affectsConfiguration('wavedrom-gui.saveMode')) {
       vscode.window.showInformationMessage(t('WaveDrom: save mode applies to editor panels opened from now on'));
     }
+    /* 总线衔接档同样是「面板建立时读一次」的偏好，但悬浮预览没有建立时刻，它拿的是渲染时
+       的配置值——所以这里除提示之外还要把按代码块内容缓存的 SVG 丢掉，否则旧档会一直顶着 */
+    if (ev.affectsConfiguration('wavedrom-gui.busJoin')) {
+      svgCache.clear();
+      vscode.window.showInformationMessage(t('WaveDrom: bus box style applies to previews and panels opened from now on'));
+    }
     if (!ev.affectsConfiguration('wavedrom-gui.previewEditAffordance')) return;
     try { Promise.resolve(vscode.commands.executeCommand('markdown.preview.refresh')).catch(() => {}); }
     catch (e) { /* 命令不可用：用户重开预览即可 */ }
@@ -1450,11 +1477,11 @@ module.exports = {
   __test: {
     FENCE_RE, probeImagePath, editAffordance, editorPanelPosition, editorViewMode, editorSidePanel,
     saveMode, savePanelCommand, setDirtyContext,
-    withCacheBust,
+    withCacheBust, busJoinPref,
     languageSetting, uiLang, zhStrings, t, editLink, handleUri,
     editFromPreviewCommand, makePlugin, makeCodeLensProvider, editFenceCommand, editImageCommand, editTargets, registerKey,
     findFence, findFenceAtLine, saveBack, writeText, openEditor, lineOfIndex, buildEditorHtml, panelDocKey,
-    parseLoose, rendererModule, renderSvg, previewFenceCommand, makeHoverProvider, previewWebviewHtml,
+    parseLoose, rendererModule, renderSvg, renderSvgCached, svgCache, previewFenceCommand, makeHoverProvider, previewWebviewHtml,
     readImageTarget, setupEditorPanel, openImageCommand, imageExportTheme, pinRefresh,
   },
 };

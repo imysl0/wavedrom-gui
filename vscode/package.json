@@ -172,6 +172,23 @@
           "default": "button",
           "markdownDescription": "%config.saveMode.desc%"
         },
+        "wavedrom-gui.busJoin": {
+          "type": "string",
+          "enum": [
+            "split",
+            "joined"
+          ],
+          "enumItemTitles": [
+            "%config.busJoin.split%",
+            "%config.busJoin.joined%"
+          ],
+          "enumDescriptions": [
+            "%config.busJoin.splitDesc%",
+            "%config.busJoin.joinedDesc%"
+          ],
+          "default": "split",
+          "markdownDescription": "%config.busJoin.desc%"
+        },
         "wavedrom-gui.editorViewMode": {
           "type": "string",
           "enum": [

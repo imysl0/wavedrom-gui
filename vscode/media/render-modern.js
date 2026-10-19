@@ -173,7 +173,7 @@ function parseDoc(j) {
     tree: [], edges: [],
     head: { text: '', tick: null, every: null, tock: null },
     foot: { text: '', tick: null, every: null, tock: null },
-    hscale: 1, hb: null,
+    hscale: 1, busJoin: 'auto', hb: null,
   };
   const sig = Array.isArray(j.signal) ? j.signal : [];
   sig.forEach(e => st.tree.push(parseEntry(e)));
@@ -190,6 +190,8 @@ function parseDoc(j) {
   if (j.foot) st.foot = rd(j.foot);
   const c = j.config || {};
   if (typeof c.hscale === 'number') st.hscale = Math.min(8, Math.max(1, Math.round(c.hscale)));
+  /* 本文档钉的衔接档：'auto'/缺省 = 没钉，交给 --bus-join */
+  if (c.busJoin === 'joined' || c.busJoin === 'split') st.busJoin = c.busJoin;
   if (Array.isArray(c.hbounds) && c.hbounds.length === 2) st.hb = [c.hbounds[0], c.hbounds[1]];
   return st;
 }
@@ -364,7 +366,7 @@ function planLaneNodes(lane, gw, pos, scale, fs, inset, mode) {
  * Returns { inner: <svg-body string>, width }. `color` is the trace color.
  * ========================================================================== */
 let xhatchSeq = 0; // x 交叉阴影 clipPath 的全局序号（见 laneSVG 内注释）
-function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipNodeLetters) {
+function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipNodeLetters, join) {
   const W = gw * (lane.period || 1), len = laneLen(lane);
   const positions = laneCharPositions(lane, gw);
   let out = '';       // path + decorations, in draw order
@@ -404,6 +406,35 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
     M(x0, firstHalf); d += `H${x0 + w / 2}V${secondHalf}`; Hline(x1);
     lvl = pos ? 'lo' : 'hi';
   };
+  /* ---- 相连档（busJoin = 'joined'）的收口几何，与编辑器 laneSVG 同一套 ----
+     端点落在拍界 x 上，看邻格的字形决定怎么收：数据块 / x 框收成尖顶（尖顶正落在拍界上，
+     相邻两块的尖顶重合、描边交叉成官方那个 ≫）；高电平收斜边接上轨，低电平接下轨；z 收成中线的尖；
+     通道到头是平口。s = 斜切水平量，取该格宽 15%，窄块自动收缩到放得下。 */
+  const joinEnd = (nb, x, side, s) => {
+    const inw = v => (side === 'L' ? x + v : x - v);
+    if (nb === null) return { t: x, b: x };
+    if (isData(nb) || nb === 'x' || nb === 'X') return { t: inw(s), b: inw(s), ax: x, ay: MID };
+    if ('1hHpPuU'.includes(nb)) return { t: x, b: inw(2 * s) };
+    if ('0lLndD'.includes(nb)) return { t: inw(2 * s), b: x };
+    return { t: inw(1.4 * s), b: inw(1.4 * s), ax: x, ay: MID };
+  };
+  const joinShape = (xa, xb, cellw, gL, gR) => {
+    const s = Math.max(1.5, Math.min(cellw * .15, (xb - xa - 4) / 2));
+    const LE = joinEnd(gL, xa, 'L', s), RE = joinEnd(gR, xb, 'R', s);
+    let q = `M${LE.t} 13L${RE.t} 13`;
+    if (RE.ax !== undefined) q += `L${RE.ax} ${RE.ay}`;
+    q += `L${RE.b} 35L${LE.b} 35`;
+    if (LE.ax !== undefined) q += `L${LE.ax} ${LE.ay}`;
+    return { d: q + 'Z', LE: LE, RE: RE };
+  };
+  /* 标签只占纵向 19~29 那一条：斜边在这一条里让出多少才是事，照上下轨的收进量算会白砍一半宽度 */
+  const lerpX = (p, q, yy) => p[0] + (q[0] - p[0]) * (yy - p[1]) / (q[1] - p[1]);
+  const joinPad = (E, side) => {
+    const at = yy => E.ax === undefined ? lerpX([E.t, 13], [E.b, 35], yy)
+      : (yy <= E.ay ? lerpX([E.t, 13], [E.ax, E.ay], yy) : lerpX([E.ax, E.ay], [E.b, 35], yy));
+    return side === 'L' ? Math.max(at(19), at(29)) : Math.min(at(19), at(29));
+  };
+  const JOINED = join === 'joined';
 
   while (t < len) {
     const s = slots[t];
@@ -443,15 +474,20 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
       }
       const lastP = positions[e - 1];
       const w = lastP ? (lastP.x + lastP.w - x0) : 0;
-      out += tag('rect', { x: x0 + 2, y: 13, width: Math.max(4, w - 4), height: 22, rx: 2.5,
-        fill: hexA(C.xbox, .13), stroke: hexA(C.xbox, g === 'X' ? .55 : .3), 'stroke-width': 1.4 });
+      const nxg = (e < len && slots[e]) ? slots[e].glyph : null;
+      /* 形状只有一份几何：可见框带填充描边，clipPath 里那一枚只取几何（与改动前逐字节一致） */
+      const xGeo = () => JOINED ? { d: joinShape(x0, x0 + w, cw, pg, nxg).d, 'stroke-linejoin': 'round' }
+        : { x: x0 + 2, y: 13, width: Math.max(4, w - 4), height: 22, rx: 2.5 };
+      const xShapeStr = () => tag(JOINED ? 'path' : 'rect',
+        Object.assign(xGeo(), { fill: hexA(C.xbox, .13), stroke: hexA(C.xbox, g === 'X' ? .55 : .3), 'stroke-width': 1.4 }));
+      out += xShapeStr();
       // hatch fill (approximate the clipPath crosshatch with clipped lines)
       let hatch = '';
       for (let xx = x0 - 22; xx < x0 + w; xx += 7) {
         hatch += tag('path', { d: `M${xx + 22} 13L${xx} 35`, stroke: hexA(C.xbox, .35), 'stroke-width': 1 });
       }
       const clipId = `xhatch_${++xhatchSeq}`; // 全局自增：laneSVG 每块独立输出，内联在同一 DOM 时 (x0,t) 会撞 id
-      out += `<clipPath id="${clipId}"><rect x="${x0 + 2}" y="13" width="${Math.max(4, w - 4)}" height="22" rx="2.5"/></clipPath>`;
+      out += `<clipPath id="${clipId}">${tag(JOINED ? 'path' : 'rect', xGeo())}</clipPath>`;
       out += `<g clip-path="url(#${clipId})">${hatch}</g>`;
       gapPts.forEach(gt => { const gp = positions[gt]; if (gp) gapMark(gp.x + gp.w / 2, MID - 11); });
       lvl = null; t = e; continue;
@@ -467,13 +503,22 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
       const lastP = positions[e - 1];
       const w = lastP ? (lastP.x + lastP.w - x0) : 0;
       const isDigit = g !== '=';
-      out += tag('rect', { x: x0 + 1.5, y: 13, width: Math.max(4, w - 3), height: 22, rx: 2.5,
-        fill: isDigit ? DIGIT_FILLS[g] : C.nodeFill,
-        stroke: isDigit ? hexA(busEdge(color, DIGIT_FILLS[g]), .85) : hexA(color, .85), 'stroke-width': 1.4 });
+      const boxAttrs = { fill: isDigit ? DIGIT_FILLS[g] : C.nodeFill,
+        stroke: isDigit ? hexA(busEdge(color, DIGIT_FILLS[g]), .85) : hexA(color, .85), 'stroke-width': 1.4 };
+      const ng = (e < len && slots[e]) ? slots[e].glyph : null;
+      let padL = 1.5, padR = 1.5;   // 标签可用区要从左右端各让出的量
+      if (JOINED) {
+        const sh = joinShape(x0, x0 + w, cw, pg, ng);
+        padL = joinPad(sh.LE, 'L') - x0; padR = x0 + w - joinPad(sh.RE, 'R');
+        out += tag('path', Object.assign({ d: sh.d, 'stroke-linejoin': 'round' }, boxAttrs));
+      } else {
+        out += tag('rect', Object.assign({ x: x0 + 1.5, y: 13, width: Math.max(4, w - 3), height: 22, rx: 2.5 }, boxAttrs));
+      }
       const label = s.label;
       if (label !== undefined && label !== null && String(label) !== '' && w > 14) {
         /* 避让方案由 planLaneNodes 统一决定：ranges 里有 = 让开节点后居中；没有 = 节点已被抬走，按整框居中 */
-        const [lo, hi] = nodePlan.ranges.get(t) || [x0 + 4, x0 + w - 4];
+        const [lo0, hi0] = nodePlan.ranges.get(t) || [x0 + 4, x0 + w - 4];
+        const lo = Math.max(lo0, x0 + padL), hi = Math.min(hi0, x0 + w - padR);
         const avail = hi - lo;
         const attrs = { x: (lo + hi) / 2, y: 29, 'text-anchor': 'middle', 'font-size': FONTS.dataLabel,
           'font-family': FONT_MONO, fill: isDigit ? '#1B2536' : color };
@@ -698,6 +743,9 @@ function renderModern(source, opts = {}) {
   const autoScaleMax = Number.isFinite(capRaw) ? Math.min(AUTOSCALE_MAX_HARD, Math.max(1, capRaw)) : AUTOSCALE_MAX_DEF;
   if (autoScale) st.hscale = Math.min(AUTOSCALE_MAX_HARD, Math.max(st.hscale, Math.min(scanLabelNeed(st.tree, FONTS.dataLabel), autoScaleMax)));
   const gw = CELLW * (st.hscale || 1);
+  /* 生效档 = 文档钉的那档，没钉用 --bus-join（缺省分开成框）：与编辑器的「偏好 / 文档」同一套优先级 */
+  const prefJoin = opts.busJoin === 'joined' ? 'joined' : 'split';
+  const busJoin = st.busJoin === 'auto' ? prefJoin : st.busJoin;
 
   if (!st.tree.length) {
     const svg = tag('svg', { xmlns: 'http://www.w3.org/2000/svg', width: 200, height: 60, viewBox: '0 0 200 60' },
@@ -845,7 +893,7 @@ function renderModern(source, opts = {}) {
       content += tag('line', { x1: 0, y1: r.y + r.h, x2: W, y2: r.y + r.h, stroke: C.lineSoft });
       const idx = flat.indexOf(lane);
       const color = laneColorAt(lane, idx);
-      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, plusOnly);
+      const body = laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, plusOnly, busJoin);
       // translate into place: lane track starts at namew, minus crop offset winX
       content += `<g transform="translate(${namew - winX}, ${r.y})">${body}</g>`;
     } else if (r.type === 'group' || r.type === 'spacer') {
