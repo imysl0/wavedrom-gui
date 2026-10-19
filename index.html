@@ -3102,6 +3102,11 @@ function adoptState(st) {
 
 /* ---------- 迷你波形渲染 ---------- */
 const HI = 13, LO = 35, MID = 24;
+/* 相连档的斜切水平量：定死 4 CSS px（= 1× 档一格 40px 的 10%），刻意不随 hscale 放大。
+   渲染器里只有格宽跟着 hscale 变（字号、描边、框高都是定值），斜切要是也等比放大，
+   4× 档每边就得让出 16px：实测一格一值的标签最多能放的字符数会从 21 掉到 18。
+   定死之后 joined 与 split 放得下的一样多。窄块再由 joinShape 的上限收一刀。 */
+const JOIN_S = 4;
 function laneSVG(lane, colCount, color, cropX, noVeil) {
   const W = gridCellW() * (lane.period || 1), H = 48, len = laneLen(lane);
   const crop = +cropX || 0, vw = colCount * gridCellW();
@@ -3164,22 +3169,26 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
   };
   /* ---- 相连档（config.busJoin = 'joined'）共用的收口几何 ----
      端点落在拍界 x 上，看邻格的字形决定怎么收：
-       邻格是数据块 / x 框 → 收成尖顶，尖顶正落在拍界上；相邻两块的尖顶重合，描边交叉成 X（官方那个 ≫）
+       邻格是数据块 / x 框 → 收成尖顶，整段斜切落在下一格开头（上下轨正好画到拍界）；
+                           相邻两块的尖顶仍然重合，描边交叉成 X（官方那个 ≫）
        邻格是高电平        → 收成一条斜边，上轨接出去（斜到下轨内侧）
        邻格是低电平        → 收成一条斜边，下轨接出去
        邻格是 z            → 收成尖，落在中线上
        通道到头            → 平口
-     s = 斜切的水平量，取该格宽的 15%（官方比例），窄块自动收缩到放得下为止。 */
+     s = 斜切的水平量，定死 4 CSS px（= 1× 档一格 40px 的 10%），不随 hscale 放大，
+     窄块再由 (宽-4)/2 收一刀。 */
   const joinEnd = (nb, x, side, s) => {
     const inw = v => (side === 'L' ? x + v : x - v);            // 往块内收 v
     if (nb === null) return { t: x, b: x };
-    if (isData(nb) || nb === 'x' || nb === 'X') return { t: inw(s), b: inw(s), ax: x, ay: MID };
+    /* 尖顶不压在拍界上，而是整段推进下一格开头：上下轨正好画到拍界，斜切落在 [x, x+2s]。
+       相邻两块各自把这一端右移 s，尖顶仍然重合，X 只是整体挪了窝。 */
+    if (isData(nb) || nb === 'x' || nb === 'X') return { t: inw(s) + s, b: inw(s) + s, ax: x + s, ay: MID };
     if ('1hHpPuU'.includes(nb)) return { t: x, b: inw(2 * s) };
     if ('0lLndD'.includes(nb)) return { t: inw(2 * s), b: x };
-    return { t: inw(1.4 * s), b: inw(1.4 * s), ax: x, ay: MID };
+    return { t: inw(1.4 * s) + s, b: inw(1.4 * s) + s, ax: x + s, ay: MID };
   };
-  const joinShape = (xa, xb, cellw, gL, gR) => {
-    const s = Math.max(1.5, Math.min(cellw * .15, (xb - xa - 4) / 2));
+  const joinShape = (xa, xb, gL, gR) => {
+    const s = Math.max(1.5, Math.min(JOIN_S, (xb - xa - 4) / 2));
     const LE = joinEnd(gL, xa, 'L', s), RE = joinEnd(gR, xb, 'R', s);
     let d = `M${LE.t} 13L${RE.t} 13`;
     if (RE.ax !== undefined) d += `L${RE.ax} ${RE.ay}`;
@@ -3188,7 +3197,7 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
     return { d: d + 'Z', LE: LE, RE: RE };
   };
   /* 标签只占纵向 19~29 那一条（基线 29、字号 14）：斜边在这一条里收进去多少才是事。
-     尖顶正落在拍界上，所以文字高度上斜边离拍界最近、让出的量比上下轨处小得多；
+     尖顶落在下一格开头，文字高度上那段斜边离拍界最近、让出的量比上下轨处小得多；
      照上下轨的收进量算会把可用宽度白砍一半，一格一值的长标签全得省略。 */
   const lerpX = (p, q, yy) => p[0] + (q[0] - p[0]) * (yy - p[1]) / (q[1] - p[1]);
   const joinPad = (E, side) => {
@@ -3247,7 +3256,7 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
           return r;
         }
         const p = document.createElementNS(NS, 'path');
-        p.setAttribute('d', joinShape(x0, x0 + w, cw, pg, nxg).d);
+        p.setAttribute('d', joinShape(x0, x0 + w, pg, nxg).d);
         p.setAttribute('stroke-linejoin', 'round');
         return p;
       };
@@ -3296,7 +3305,7 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
       let padL = 1.5, padR = 1.5;   // 标签可用区要从左右端各让出的量
       const box = document.createElementNS(NS, state.busJoin === 'joined' ? 'path' : 'rect');
       if (state.busJoin === 'joined') {
-        const sh = joinShape(x0, x0 + w, cw, pg, ng);
+        const sh = joinShape(x0, x0 + w, pg, ng);
         padL = joinPad(sh.LE, 'L') - x0; padR = x0 + w - joinPad(sh.RE, 'R');
         box.setAttribute('d', sh.d);
         box.setAttribute('stroke-linejoin', 'round');

@@ -79,6 +79,8 @@ const FONT_UI = FONTS.ui;
 /* ---------- geometry constants (from index.html) ---------- */
 const CELLW = 40;
 const HI = 13, LO = 35, MID = 24, LANE_H = 48;
+/* 相连档的斜切水平量：定死 4 CSS px（= 1× 档一格 40px 的 10%），不随 hscale 放大，与编辑器同源 */
+const JOIN_S = 4;
 
 const isData = g => DATA_CHARS.includes(g);
 function hexA(hex, a) {
@@ -413,19 +415,22 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
     lvl = pos ? 'lo' : 'hi';
   };
   /* ---- 相连档（busJoin = 'joined'）的收口几何，与编辑器 laneSVG 同一套 ----
-     端点落在拍界 x 上，看邻格的字形决定怎么收：数据块 / x 框收成尖顶（尖顶正落在拍界上，
-     相邻两块的尖顶重合、描边交叉成官方那个 ≫）；高电平收斜边接上轨，低电平接下轨；z 收成中线的尖；
-     通道到头是平口。s = 斜切水平量，取该格宽 15%，窄块自动收缩到放得下。 */
+     端点落在拍界 x 上，看邻格的字形决定怎么收：数据块 / x 框收成尖顶（上下轨画到拍界，
+     整段斜切落在下一格开头，相邻两块的尖顶仍然重合、描边交叉成官方那个 ≫）；
+     高电平收斜边接上轨，低电平接下轨；z 收成中线的尖；通道到头是平口。
+     s = 斜切水平量，定死 4 CSS px（= 1× 档一格的 10%），不随 hscale 放大，窄块再由 (宽-4)/2 收一刀。 */
   const joinEnd = (nb, x, side, s) => {
     const inw = v => (side === 'L' ? x + v : x - v);
     if (nb === null) return { t: x, b: x };
-    if (isData(nb) || nb === 'x' || nb === 'X') return { t: inw(s), b: inw(s), ax: x, ay: MID };
+    /* 尖顶不压在拍界上，而是整段推进下一格开头：上下轨正好画到拍界，斜切落在 [x, x+2s]。
+       相邻两块各自把这一端右移 s，尖顶仍然重合，X 只是整体挪了窝。 */
+    if (isData(nb) || nb === 'x' || nb === 'X') return { t: inw(s) + s, b: inw(s) + s, ax: x + s, ay: MID };
     if ('1hHpPuU'.includes(nb)) return { t: x, b: inw(2 * s) };
     if ('0lLndD'.includes(nb)) return { t: inw(2 * s), b: x };
-    return { t: inw(1.4 * s), b: inw(1.4 * s), ax: x, ay: MID };
+    return { t: inw(1.4 * s) + s, b: inw(1.4 * s) + s, ax: x + s, ay: MID };
   };
-  const joinShape = (xa, xb, cellw, gL, gR) => {
-    const s = Math.max(1.5, Math.min(cellw * .15, (xb - xa - 4) / 2));
+  const joinShape = (xa, xb, gL, gR) => {
+    const s = Math.max(1.5, Math.min(JOIN_S, (xb - xa - 4) / 2));
     const LE = joinEnd(gL, xa, 'L', s), RE = joinEnd(gR, xb, 'R', s);
     let q = `M${LE.t} 13L${RE.t} 13`;
     if (RE.ax !== undefined) q += `L${RE.ax} ${RE.ay}`;
@@ -482,7 +487,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
       const w = lastP ? (lastP.x + lastP.w - x0) : 0;
       const nxg = (e < len && slots[e]) ? slots[e].glyph : null;
       /* 形状只有一份几何：可见框带填充描边，clipPath 里那一枚只取几何（与改动前逐字节一致） */
-      const xGeo = () => JOINED ? { d: joinShape(x0, x0 + w, cw, pg, nxg).d, 'stroke-linejoin': 'round' }
+      const xGeo = () => JOINED ? { d: joinShape(x0, x0 + w, pg, nxg).d, 'stroke-linejoin': 'round' }
         : { x: x0 + 2, y: 13, width: Math.max(4, w - 4), height: 22, rx: 2.5 };
       const xShapeStr = () => tag(JOINED ? 'path' : 'rect',
         Object.assign(xGeo(), { fill: hexA(C.xbox, .13), stroke: hexA(C.xbox, g === 'X' ? .55 : .3), 'stroke-width': 1.4 }));
@@ -514,7 +519,7 @@ function laneSVG(lane, gw, color, nodePos, nodeScale, nodeInset, nodeMode, skipN
       const ng = (e < len && slots[e]) ? slots[e].glyph : null;
       let padL = 1.5, padR = 1.5;   // 标签可用区要从左右端各让出的量
       if (JOINED) {
-        const sh = joinShape(x0, x0 + w, cw, pg, ng);
+        const sh = joinShape(x0, x0 + w, pg, ng);
         padL = joinPad(sh.LE, 'L') - x0; padR = x0 + w - joinPad(sh.RE, 'R');
         out += tag('path', Object.assign({ d: sh.d, 'stroke-linejoin': 'round' }, boxAttrs));
       } else {
