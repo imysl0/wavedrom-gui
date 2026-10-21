@@ -1350,6 +1350,8 @@ html[data-mobile] {
       <button data-act="export-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载 WaveDrom PNG（2×）">下载 WaveDrom PNG（2×）</span></button>
       <button data-act="export-editor-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载编辑区 SVG">下载编辑区 SVG</span></button>
       <button data-act="export-editor-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载编辑区 PNG（2×）">下载编辑区 PNG（2×）</span></button>
+      <button data-act="export-drawio" data-i18n-title="drawio 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio">下载 drawio</span></button>
+      <button data-act="export-drawio-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1" stroke-dasharray="2.4 1.7"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio（无底色）">下载 drawio（无底色）</span></button>
       <div class="sep"></div>
       <button data-act="export-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H4.5A1.5 1.5 0 0 0 3 4.5V6c0 1-1 2-2 2 1 0 2 1 2 2v1.5A1.5 1.5 0 0 0 4.5 13H6"/><path d="M10 3h1.5A1.5 1.5 0 0 1 13 4.5V6c0 1 1 2 2 2-1 0-2 1-2 2v1.5a1.5 1.5 0 0 1-1.5 1.5H10"/></svg><span data-i18n="下载 JSON">下载 JSON</span></button>
       <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg><span data-i18n="复制 JSON">复制 JSON</span></button>
@@ -1637,6 +1639,8 @@ try { module.exports = WaveSkin; } catch(err) {}
 const I18N_EN = {
   /* 顶栏与菜单骨架 */
   '设置': 'Settings', '导入': 'Import', '导出': 'Export',
+  '下载 drawio': 'Download drawio', 'drawio 图形文件，每格都是可编辑的原生图形': 'drawio file — every cell is a native, editable shape',
+  '下载 drawio（无底色）': 'Download drawio (no background)', '不带底色、通道色点与分隔线，只留波形与文字': 'No fills, lane dots or separator lines — waveforms and text only',
   '导入示例': 'Examples', '打开文件（JSON / SVG / PNG）…': 'Open file (JSON / SVG / PNG)…',
   '粘贴 WaveJSON…': 'Paste WaveJSON…', '也可把文件直接拖进窗口': 'You can also drag a file into the window',
   'WaveDrom 语法教程': 'WaveDrom tutorial',
@@ -1923,6 +1927,11 @@ const I18N_EN = {
   '一次只能导入一个文件，已取第一个': 'Only one file can be imported at a time — took the first',
   '预览还没有内容': 'Preview is still empty', '编辑区还没有内容': 'Editor grid is still empty',
   '复制失败，请手动复制': 'Copy failed — please copy manually', 'PNG 生成失败': 'PNG generation failed',
+  'drawio 导出失败': 'drawio export failed',
+  'drawio 已导出 —— 每格都是可编辑的原生图形': 'drawio exported — every cell is a native, editable shape',
+  'drawio 已导出（部分图元退回贴图，drawio 里不可再编辑其内部）': 'drawio exported (some primitives fell back to embedded images; their interior is not editable in drawio)',
+  'drawio 已导出（无底色）—— 底色、通道色点与分隔线都不出': 'drawio exported (no background) — fills, lane dots and separator lines left out',
+  '无底色': 'no-bg',
   '钉住笔刷弹层': 'Pin brush flyout', '标签': 'Label', '数据标签': 'Data label', '子组': 'Subgroup',
   '图表较大（链接 ': 'Large diagram (link of ', ' 字符），可能超出部分应用的粘贴上限，建议改用压缩分享链接': ' chars) — may exceed paste limits in some apps; prefer the compressed share link',
   /* 单元格弹窗「连线…」入口与节点连线弹窗 */
@@ -7662,6 +7671,424 @@ function buildEditorSvg() {
   return svg;
 }
 
+/* ---------- 导出 drawio（原生可编辑档） ----------
+   不另立一套几何：buildEditorSvg() 已经把整张画布重建成一棵绝对坐标的 SVG，
+   这里只把它拍平成的图元逐格翻译成 mxGraphModel。换算常数全部是对 drawio v32.5.5
+   官方 viewer 实测出来的，逐条列在下面（能编辑到什么程度见 EDITOR.md「导入导出」）：
+     · 1 drawio 单位 = 1 CSS px，绝对坐标原样落地
+     · rounded 的 arcSize 是短边百分比（rx 2.5 / 高 22 → 11.36），原生圆角矩形够用
+     · 文本基线 = 格顶 + fontSize + 4（verticalAlign=top;spacing=0）；一旦带 overflow=fill
+       就变成 格顶 + fontSize − 1，整幅字会往上飘 5px
+     · 任意路径只能走 shape=stencil，编码是 deflateRaw + base64（纯 base64 静默不渲染）；
+       stencil 按格子尺寸线性拉伸，所以 4px 绝对斜切必须逐格发，不能共用一块砖
+     · drawio 不认 stroke-linejoin:round，尖角只能按 miter 接，比我们的圆帽多出约 1.3px。
+       试过把顶点沿角平分线回拉补偿，实测反而更差（平均差 3.15→3.96，明显差像素 4.4%→5.4%），故不做
+     · 查看器渲染根挂 translate(1,1)+translate(0.5,0.5)，那是它的边距不是几何误差
+     · drawio 会按我们的十六进制色自动派生深色变体，同一个文件在它的深色界面里会自动换色
+     · 菜单里两条走的是同一棵 DOM：「下载 drawio」原样出，「下载 drawio（无底色）」只多一步
+       根层过滤（底色矩形 / 分隔线 / 通道色点），几何与颜色换算完全共用 */
+const drawioR = v => Math.round(v * 100) / 100;
+const drawioEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/* rgba(...) → 十六进制 + *Opacity：drawio 的取色框不认 rgba，用户在编辑器里点一下就丢了透明度。
+   计算值也不保证是 rgb()——Chrome 把 color-mix() 的结果序列化成 color(srgb R G B / A)（分量 0..1，
+   组行底色就是这么来的），oklch() 之类同理。drawio 的取色框与深色派生都不认，先归一成 rgba() 再拆：
+   color(srgb …) 按定义直接算（精确），其余写法在白底与黑底各填一个像素反解 α——
+   单读一次要靠 5% 的 alpha 放大量化误差，两读平均后三个通道才稳 */
+const drawioNormCol = (() => {
+  const memo = new Map();
+  let g = null;
+  const chan = n => Math.max(0, Math.min(255, Math.round(n)));
+  const read = k => {
+    if (!g) { const cv = document.createElement('canvas'); cv.width = cv.height = 1; g = cv.getContext('2d', { willReadFrequently: true }); }
+    g.fillStyle = '#010203';
+    g.fillStyle = k;                            // 浏览器不认的写法整条丢弃，fillStyle 保持哨兵值
+    if (String(g.fillStyle).toLowerCase() === '#010203') return null;
+    const over = bg => {
+      g.globalCompositeOperation = 'copy'; g.fillStyle = bg; g.fillRect(0, 0, 1, 1);
+      g.globalCompositeOperation = 'source-over'; g.fillStyle = k; g.fillRect(0, 0, 1, 1);
+      return [...g.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    };
+    const w = over('#ffffff'), bl = over('#000000');
+    const a = Math.max(0, Math.min(1, 1 - (w[0] + w[1] + w[2] - bl[0] - bl[1] - bl[2]) / 765));
+    if (a <= 0) return 'rgba(0, 0, 0, 0)';
+    return 'rgba(' + bl.map(v => chan(v / a)).join(', ') + ', ' + Math.round(a * 1e4) / 1e4 + ')';
+  };
+  return v => {
+    const k = String(v == null ? '' : v).trim();
+    if (memo.has(k)) return memo.get(k);
+    let out = k;
+    const m = /^color\(\s*srgb\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*(?:\/\s*([-\d.]+%?))\s*\)$/i.exec(k);
+    if (m) {
+      const al = /%$/.test(m[4]) ? parseFloat(m[4]) / 100 : Math.max(0, Math.min(1, parseFloat(m[4])));
+      out = 'rgba(' + [+m[1], +m[2], +m[3]].map(x => chan(x * 255)).join(', ') + ', ' + al + ')';
+    } else if (!/^(#[0-9a-f]{3,8}|rgba?\()/i.test(k)) out = read(k) || k;
+    memo.set(k, out);
+    return out;
+  };
+})();
+function drawioCol(v) {
+  const s = drawioNormCol(v);
+  const m = /^rgba?\(([^)]+)\)$/i.exec(s);
+  if (!m) return { c: s, o: null };
+  const p = m[1].split(/[,\s/]+/).filter(s => s !== '');
+  return { c: '#' + p.slice(0, 3).map(x => Math.round(Number(x)).toString(16).padStart(2, '0')).join(''),
+    o: p.length > 3 ? Math.round(parseFloat(p[3]) * 100) : null };
+}
+const drawioOp = (k, o) => (o === null || o === undefined || o >= 100) ? '' : ';' + k + '=' + o;
+const pxAt = (m, x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+/* 字体族只交第一个非通用名：drawio 会把整个 fontFamily 当一名加引号，交栈会被当成一个名字 */
+function drawioFam(stack) {
+  const names = String(stack || '').replace(/["']/g, '').split(',').map(x => x.trim()).filter(Boolean);
+  const mono = /monospace/i.test(names[names.length - 1] || '') || /mono/i.test(names[0] || '');
+  return names.find(x => !/^(system-ui|ui-sans-serif|ui-monospace|-apple-system|sans-serif|serif|monospace|inherit)$/i.test(x))
+    || (mono ? 'DejaVu Sans Mono' : 'DejaVu Sans');
+}
+/* raw deflate：优先 CompressionStream；没有就发「存储块」形式的 deflate（合法，pako/inflate 都能解） */
+function drawioStored(bytes) {
+  const out = [], MAX = 0xffff, n = Math.max(1, Math.ceil(bytes.length / MAX));
+  for (let k = 0; k < n; k++) {
+    const c = bytes.subarray(k * MAX, Math.min((k + 1) * MAX, bytes.length)), last = k === n - 1 ? 1 : 0;
+    out.push(last, c.length & 255, (c.length >> 8) & 255, ~c.length & 255, (~c.length >> 8) & 255);
+    for (let i = 0; i < c.length; i++) out.push(c[i]);
+  }
+  return Uint8Array.from(out);
+}
+async function drawioDeflateB64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let raw;
+  if (typeof CompressionStream === 'function') {
+    const buf = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+    raw = new Uint8Array(buf);
+  } else raw = drawioStored(bytes);
+  let bin = '';
+  for (let i = 0; i < raw.length; i += 0x8000) bin += String.fromCharCode.apply(null, raw.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+/* d 串 → 绝对坐标的段序列。游标 x/y 始终待在源 SVG 的局部坐标系里，只在落盘那一刻乘矩阵，
+   否则嵌套 svg（每条泳道的 mini）里的相对命令会被当成画布坐标，整格歪掉。
+   M L H V C 直接支持，S Q T 折成等价的 C（节点连线的圆角是 Q）；A（弧）标 bad → 退回贴图，不静默丢图形 */
+function drawioPath(m, d) {
+  const segs = [], pts = [];
+  const tf = q => [m.a * q[0] + m.c * q[1] + m.e, m.b * q[0] + m.d * q[1] + m.f];
+  let x = 0, y = 0, sx = 0, sy = 0, pc = null, pcmd = '', bad = null;
+  const at = (arr, i, rel) => [rel ? x + arr[i] : arr[i], rel ? y + arr[i + 1] : arr[i + 1]];
+  const put = (k, nx, ny, c1, c2) => {
+    const p = tf([nx, ny]);
+    segs.push(c1 ? { k, p, c1: tf(c1), c2: tf(c2) } : { k, p });
+    pts.push(p); x = nx; y = ny;
+  };
+  const q1 = c => [x + 2 * (c[0] - x) / 3, y + 2 * (c[1] - y) / 3];   // 二次 → 三次：控制点取 2/3 处
+  const q2 = (c, e) => [e[0] + 2 * (c[0] - e[0]) / 3, e[1] + 2 * (c[1] - e[1]) / 3];
+  for (const tok of String(d).match(/[a-zA-Z][^a-zA-Z]*/g) || []) {
+    const cmd = tok[0], C = cmd.toUpperCase(), rel = cmd !== C;
+    const a = (tok.slice(1).match(/-?[\d.]+(?:e[-+]?\d+)?/g) || []).map(Number);
+    if (C === 'Z') { segs.push({ k: 'z', p: tf([sx, sy]) }); x = sx; y = sy; pc = null; pcmd = C; continue; }
+    if (C === 'M' || C === 'L') {
+      for (let i = 0; i + 1 < a.length; i += 2) {
+        const p = at(a, i, rel);
+        if (C === 'M' && !i) { sx = p[0]; sy = p[1]; }
+        put(C === 'M' && i ? 'L' : C, p[0], p[1]);   // 首对之后的隐含坐标按 SVG 规范是直线
+      }
+      pc = null; pcmd = C; continue;
+    }
+    if (C === 'H' || C === 'V') {
+      for (let i = 0; i < a.length; i++) put('L', C === 'H' ? (rel ? x + a[i] : a[i]) : x, C === 'V' ? (rel ? y + a[i] : a[i]) : y);
+      pc = null; pcmd = C; continue;
+    }
+    if (C === 'C') {
+      for (let i = 0; i + 5 < a.length; i += 6) {
+        const c1 = at(a, i, rel), c2 = at(a, i + 2, rel), e = at(a, i + 4, rel);
+        put('C', e[0], e[1], c1, c2); pc = c2;
+      }
+      pcmd = C; continue;
+    }
+    if (C === 'S') {
+      for (let i = 0; i + 3 < a.length; i += 4) {
+        const c1 = ((pcmd === 'C' || pcmd === 'S') && pc) ? [2 * x - pc[0], 2 * y - pc[1]] : [x, y];
+        const c2 = at(a, i, rel), e = at(a, i + 2, rel);
+        put('C', e[0], e[1], c1, c2); pc = c2;
+      }
+      pcmd = C; continue;
+    }
+    if (C === 'Q') {
+      for (let i = 0; i + 3 < a.length; i += 4) {
+        const c = at(a, i, rel), e = at(a, i + 2, rel);
+        put('C', e[0], e[1], q1(c), q2(c, e)); pc = c;
+      }
+      pcmd = C; continue;
+    }
+    if (C === 'T') {
+      for (let i = 0; i + 1 < a.length; i += 2) {
+        const c = ((pcmd === 'Q' || pcmd === 'T') && pc) ? [2 * x - pc[0], 2 * y - pc[1]] : [x, y];
+        const e = at(a, i, rel);
+        put('C', e[0], e[1], q1(c), q2(c, e)); pc = c;
+      }
+      pcmd = C; continue;
+    }
+    bad = bad || cmd;
+  }
+  return { segs, pts, bad };
+}
+/* buildEditorSvg 那棵 DOM → 绝对坐标图元。矩阵一律 getScreenCTM 复合，
+   嵌套 svg（每条泳道的 mini）自带的 x/y 与 viewBox 裁剪因此不用特判 */
+function drawioPrims(svg) {
+  const root = svg.getScreenCTM().inverse();
+  const mat = el => {
+    const s = el.getScreenCTM();
+    if (!s) return null;
+    return { a: root.a * s.a + root.c * s.b, b: root.b * s.a + root.d * s.b,
+      c: root.a * s.c + root.c * s.d, d: root.b * s.c + root.d * s.d,
+      e: root.a * s.e + root.c * s.f + root.e, f: root.b * s.e + root.d * s.f + root.f };
+  };
+  const px = (m, x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+  const num = v => String(v == null ? 0 : v).replace(/[^0-9.\-]/g, '') || 0;
+  const out = [], bad = [];
+  /* x（不确定）格的斜纹是整批画在框外、靠 clipPath 裁进框形的；drawio 的 stencil 没有 clip，
+     这里替它做真正的几何裁剪（凸多边形 Liang-Barsky，内法向指向质心，免掉绕序判断） */
+  const clipPoly = (el, m) => {
+    const mm = String(el.getAttribute('clip-path') || '').match(/url\(#([^)]+)\)/);
+    if (!mm) return null;
+    const node = svg.querySelector('[id="' + mm[1] + '"]');
+    const kid = node && node.firstElementChild;
+    if (!kid) { bad.push('clipPath #' + mm[1]); return null; }
+    if (kid.tagName.toLowerCase() === 'rect') {
+      const x = +num(kid.getAttribute('x')), y = +num(kid.getAttribute('y'));
+      const w = +num(kid.getAttribute('width')), h = +num(kid.getAttribute('height'));
+      return [px(m, x, y), px(m, x + w, y), px(m, x + w, y + h), px(m, x, y + h)];
+    }
+    const r = drawioPath(m, kid.getAttribute('d') || '');
+    return r.pts.length > 2 ? r.pts : null;
+  };
+  const clipSeg = (p0, p1, poly) => {
+    const n = poly.length;
+    const cx = poly.reduce((s, q) => s + q[0], 0) / n, cy = poly.reduce((s, q) => s + q[1], 0) / n;
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1];
+    let t0 = 0, t1 = 1;
+    for (let i = 0; i < n; i++) {
+      const A = poly[i], B = poly[(i + 1) % n];
+      const ex = B[0] - A[0], ey = B[1] - A[1], L = Math.hypot(ex, ey) || 1;
+      const nx = (cx - (A[0] + B[0]) / 2) / L, ny = (cy - (A[1] + B[1]) / 2) / L;
+      const f0 = nx * (p0[0] - A[0]) + ny * (p0[1] - A[1]), den = nx * dx + ny * dy;
+      if (Math.abs(den) < 1e-9) { if (f0 < 0) return null; continue; }
+      const t = -f0 / den;
+      if (den > 0) { if (t > t1) return null; if (t > t0) t0 = t; }
+      else { if (t < t0) return null; if (t < t1) t1 = t; }
+    }
+    if (t1 - t0 < 1e-6) return null;
+    return [[p0[0] + dx * t0, p0[1] + dy * t0], [p0[0] + dx * t1, p0[1] + dy * t1]];
+  };
+  /* top = 该元素直接挂在根 svg 上。编辑区画布的底色矩形、行分隔线、通道色点全是根层裸元素，
+     波形与连线一律住在 svg.mini / svg.mini-edges 里 —— 所以这一个标记就足够区分「背景」 */
+  const walk = (node, top) => {
+    for (const el of [...node.children]) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'clippath' || tag === 'defs' || tag === 'lineargradient' || tag === 'pattern') continue;
+      if (tag === 'text') {
+        const kids = [...el.children].filter(k => k.tagName.toLowerCase() === 'tspan');
+        const list = kids.length ? kids : [el];
+        for (const t of list) {
+          const m = mat(t); if (!m) continue;
+          const b = t.getBBox(), xa = +(t.getAttribute('x') || (el.getAttribute('x') ?? b.x));
+          const ya = +(t.getAttribute('y') || (el.getAttribute('y') ?? b.y));
+          const p = px(m, xa, ya);
+          out.push({ t: 'text', x: p[0], y: p[1], w: b.width,
+            fs: parseFloat(t.getAttribute('font-size') || getComputedStyle(t).fontSize) || 12,
+            fill: t.getAttribute('fill') || el.getAttribute('fill') || '#000',
+            anchor: t.getAttribute('text-anchor') || el.getAttribute('text-anchor') || 'start',
+            weight: +(t.getAttribute('font-weight') || el.getAttribute('font-weight') || 400),
+            family: getComputedStyle(t).fontFamily, s: t.textContent });
+        }
+        continue;
+      }
+      if (tag === 'rect') {
+        const m = mat(el); if (!m) continue;
+        const x = +num(el.getAttribute('x')), y = +num(el.getAttribute('y'));
+        const w = +num(el.getAttribute('width')), h = +num(el.getAttribute('height'));
+        const p0 = px(m, x, y), p1 = px(m, x + w, y + h);
+        out.push({ t: 'rect', root: top ? 1 : 0, x: Math.min(p0[0], p1[0]), y: Math.min(p0[1], p1[1]),
+          w: Math.abs(p1[0] - p0[0]), h: Math.abs(p1[1] - p0[1]),
+          rx: (parseFloat(el.getAttribute('rx')) || 0) * Math.abs(m.a),
+          fill: el.getAttribute('fill') || 'none', stroke: el.getAttribute('stroke') || 'none',
+          sw: parseFloat(el.getAttribute('stroke-width')) || 1 });
+        continue;
+      }
+      if (tag === 'line') {
+        const m = mat(el); if (!m) continue;
+        out.push({ t: 'line', root: top ? 1 : 0, a: px(m, +num(el.getAttribute('x1')), +num(el.getAttribute('y1'))),
+          b: px(m, +num(el.getAttribute('x2')), +num(el.getAttribute('y2'))),
+          stroke: el.getAttribute('stroke') || '#000', sw: parseFloat(el.getAttribute('stroke-width')) || 1 });
+        continue;
+      }
+      if (tag === 'circle') {
+        const m = mat(el); if (!m) continue;
+        const c = px(m, +num(el.getAttribute('cx')), +num(el.getAttribute('cy'))), r = +num(el.getAttribute('r')) * Math.abs(m.a);
+        out.push({ t: 'ellipse', root: top ? 1 : 0, x: c[0] - r, y: c[1] - r, w: 2 * r, h: 2 * r, fill: el.getAttribute('fill') || '#000' });
+        continue;
+      }
+      if (tag === 'path') {
+        const m = mat(el); if (!m) continue;
+        const r = drawioPath(m, el.getAttribute('d') || '');
+        if (r.bad) { bad.push(r.bad); out.push({ t: 'image', el, m }); continue; }
+        if (!r.pts.length) continue;
+        out.push({ t: 'path', segs: r.segs, pts: r.pts, fill: el.getAttribute('fill') || 'none',
+          stroke: el.getAttribute('stroke') || 'none', sw: parseFloat(el.getAttribute('stroke-width')) || 1 });
+        continue;
+      }
+      if (el.getAttribute('clip-path')) {
+        const m = mat(el), poly = clipPoly(el, m);
+        if (poly) {
+          const segs = [], pts = [];
+          let first = null;
+          for (const p of el.querySelectorAll('path')) {
+            first = first || p;
+            const r = drawioPath(m, p.getAttribute('d') || '');
+            for (let i = 0; i + 1 < r.segs.length; i++) {
+              if (r.segs[i].k !== 'M' || r.segs[i + 1].k !== 'L') continue;
+              const c = clipSeg(r.segs[i].p, r.segs[i + 1].p, poly);
+              if (c) { segs.push({ k: 'M', p: c[0] }, { k: 'L', p: c[1] }); pts.push(c[0], c[1]); }
+            }
+          }
+          if (segs.length) {
+            out.push({ t: 'path', segs, pts, fill: 'none', stroke: first.getAttribute('stroke') || '#000',
+              sw: parseFloat(first.getAttribute('stroke-width')) || 1 });
+            continue;
+          }
+        }
+      }
+      if (el.children.length) { walk(el, false); continue; }
+      if (tag === 'svg' || tag === 'g') continue;   // 空容器（占位行的 mini 就是空的）本来就没东西可画
+      bad.push(tag);   // 既不认得、又没有子节点：宁可报出来，不静默丢
+    }
+  };
+  walk(svg, true);
+  return { prims: out, bad: [...new Set(bad)] };
+}
+/* 图元 → cell 描述。stencil 的源码先攒着，最后统一压缩（同形同尺寸的格子共用一份 base64） */
+function drawioCells(prims) {
+  const cells = [], shapes = new Map();
+  const add = (x, y, w, h, style, value) => cells.push(`<mxCell id="c${cells.length + 1}" value="${drawioEsc(value || '')}" `
+    + `style="${drawioEsc(style)}" vertex="1" parent="1">`
+    + `<mxGeometry x="${drawioR(x)}" y="${drawioR(y)}" width="${drawioR(w)}" height="${drawioR(h)}" as="geometry"/></mxCell>`);
+  for (const p of prims) {
+    if (p.t === 'rect') {
+      if (p.fill === 'none' && p.stroke === 'none') continue;
+      const fc = drawioCol(p.fill), sc = drawioCol(p.stroke);
+      const arc = p.rx ? ';rounded=1;arcSize=' + drawioR(p.rx / Math.min(p.w, p.h) * 100) : ';rounded=0';
+      add(p.x, p.y, p.w, p.h, 'shape=rectangle' + arc + ';fillColor=' + (p.fill === 'none' ? 'none' : fc.c)
+        + (p.fill === 'none' ? '' : drawioOp('fillOpacity', fc.o))
+        + ';strokeColor=' + (p.stroke === 'none' ? 'none' : sc.c) + drawioOp('strokeOpacity', sc.o)
+        + ';strokeWidth=' + drawioR(p.sw) + ';html=0;');
+    } else if (p.t === 'line') {
+      const sc = drawioCol(p.stroke);
+      cells.push(`<mxCell id="c${cells.length + 1}" style="${drawioEsc('endArrow=none;startArrow=none;html=0;curved=0;'
+        + 'strokeWidth=' + drawioR(p.sw) + ';strokeColor=' + sc.c + drawioOp('strokeOpacity', sc.o) + ';rounded=0;')}" `
+        + `edge="1" parent="1"><mxGeometry relative="1" as="geometry">`
+        + `<mxPoint x="${drawioR(p.a[0])}" y="${drawioR(p.a[1])}" as="sourcePoint"/>`
+        + `<mxPoint x="${drawioR(p.b[0])}" y="${drawioR(p.b[1])}" as="targetPoint"/></mxGeometry></mxCell>`);
+    } else if (p.t === 'ellipse') {
+      const fc = drawioCol(p.fill);
+      add(p.x, p.y, p.w, p.h, 'shape=ellipse;fillColor=' + fc.c + drawioOp('fillOpacity', fc.o) + ';strokeColor=none;html=0;');
+    } else if (p.t === 'text') {
+      /* 基线 → 格顶：verticalAlign=top;spacing=0 且【不带】overflow=fill 时 基线 = 格顶 + fs + 4 */
+      const pad = 2;
+      const left = p.anchor === 'middle' ? p.x - p.w / 2 - pad / 2 : p.anchor === 'end' ? p.x - p.w - pad : p.x;
+      add(left, p.y - p.fs - 4, p.w + pad, p.fs + 10,
+        'text;html=0;align=' + (p.anchor === 'middle' ? 'center' : p.anchor === 'end' ? 'right' : 'left')
+        + ';verticalAlign=top;spacing=0;fontFamily=' + drawioFam(p.family) + ';fontSize=' + drawioR(p.fs)
+        + (p.weight >= 600 ? ';fontStyle=1' : ';fontStyle=0') + ';fontColor=' + drawioCol(p.fill).c + ';', p.s);
+    } else if (p.t === 'image') {
+      /* 兜底：遇到没见过的路径命令就整格转贴图（drawio 实测 1:1，且保住 stroke-linejoin）。
+         坐标各向异性缩放（hscale>1 时 x/y 比例不同）会把描边拉粗拉细，所以这档只保形状不保笔画粗细 */
+      const cs = getComputedStyle(p.el), b = p.el.getBBox(), m = p.m;
+      const sw = parseFloat(cs.strokeWidth) || parseFloat(p.el.getAttribute('stroke-width')) || 1, pad = sw + 1;
+      const vb = `${b.x - pad} ${b.y - pad} ${b.width + 2 * pad} ${b.height + 2 * pad}`;
+      const one = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      one.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      one.setAttribute('viewBox', vb);
+      const cp = p.el.cloneNode(true);
+      /* 克隆体离开了父链，原本继承自 <g> / CSS 类的描边fill 会掉，逐条从计算值补上 */
+      [['fill', cs.fill], ['stroke', cs.stroke], ['stroke-width', cs.strokeWidth],
+        ['stroke-linecap', cs.strokeLinecap], ['stroke-linejoin', cs.strokeLinejoin],
+        ['stroke-dasharray', cs.strokeDasharray === 'none' ? null : cs.strokeDasharray],
+        ['opacity', cs.opacity === '1' ? null : cs.opacity]]
+        .forEach(([k, v]) => { if (v && !cp.getAttribute(k)) cp.setAttribute(k, v); });
+      one.appendChild(cp);
+      const uri = 'data:image/svg+xml,' + encodeURIComponent(new XMLSerializer().serializeToString(one));
+      const q0 = pxAt(m, b.x - pad, b.y - pad), q1 = pxAt(m, b.x + b.width + pad, b.y + b.height + pad);
+      add(q0[0], q0[1], q1[0] - q0[0], q1[1] - q0[1], 'shape=image;imageAspect=0;image=' + uri + ';html=0;');
+    } else {
+      const half = p.sw / 2;
+      const xs = p.pts.map(q => q[0]), ys = p.pts.map(q => q[1]);
+      const x0 = Math.min(...xs) - half, x1 = Math.max(...xs) + half;
+      const y0 = Math.min(...ys) - half, y1 = Math.max(...ys) + half;
+      let inner = '';
+      for (const s of p.segs) {
+        if (s.k === 'z') { inner += '<close/>'; continue; }
+        if (!inner) { inner = `<move x="${drawioR(s.p[0] - x0)}" y="${drawioR(s.p[1] - y0)}"/>`; continue; }
+        if (s.k === 'C') inner += `<curve x="${drawioR(s.p[0] - x0)}" y="${drawioR(s.p[1] - y0)}"`
+          + ` x1="${drawioR(s.c1[0] - x0)}" y1="${drawioR(s.c1[1] - y0)}"`
+          + ` x2="${drawioR(s.c2[0] - x0)}" y2="${drawioR(s.c2[1] - y0)}"`
+          + ` x3="${drawioR(s.p[0] - x0)}" y3="${drawioR(s.p[1] - y0)}"/>`;
+        else inner += `<${s.k === 'M' ? 'move' : 'line'} x="${drawioR(s.p[0] - x0)}" y="${drawioR(s.p[1] - y0)}"/>`;
+      }
+      const filled = p.fill && p.fill !== 'none';
+      const shape = `<shape name="wdg" h="${drawioR(y1 - y0)}" w="${drawioR(x1 - x0)}" aspect="variable" strokewidth="inherit">`
+        + `<background><path>${inner}</path></background><foreground>${filled ? '<fillstroke/>' : '<stroke/>'}</foreground></shape>`;
+      const fc = drawioCol(p.fill), sc = drawioCol(p.stroke);
+      const slot = cells.length;
+      cells.push({ shape, style: 'shape=stencil(@);fillColor=' + (filled ? fc.c : 'none') + (filled ? drawioOp('fillOpacity', fc.o) : '')
+        + ';strokeColor=' + (p.stroke === 'none' ? 'none' : sc.c) + drawioOp('strokeOpacity', sc.o)
+        + ';strokeWidth=' + drawioR(p.sw) + ';html=0;points=[];resizable=1;rotatable=0;',
+        x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+      shapes.set(shape, (shapes.get(shape) || []).concat(slot));
+    }
+  }
+  return { cells, shapes };
+}
+/* noBg = 「下载 drawio（无底色）」档：根层的底色矩形、分隔线、通道色点整批跳过，
+   文字（泳道名 / 拍号 / 标题 / 组名）、波形、连线与折叠箭头照旧。判据是走查器打的 root，
+   不看颜色也不猜尺寸，所以自定义底色、斑马纹、组行底一并生效 */
+async function buildEditorDrawio(noBg) {
+  const svg = buildEditorSvg();
+  if (!svg) return null;
+  const W = +svg.getAttribute('width'), H = +svg.getAttribute('height');
+  svg.style.cssText = 'position:fixed;left:-99999px;top:0;pointer-events:none';
+  document.body.appendChild(svg);
+  let result;
+  try {
+    const prims = drawioPrims(svg);
+    if (noBg) prims.prims = prims.prims.filter(p => !(p.root && p.t !== 'text'));
+    /* 翻译阶段也要挂着：兜底档要读 getBBox / getComputedStyle，摘掉就取不到继承来的描边 */
+    const { cells, shapes } = drawioCells(prims.prims);
+    await Promise.all([...shapes].map(async ([shape, slots]) => {
+      const b64 = await drawioDeflateB64(shape);
+      slots.forEach(i => {
+        const c = cells[i];
+        cells[i] = `<mxCell id="c${i + 1}" value="" style="${drawioEsc(c.style.replace('@', b64))}" vertex="1" parent="1">`
+          + `<mxGeometry x="${drawioR(c.x)}" y="${drawioR(c.y)}" width="${drawioR(c.w)}" height="${drawioR(c.h)}" as="geometry"/></mxCell>`;
+      });
+    }));
+    const xml = '<mxfile host="wavedrom-gui"><diagram name="' + drawioEsc(exportBaseName()) + '" id="wdg">'
+      + `<mxGraphModel dx="${W}" dy="${H}" grid="0" gridSize="10" guides="0" tooltips="0" connect="0" arrows="0"`
+      + ` fold="0" page="1" pageScale="1" pageWidth="${Math.ceil(W)}" pageHeight="${Math.ceil(H)}" math="0" shadow="0"><root>`
+      + '<mxCell id="0"/><mxCell id="1" parent="0"/>' + cells.join('')
+      + '</root></mxGraphModel></diagram></mxfile>';
+    result = { xml, cells: cells.length, bad: prims.bad };
+  } finally { svg.remove(); }
+  return result;
+}
+async function exportDrawio(noBg) {
+  let res = null;
+  try { res = await buildEditorDrawio(noBg); } catch (e) { res = null; }
+  if (!res) { toast(i18n('drawio 导出失败'), true); return; }
+  /* 两档同名会互相覆盖，无底色档在文件名上带一档后缀（跟随界面语言） */
+  download(exportBaseName() + (noBg ? '_' + i18n('无底色') : '') + '.drawio',
+    new Blob([res.xml], { type: 'application/xml' }));
+  toast(res.bad.length ? i18n('drawio 已导出（部分图元退回贴图，drawio 里不可再编辑其内部）')
+    : i18n(noBg ? 'drawio 已导出（无底色）—— 底色、通道色点与分隔线都不出' : 'drawio 已导出 —— 每格都是可编辑的原生图形'));
+}
+
+
 function copyText(text, okMsg) {
   const done = () => toast(okMsg);
   const fail = () => {
@@ -7859,6 +8286,8 @@ function handleAct(act, btn) {
       img.src = url;
       break;
     }
+    case 'export-drawio': exportDrawio(); break;
+    case 'export-drawio-nobg': exportDrawio(true); break;
     case 'export-json': download(exportBaseName() + '.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
     case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), i18n('JSON 已复制到剪贴板')); break;
     case 'copy-kroki': {
