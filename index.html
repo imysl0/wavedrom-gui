@@ -1356,6 +1356,8 @@ html[data-mobile] {
       <button data-act="export-editor-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载编辑区 PNG（2×）">下载编辑区 PNG（2×）</span></button>
       <button data-act="export-drawio" data-i18n-title="drawio 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio">下载 drawio</span></button>
       <button data-act="export-drawio-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1" stroke-dasharray="2.4 1.7"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio（无底色）">下载 drawio（无底色）</span></button>
+      <button data-act="export-excalidraw" data-i18n-title="excalidraw 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1.9"/><ellipse cx="11.7" cy="11.4" rx="2.6" ry="2.1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h2.6"/></svg><span data-i18n="下载 excalidraw">下载 excalidraw</span></button>
+      <button data-act="export-excalidraw-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1.9" stroke-dasharray="2.4 1.7"/><ellipse cx="11.7" cy="11.4" rx="2.6" ry="2.1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h2.6"/></svg><span data-i18n="下载 excalidraw（无底色）">下载 excalidraw（无底色）</span></button>
       <div class="sep"></div>
       <button data-act="export-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H4.5A1.5 1.5 0 0 0 3 4.5V6c0 1-1 2-2 2 1 0 2 1 2 2v1.5A1.5 1.5 0 0 0 4.5 13H6"/><path d="M10 3h1.5A1.5 1.5 0 0 1 13 4.5V6c0 1 1 2 2 2-1 0-2 1-2 2v1.5a1.5 1.5 0 0 1-1.5 1.5H10"/></svg><span data-i18n="下载 JSON">下载 JSON</span></button>
       <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg><span data-i18n="复制 JSON">复制 JSON</span></button>
@@ -1645,6 +1647,8 @@ const I18N_EN = {
   '设置': 'Settings', '导入': 'Import', '导出': 'Export',
   '下载 drawio': 'Download drawio', 'drawio 图形文件，每格都是可编辑的原生图形': 'drawio file — every cell is a native, editable shape',
   '下载 drawio（无底色）': 'Download drawio (no background)', '不带底色、通道色点与分隔线，只留波形与文字': 'No fills, lane dots or separator lines — waveforms and text only',
+  '下载 excalidraw': 'Download excalidraw', 'excalidraw 图形文件，每格都是可编辑的原生图形': 'excalidraw file — every cell is a native, editable shape',
+  '下载 excalidraw（无底色）': 'Download excalidraw (no background)',
   '导入示例': 'Examples', '打开文件（JSON / SVG / PNG）…': 'Open file (JSON / SVG / PNG)…',
   '粘贴 WaveJSON…': 'Paste WaveJSON…', '也可把文件直接拖进窗口': 'You can also drag a file into the window',
   'WaveDrom 语法教程': 'WaveDrom tutorial',
@@ -1935,6 +1939,10 @@ const I18N_EN = {
   'drawio 已导出 —— 每格都是可编辑的原生图形': 'drawio exported — every cell is a native, editable shape',
   'drawio 已导出（部分图元退回贴图，drawio 里不可再编辑其内部）': 'drawio exported (some primitives fell back to embedded images; their interior is not editable in drawio)',
   'drawio 已导出（无底色）—— 底色、通道色点与分隔线都不出': 'drawio exported (no background) — fills, lane dots and separator lines left out',
+  'excalidraw 导出失败': 'excalidraw export failed',
+  'excalidraw 已导出 —— 每格都是可编辑的原生图形': 'excalidraw exported — every cell is a native, editable shape',
+  'excalidraw 已导出（部分图元无法转换，已跳过）': 'excalidraw exported (some primitives could not be converted and were skipped)',
+  'excalidraw 已导出（无底色）—— 底色、通道色点与分隔线都不出': 'excalidraw exported (no background) — fills, lane dots and separator lines left out',
   '无底色': 'no-bg',
   '钉住笔刷弹层': 'Pin brush flyout', '标签': 'Label', '数据标签': 'Data label', '子组': 'Subgroup',
   '图表较大（链接 ': 'Large diagram (link of ', ' 字符），可能超出部分应用的粘贴上限，建议改用压缩分享链接': ' chars) — may exceed paste limits in some apps; prefer the compressed share link',
@@ -7963,7 +7971,9 @@ function drawioPrims(svg) {
             }
           }
           if (segs.length) {
-            out.push({ t: 'path', segs, pts, fill: 'none', stroke: first.getAttribute('stroke') || '#000',
+            /* hatch 标记：这批只有 M/L 的线段是 x 格的斜纹，不是波形轮廓。drawio 档不在乎（stencil 里
+               照样画），excalidraw 档必须认得它——那边折线的 hachure 填充会被画成实心，斜纹只能逐根发 */
+            out.push({ t: 'path', hatch: 1, segs, pts, fill: 'none', stroke: first.getAttribute('stroke') || '#000',
               sw: parseFloat(first.getAttribute('stroke-width')) || 1 });
             continue;
           }
@@ -8102,6 +8112,155 @@ async function exportDrawio(noBg) {
     : i18n(noBg ? 'drawio 已导出（无底色）—— 底色、通道色点与分隔线都不出' : 'drawio 已导出 —— 每格都是可编辑的原生图形'));
 }
 
+/* ---------- 导出 excalidraw（原生可编辑档） ----------
+   与 drawio 档共用同一棵 DOM 和 drawioPrims() / drawioCol() 这层中间图元，只换最后的落地格式：
+   drawio 那套 deflateRaw + base64 stencil、arcSize 百分比、miter 补偿在这里一概用不上，
+   多出来的是「三次曲线展平」与「斜纹逐根发」。换算常数全部是对 @excalidraw/excalidraw 0.18.1
+   前端实测出来的，逐条列在下面（能编辑到什么程度见 EDITOR.md「导入导出」）：
+     · 1 Excalidraw 单位 = 1 CSS px，绝对坐标原样落地；roughness 必须显式给 0，默认档会把直边画成手绘
+     · 闭合折线只有 points 自己回到起点才会上底色，光有 closed:true 只画描边；而 hachure 填在闭合
+       折线上会被画成实心 —— 所以 x 格斜纹只能逐根发成两点 line，这也是本档比 drawio 大的主因
+     · text 元素按自身 width 裁字：SVG 量到的是霞鹜文楷的宽度，退成 Helvetica 会偏窄，名字列末字
+       被切半格。留 18% + 4px 余量；居中档按新宽回退 x 走 center，右锚点整框左移走 right（余量留在
+       左边，收口仍落在原锚点上，换字体不会把名称列整列往右推）；基线退 0.9em（Helvetica 在
+       1.25 行盒里的基线约 0.895em，退 0.8em 实测整体低 1 CSS px）
+     · 元素级只有一个 opacity：同格底色与描边透明度不同时取更淡的那档，x 格外框会比画布上淡一档
+     · 一个 <path> 里的多段 M…z 要逐段发元素（excSubs）：Excalidraw 的 line 只有一条折线，跨段连线
+       会在 z / u 拉伸格上刷出一条横贯整行的假斜线（drawio 档的 stencil 有 <move>，天生不怕）
+     · 0.18.1 没有逐元素字重，组名 / 标题的粗体不保；编辑器自绘的 path 命令集实测只有 CHLMVchlmvz
+       （无 A 弧），drawioPath 的不可解析分支在本档走不到，真遇上了只报数不静默丢 */
+const excR = v => Math.round(v * 100) / 100;
+/* 'none' / 空串 → 'transparent'：drawioCol 对非颜色串原样回传，而 Excalidraw 把它交给 ctx.fillStyle 时
+   无效串会被忽略、沿用上一笔的填充色——不挡就变成给无填充的格子刷上别人的颜色 */
+function excCol(v) {
+  const c = drawioCol(v), k = String(v == null ? '' : v).trim().toLowerCase();
+  return { c: (!k || k === 'none') ? 'transparent' : c.c, o: c.o };
+}
+/* 底色与描边各有一档透明度，Excalidraw 只有一个元素级 opacity，取更淡的那档 */
+const excOp = (...cs) => Math.min(...cs.map(c => (c && c.o != null) ? c.o : 100));
+let excSeq = 0;
+function excEl(type, o) {
+  return Object.assign({ id: 'w' + (++excSeq), type, x: 0, y: 0, width: 0, height: 0, angle: 0,
+    strokeColor: 'transparent', backgroundColor: 'transparent', fillStyle: 'solid', strokeWidth: 1,
+    strokeStyle: 'solid', roughness: 0, opacity: 100, roundness: null, groupIds: [], frameId: null,
+    seed: excSeq, version: 1, versionNonce: 1, isDeleted: false, updated: 1, link: null, locked: false }, o);
+}
+/* 一个 <path> 可以带好几个子路径（WaveDrom 的 z / u / 拉伸格就是同一元素里两段 M…z），而
+   Excalidraw 的 line 元素只有一条折线——不拆开，上一段末点会被一条直线连到下一段起点上 */
+function excSubs(segs) {
+  const subs = [];
+  let cur = null;
+  for (const s of segs) {
+    if (s.k === 'M') { cur = { segs: [s], closed: false }; subs.push(cur); }
+    else if (cur) { cur.segs.push(s); if (s.k === 'z') cur.closed = true; }
+  }
+  return subs;
+}
+/* 三次曲线按弧长加密（2.5px 一档）：drawioPath 已把 Q/T/S 全归一成 C，这里只认 M/L/C/z。
+   展平后在 Excalidraw 里仍整条可拖可改点，只是贝塞尔控制点没了 */
+function excFlat(segs) {
+  const pts = [];
+  const push = p => {
+    const last = pts[pts.length - 1];
+    if (!last || Math.abs(last[0] - p[0]) > 1e-6 || Math.abs(last[1] - p[1]) > 1e-6) pts.push([excR(p[0]), excR(p[1])]);
+  };
+  let cur = null;
+  for (const s of segs) {
+    if (s.k === 'C') {
+      const p0 = cur || s.p;
+      const n = Math.max(4, Math.round(Math.hypot(s.p[0] - p0[0], s.p[1] - p0[1]) / 2.5));
+      for (let j = 1; j <= n; j++) {
+        const t = j / n, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+        push([a * p0[0] + b * s.c1[0] + c * s.c2[0] + d * s.p[0], a * p0[1] + b * s.c1[1] + c * s.c2[1] + d * s.p[1]]);
+      }
+      cur = s.p;
+    } else if (s.k !== 'z') { cur = s.p; push(s.p); }
+  }
+  return pts;
+}
+/* 图元表 → Excalidraw elements。顺序即 z 序，与 drawio 档同一走查次序 */
+function excalidrawEls(prims) {
+  excSeq = 0;
+  const els = []; let skipped = 0;
+  for (const p of prims) {
+    if (p.hatch) {                                    /* x 格斜纹：逐根发两点 line，见头部注释 */
+      const c = excCol(p.stroke);
+      for (let k = 0; k + 1 < p.segs.length; k += 2) {
+        const a = p.segs[k].p, b = p.segs[k + 1].p, dx = excR(b[0] - a[0]), dy = excR(b[1] - a[1]);
+        els.push(excEl('line', { x: excR(a[0]), y: excR(a[1]), width: Math.abs(dx), height: Math.abs(dy),
+          points: [[0, 0], [dx, dy]], strokeColor: c.c, strokeWidth: p.sw, opacity: excOp(c) }));
+      }
+      continue;
+    }
+    if (p.t === 'rect') {
+      const f = excCol(p.fill), s = excCol(p.stroke);
+      els.push(excEl('rectangle', { x: excR(p.x), y: excR(p.y), width: excR(p.w), height: excR(p.h),
+        strokeColor: s.c, backgroundColor: f.c, strokeWidth: p.sw, opacity: excOp(f, s),
+        roundness: p.rx > 0.4 ? { type: 3 } : null }));
+    } else if (p.t === 'line') {
+      const s = excCol(p.stroke), dx = excR(p.b[0] - p.a[0]), dy = excR(p.b[1] - p.a[1]);
+      els.push(excEl('line', { x: excR(p.a[0]), y: excR(p.a[1]), width: Math.abs(dx), height: Math.abs(dy),
+        points: [[0, 0], [dx, dy]], strokeColor: s.c, strokeWidth: p.sw, opacity: excOp(s) }));
+    } else if (p.t === 'ellipse') {
+      const f = excCol(p.fill);
+      els.push(excEl('ellipse', { x: excR(p.x), y: excR(p.y), width: excR(p.w), height: excR(p.h),
+        backgroundColor: f.c, opacity: excOp(f) }));
+    } else if (p.t === 'path') {
+      const f = excCol(p.fill), s = excCol(p.stroke);
+      for (const sub of excSubs(p.segs)) {                /* 逐子路径发元素，跨子路径不能连线 */
+        const pts = excFlat(sub.segs);
+        if (pts.length < 2) continue;
+        if (sub.closed && (pts[pts.length - 1][0] !== pts[0][0] || pts[pts.length - 1][1] !== pts[0][1])) pts.push([pts[0][0], pts[0][1]]);
+        const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+        const x0 = Math.min(...xs), y0 = Math.min(...ys);
+        els.push(excEl('line', { x: x0, y: y0, width: Math.max(...xs) - x0, height: Math.max(...ys) - y0,
+          points: pts.map(q => [excR(q[0] - x0), excR(q[1] - y0)]), closed: sub.closed || undefined,
+          strokeColor: s.c, backgroundColor: f.c, strokeWidth: p.sw, opacity: excOp(f, s) }));
+      }
+    } else if (p.t === 'text') {
+      const f = excCol(p.fill), w0 = p.w || p.s.length * p.fs * 0.6, w = Math.round(w0 * 1.18) + 4;
+      els.push(excEl('text', {
+        /* 三档锚点各给一种对齐：居中的框定在 p.x 上走 center；右对齐的（名称列）把余量留在【左边】
+           走 right，这样替换字体后文字仍然贴着 p.x 收口，不会整列往右溢出去 */
+        x: excR(p.anchor === 'middle' ? p.x - w / 2 : p.anchor === 'end' ? p.x - w : p.x),
+        y: excR(p.y - p.fs * 0.9),
+        width: excR(w), height: excR(p.fs * 1.25), text: p.s, originalText: p.s, fontSize: p.fs, lineHeight: 1.25,
+        fontFamily: 2, textAlign: p.anchor === 'middle' ? 'center' : p.anchor === 'end' ? 'right' : 'left',
+        verticalAlign: 'top',
+        strokeColor: f.c, opacity: excOp(f), containerId: null, autoResize: true }));
+    } else skipped++;   // image：drawio 那边退贴图，Excalidraw 这边要的是 base64 + files 表，不值当
+  }
+  return { els, skipped };
+}
+/* noBg 与 drawio 档同一个判据（走查器打的 root），两档也共用同一次 SVG 重建路径 */
+function buildEditorExcalidraw(noBg) {
+  const svg = buildEditorSvg();
+  if (!svg) return null;
+  const W = +svg.getAttribute('width'), H = +svg.getAttribute('height');
+  svg.style.cssText = 'position:fixed;left:-99999px;top:0;pointer-events:none';
+  document.body.appendChild(svg);
+  let result;
+  try {
+    const prims = drawioPrims(svg);
+    if (noBg) prims.prims = prims.prims.filter(p => !(p.root && p.t !== 'text'));
+    const { els, skipped } = excalidrawEls(prims.prims);
+    /* viewBackgroundColor 一律 transparent：底色那张 rect 本来就在元素里，别再叠一层应用背景 */
+    const scene = { type: 'excalidraw', version: 2, source: 'wavedrom-gui', elements: els,
+      appState: { viewBackgroundColor: 'transparent', gridSize: null }, files: {} };
+    result = { json: JSON.stringify(scene), els: els.length, skipped, bad: prims.bad, box: W + 'x' + H };
+  } finally { svg.remove(); }
+  return result;
+}
+function exportExcalidraw(noBg) {
+  let res = null;
+  try { res = buildEditorExcalidraw(noBg); } catch (e) { res = null; }
+  if (!res) { toast(i18n('excalidraw 导出失败'), true); return; }
+  /* 两档同名会互相覆盖，无底色档在文件名上带一档后缀（跟随界面语言） */
+  download(exportBaseName() + (noBg ? '_' + i18n('无底色') : '') + '.excalidraw',
+    new Blob([res.json], { type: 'application/json' }));
+  toast(res.bad.length || res.skipped ? i18n('excalidraw 已导出（部分图元无法转换，已跳过）')
+    : i18n(noBg ? 'excalidraw 已导出（无底色）—— 底色、通道色点与分隔线都不出' : 'excalidraw 已导出 —— 每格都是可编辑的原生图形'));
+}
 
 function copyText(text, okMsg) {
   const done = () => toast(okMsg);
@@ -8302,6 +8461,8 @@ function handleAct(act, btn) {
     }
     case 'export-drawio': exportDrawio(); break;
     case 'export-drawio-nobg': exportDrawio(true); break;
+    case 'export-excalidraw': exportExcalidraw(); break;
+    case 'export-excalidraw-nobg': exportExcalidraw(true); break;
     case 'export-json': download(exportBaseName() + '.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
     case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), i18n('JSON 已复制到剪贴板')); break;
     case 'copy-kroki': {
