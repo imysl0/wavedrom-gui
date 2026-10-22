@@ -7844,7 +7844,10 @@ function drawioPrims(svg) {
   const num = v => String(v == null ? 0 : v).replace(/[^0-9.\-]/g, '') || 0;
   const out = [], bad = [];
   /* x（不确定）格的斜纹是整批画在框外、靠 clipPath 裁进框形的；drawio 的 stencil 没有 clip，
-     这里替它做真正的几何裁剪（凸多边形 Liang-Barsky，内法向指向质心，免掉绕序判断） */
+     这里替它做真正的几何裁剪（凸多边形 Liang-Barsky）。
+     法向必须【垂直于边】，符号由绕序决定；早先写成「边中点 → 质心」的方向，正六边形恰好垂直所以
+     看不出问题，总线末端的平头五边形上边会偏 atan(4/11) ≈ 20°，整条上裁剪边界斜着往下掉，
+     右上角那几根斜纹就被啃掉了——「导出 drawio 后总线末端 x 格上沿缺一条纹」正是这里。 */
   const clipPoly = (el, m) => {
     const mm = String(el.getAttribute('clip-path') || '').match(/url\(#([^)]+)\)/);
     if (!mm) return null;
@@ -7861,13 +7864,20 @@ function drawioPrims(svg) {
   };
   const clipSeg = (p0, p1, poly) => {
     const n = poly.length;
-    const cx = poly.reduce((s, q) => s + q[0], 0) / n, cy = poly.reduce((s, q) => s + q[1], 0) / n;
+    let area = 0;
+    for (let i = 0; i < n; i++) {
+      const A = poly[i], B = poly[(i + 1) % n];
+      area += A[0] * B[1] - B[0] * A[1];
+    }
     const dx = p1[0] - p0[0], dy = p1[1] - p0[1];
     let t0 = 0, t1 = 1;
     for (let i = 0; i < n; i++) {
       const A = poly[i], B = poly[(i + 1) % n];
       const ex = B[0] - A[0], ey = B[1] - A[1], L = Math.hypot(ex, ey) || 1;
-      const nx = (cx - (A[0] + B[0]) / 2) / L, ny = (cy - (A[1] + B[1]) / 2) / L;
+      /* shoelace 面积为正 = 逐边左转 = 区域在每条边的左手侧，左手侧单位法向即 (-ey, ex)；为负则反向。
+         零长边（重复顶点）法向退化成 (0,0)，den=0 且 f0=0，下面按「平行且在内部」跳过，无害 */
+      const flip = area > 0 ? 1 : -1;
+      const nx = -ey / L * flip, ny = ex / L * flip;
       const f0 = nx * (p0[0] - A[0]) + ny * (p0[1] - A[1]), den = nx * dx + ny * dy;
       if (Math.abs(den) < 1e-9) { if (f0 < 0) return null; continue; }
       const t = -f0 / den;
