@@ -45,26 +45,42 @@ const { svgWithMeta, pngInsertITXt, WD_PNG_KEYWORD, WD_EXPORT_KEYWORD } = requir
 function parseArgs(argv) {
   const o = { mode: 'modern', format: 'png', scale: 2, nodePos: 'lm', nodeScale: 1, nodeInset: 4, nodeMode: 'bare', noMeta: false, strict: false, autoScale: true, autoScaleMax: 2 };
   const pos = [];
-  for (let i = 2; i < argv.length; i++) {
+  /* 取值型 flag 一律显式取值且拒绝以 -- 开头的「值」：`--out --no-meta` 这类连写以前会把
+     flag 当成文件名、产出 '--no-meta.png' 且 noMeta 静默失效。未知 flag 以前会落进位置
+     参数池被静默吞掉（`--formatt` 拼错 → 仍按默认 png 出图无任何提示），现在直接报错 */
+  let i = 2;
+  const takeVal = flag => {
+    const v = argv[i + 1];
+    if (v === undefined || /^--/.test(v)) { console.error('missing value for ' + flag); process.exit(1); }
+    i++;
+    return v;
+  };
+  for (; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h' || a === '--help') { o.help = true; }
     else if (a === '--strict') o.strict = true; // 只接受严格 JSON：渲染不可信输入时禁用宽松求值回退
-    else if (a === '--mode') o.mode = argv[++i];
-    else if (a === '--format') o.format = argv[++i];
-    else if (a === '--out' || a === '-o') o.out = argv[++i];
-    else if (a === '--scale') o.scale = parseFloat(argv[++i]);
-    else if (a === '--skin') o.skin = argv[++i];
-    else if (a === '--node-pos') o.nodePos = argv[++i];
-    else if (a === '--node-scale') o.nodeScale = parseFloat(argv[++i]);
-    else if (a === '--node-inset') o.nodeInset = parseInt(argv[++i], 10);
-    else if (a === '--node-mode') o.nodeMode = argv[++i];
-    else if (a === '--bus-join') o.busJoin = argv[++i];
-    else if (a === '--auto-scale') o.autoScale = argv[++i] !== 'off';
-    else if (a === '--no-auto-scale') o.autoScale = false;
-    else if (a === '--auto-scale-max') o.autoScaleMax = parseInt(argv[++i], 10);
     else if (a === '--no-meta') o.noMeta = true;
+    else if (a === '--no-auto-scale') o.autoScale = false;
+    else if (a === '--mode') o.mode = takeVal(a);
+    else if (a === '--format') o.format = takeVal(a);
+    else if (a === '--out' || a === '-o') o.out = takeVal(a);
+    else if (a === '--scale') o.scale = parseFloat(takeVal(a));
+    else if (a === '--skin') o.skin = takeVal(a);
+    else if (a === '--node-pos') o.nodePos = takeVal(a);
+    else if (a === '--node-scale') o.nodeScale = parseFloat(takeVal(a));
+    else if (a === '--node-inset') o.nodeInset = parseInt(takeVal(a), 10);
+    else if (a === '--node-mode') o.nodeMode = takeVal(a);
+    else if (a === '--bus-join') o.busJoin = takeVal(a);
+    else if (a === '--auto-scale') o.autoScale = takeVal(a) !== 'off';
+    else if (a === '--auto-scale-max') o.autoScaleMax = parseInt(takeVal(a), 10);
+    else if (a === '-') pos.push(a);          // stdin 标记
+    else if (/^-/.test(a)) { console.error('unknown option: ' + a + ' (see --help)'); process.exit(1); }
     else pos.push(a);
   }
+  if (pos.length > 1) { console.error('unexpected extra argument: ' + pos[1]); process.exit(1); }
+  if (!Number.isFinite(o.scale) || o.scale <= 0) { console.error('--scale must be a positive number'); process.exit(1); }
+  if (!Number.isFinite(o.autoScaleMax) || o.autoScaleMax < 1) { console.error('--auto-scale-max must be a number >= 1'); process.exit(1); }
+  if (o.skin && !['default', 'narrow'].includes(o.skin)) { console.error('unknown --skin: ' + o.skin); process.exit(1); }
   o.input = pos[0];
   return o;
 }

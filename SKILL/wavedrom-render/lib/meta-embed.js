@@ -83,13 +83,26 @@ function pngExtractWaveJSON(buf) {
     const len = buf.readUInt32BE(off);
     const type = buf.toString('latin1', off + 4, off + 8);
     if (type === 'IEND') break;
-    if ((type === 'iTXt' || type === 'tEXt') && len > 0) {
+    if ((type === 'iTXt' || type === 'tEXt' || type === 'zTXt') && len > 0) {
       const body = buf.subarray(off + 8, off + 8 + len);
       const z = body.indexOf(0);
       if (z >= 0 && body.toString('latin1', 0, z) === WD_PNG_KEYWORD) {
         try {
           if (type === 'tEXt') return body.toString('utf8', z + 1);
-          if (body[z + 1] !== 0) return null; /* this tool only writes uncompressed */
+          if (type === 'zTXt') {
+            /* keyword\0 compressionMethod(0) deflate(text)——与 vscode/lib/meta-embed.js
+               同一语义：外部工具把元数据转成压缩块时也能读回，而不是静默当「无元数据」 */
+            const zlib = require('zlib');
+            return zlib.inflateSync(body.subarray(z + 2)).toString('utf8');
+          }
+          if (body[z + 1] !== 0) {
+            /* compressed iTXt：本工具只写未压缩块，但第三方工具可能重写成 zlib，解开 */
+            const zlib = require('zlib');
+            let p = z + 3;
+            while (p < body.length && body[p] !== 0) p++; p++; /* language tag */
+            while (p < body.length && body[p] !== 0) p++; p++; /* translated keyword */
+            return zlib.inflateSync(body.subarray(p)).toString('utf8');
+          }
           let p = z + 3;
           while (p < body.length && body[p] !== 0) p++; p++; /* language tag */
           while (p < body.length && body[p] !== 0) p++; p++; /* translated keyword */

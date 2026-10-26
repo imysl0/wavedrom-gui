@@ -27,6 +27,18 @@ function loadConfig() {
   catch (e) { console.error('无法读取 fonts.config.json：' + e.message); process.exit(1); }
 }
 
+/* TTF magic：0x00010000 / 'true' / 'OTTO'。已存在的文件也要验——坏文件（以前只查大小
+   落盘的代理错误页）才有机会在重跑时被重新下载自愈 */
+function ttfMagicOk(p) {
+  try {
+    const fd = fs.openSync(p, 'r');
+    const magic = Buffer.alloc(4);
+    fs.readSync(fd, magic, 0, 4, 0);
+    fs.closeSync(fd);
+    return magic.readUInt32BE(0) === 0x00010000 || magic.toString('latin1') === 'true' || magic.toString('latin1') === 'OTTO';
+  } catch (e) { return false; }
+}
+
 // Download a URL to a file. Follows redirects (GitHub releases redirect to a CDN).
 function download(url, dest, redirectsLeft = 6) {
   return new Promise((resolve, reject) => {
@@ -45,11 +57,18 @@ function download(url, dest, redirectsLeft = 6) {
       const out = fs.createWriteStream(tmp);
       res.pipe(out);
       out.on('finish', () => out.close(() => {
-        // sanity: TTF should start with 0x00010000 or 'true'/'OTTO'; at least non-trivial size
-        const size = fs.statSync(tmp).size;
-        if (size < 10000) { fs.unlinkSync(tmp); return reject(new Error('downloaded file too small (' + size + 'B)')); }
-        fs.renameSync(tmp, dest);
-        resolve(size);
+        /* 校验按注释的承诺来：前 4 字节 TTF magic + 体积非琐碎。gh-proxy 这类中转可能
+           回一个 10KB+ 的错误页——只查大小时它照样落盘成正式字体，之后子集化静默跳过、
+           外观悄悄回退，且重跑因「已存在」永不自愈 */
+        try {
+          const size = fs.statSync(tmp).size;
+          if (size < 10000 || !ttfMagicOk(tmp)) {
+            fs.unlinkSync(tmp);
+            return reject(new Error('downloaded file is not a valid TTF (size=' + size + 'B)'));
+          }
+          fs.renameSync(tmp, dest);
+          resolve(size);
+        } catch (err) { try { fs.unlinkSync(tmp); } catch (e) {} reject(err); }
       }));
       out.on('error', err => { try { fs.unlinkSync(tmp); } catch (e) {} reject(err); });
     });
@@ -91,7 +110,7 @@ async function main() {
   let ok = 0, skip = 0, fail = 0;
   for (const font of cfg.fonts || []) {
     const dest = path.join(destDir, font.file);
-    if (fs.existsSync(dest) && fs.statSync(dest).size > 10000) {
+    if (fs.existsSync(dest) && fs.statSync(dest).size > 10000 && ttfMagicOk(dest)) {
       console.log(`  ✓ ${font.family}  已存在，跳过`);
       skip++; continue;
     }

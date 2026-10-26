@@ -391,6 +391,14 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   ok(fenceCount(glued) === mdFenceCount(glued), '粘连文档下 FENCE_RE 分块数与 markdown-it 一致');
   ok(fenceCount('# t\n\n```wavedrom\n' + A + '\n```\n\n```wavedrom\n' + B + '\n```\n') === mdFenceCount('# t\n\n```wavedrom\n' + A + '\n```\n\n```wavedrom\n' + B + '\n```\n'), '正常文档下 FENCE_RE 分块数与 markdown-it 一致');
 
+  /* 5i. 波浪线围栏：markdown-it 同样产出 fence token、预览同样给编辑入口，写回必须定位得到
+     （旧版只认反引号，预览里能编辑、写回永远「找不到代码块」） */
+  setDoc('# t\n\n~~~wavedrom\n' + A + '\n~~~\n\n正文\n\n~~~wavedrom\n' + B + '\n~~~\n');
+  ok(fenceCount(getDoc()) === 2 && mdFenceCount(getDoc()) === 2, '波浪线围栏分块数与 markdown-it 一致');
+  ok(firstFenceBody(getDoc()) === A, '波浪线围栏正文捕获正确');
+  await saveBack({ kind: 'fence', docPath: mdPath, fenceRaw: A, line: 2 }, A2);
+  ok(fenceCount(getDoc()) === 2 && getDoc().includes('p.......') && getDoc().includes('正文'), '波浪线围栏写回后仍闭合、不吞正文');
+
   /* ---- 5h. 写回文本跟随编辑器显示模式（紧凑模式不再被强制展开成 2 空格缩进） ---- */
   const { writeText } = ext.__test;
   const compactText = '{\n  "signal": [\n    { "name": "clk", "wave": "p......." }\n  ]\n}';
@@ -439,7 +447,7 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   /* ---- 6b. 界面钩子 × 轮询脚本对接：文档一变，消息文本即为当前显示模式的风格 ---- */
   const vm = require('vm');
   const editorSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
-  const hookSrc = editorSrc.slice(editorSrc.indexOf('let codeCompact'), editorSrc.indexOf('function renderCode()'));
+  const hookSrc = editorSrc.slice(editorSrc.indexOf('let codeCompact'), editorSrc.indexOf('function renderCode('));
   const pollerSrc = /\(function \(\) \{\s*var vs = acquireVsCodeApi\(\);[\s\S]*?\}\)\(\);/.exec(h1);
   ok(pollerSrc, '能从面板 HTML 中取出轮询脚本');
 

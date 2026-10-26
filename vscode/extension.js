@@ -65,9 +65,13 @@ function t(message, ...args) {
 
 /* 围栏两端都要锚定：开头必须行首（0-3 空格缩进，与 markdown-it 一致），否则正文里
    的 ```wavedrom 字样（如小标题）会被误认成围栏开头，导致定位/写回错位；结尾必须
-   整行只有反引号（可带尾随空白），否则下一个块的开头围栏会被当成闭合围栏，一次匹配
-   横跨两块。大小写与预览侧 isWaveFence 一致（i），避免预览认、写回不认。 */
-const FENCE_RE = /^(?: {0,3})```+[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}```[ \t]*(?:\r?\n|$)/gmi;
+   整行只有围栏符（可带尾随空白），否则下一个块的开头围栏会被当成闭合围栏，一次匹配
+   横跨两块。大小写与预览侧 isWaveFence 一致（i），避免预览认、写回不认。
+   波浪线围栏（~~~wavedrom）markdown-it 同样产出 fence token、预览侧同样给出编辑入口，
+   这里必须一并认下，否则预览里能编辑、写回永远定位不到。闭合围栏不校验与开头同字符：
+   markdown-it 只认同字符闭合，混用本就是残缺语法，为保住「正文是 1 号捕获组」的既有
+   约定（十余处 m[1] 与测试都依赖）不引入反引用分组。 */
+const FENCE_RE = /^(?: {0,3})(?:```+|~~~+)[ \t]*wave(?:drom|json)\b[^\n]*\n([\s\S]*?)^ {0,3}(?:```|~~~)[ \t]*(?:\r?\n|$)/gmi;
 /* 正文图片引用：![alt](path.png|svg)，允许尾随 "title"。路径取到空白或右括号为止；
    预览侧由 markdown-it 的 image token 解析（带 title 也命中），这里保持同一覆盖面 */
 const IMG_RE = /!\[[^\]]*\]\(\s*([^)\s]+\.(?:png|svg))(?:[ \t]+[^)]*)?\)/gi;
@@ -80,6 +84,10 @@ function registerKey(info) {
     for (const key of editTargets.keys()) { if (drop-- <= 0) break; editTargets.delete(key); }
   }
   const k = crypto.createHash('sha1').update(JSON.stringify(info)).digest('hex').slice(0, 12);
+  /* 先删再插刷新插入序（Map.set 命中已有键不动位序）：否则按插入序淘汰「最旧」时，
+     恰好清掉当前预览还引用着的键——持续编辑别的块越过了淘汰线，没改过的块点「编辑」
+     就一直弹「预览已过期」，直到下一次预览重渲染 */
+  editTargets.delete(k);
   editTargets.set(k, info);
   return k;
 }
@@ -102,6 +110,10 @@ function editLink(k) {
 }
 
 const EXPIRED = 'WaveDrom: This diagram in the preview is stale — reopen the preview and try again';
+
+/* 唯一临时名：同一图片开两个面板时共享固定 .wdtmp 会互相踩（A 先 rename 走临时文件，
+   B 的 renameSync 抛 ENOENT 弹出假「写回失败」）。随机后缀让两边的原子替换互不干扰 */
+const wdTmpPath = p => p + '.' + crypto.randomBytes(4).toString('hex') + '.wdtmp';
 
 /* 按 k 打开编辑面板；k 不在注册表里（预览过期、扩展重载过、或别人构造的链接）就只提示 */
 function openTargetByKey(k) {
@@ -494,6 +506,8 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
   let pending = null;      // 手动档攒着没写回的改动 { json, text }
   let dirty = false;       // 有待提交改动（驱动标题前缀 !/✓、顶栏胶囊与按钮可用态）
   let expectFlush = false; // 已提交但那一帧像素还没到手，等它到了立刻落盘
+  let reqSaveWaiter = null; // commit() 在等 webview 上报最新文档的一次性回调
+  let liveSync = null;      // 进行中的「要最新文档」往返，并发的 commit 共用一次
   const baseTitle = panel.title;
   /* 图片目标的像素写回：webview 在轮询里（250ms 一次）把当前画面光栅化后随 pixels 消息
      上报，这里暂存内存，停手 250ms 后或面板关闭/切走时落盘。webview 销毁后就渲染不出新图
@@ -526,7 +540,7 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
         ? Buffer.from(svgWithMeta(px.svg, saveTarget.lastSaved, imgKind), 'utf8')
         : reembedPngMarker(px.png, imgKind, saveTarget.lastSaved);
       /* 写临时文件再改名：整文件重写像素后，半途崩溃不能再留下坏图 */
-      const tmp = saveTarget.imgPath + '.wdtmp';
+      const tmp = wdTmpPath(saveTarget.imgPath);
       try { fs.writeFileSync(tmp, out); fs.renameSync(tmp, saveTarget.imgPath); }
       finally { try { fs.unlinkSync(tmp); } catch (e) { /* 改名成功后本就不存在 */ } }
       if (showToast) vscode.window.setStatusBarMessage(t('WaveDrom: Image re-rendered and saved'), 3000);
@@ -565,7 +579,24 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
 
   /* 一次提交：先写文档（saveBack 内部更新 lastSaved），再落与它同源的那一帧像素。
      像素通常比 save 消息晚几毫秒到手，届时 expectFlush 会接住它。 */
-  const commit = async () => {
+  /* 请 webview 就地上报当前文档（与胶囊按钮 pillSave 同一条路）：改动落在界面侧要等它
+     400ms 的落盘去抖 + 这里 250ms 的轮询，抢在这个窗口按 Ctrl+S / 标题栏保存会提交上一版
+     却标成 ✓。webview 已销毁或 350ms 内没应答就按宿主手里的 pending 提交——宁可稍旧，
+     也不让保存键空转 */
+  const syncLiveDoc = () => {
+    if (liveSync) return liveSync;
+    liveSync = new Promise(res => {
+      let settled = false;
+      const finish = () => { if (settled) return; settled = true; if (reqSaveWaiter === finish) reqSaveWaiter = null; res(); };
+      reqSaveWaiter = finish;
+      try { panel.webview.postMessage({ type: 'reqSave' }).then(() => {}, () => {}); }
+      catch (e) { finish(); return; }
+      setTimeout(finish, 350);
+    }).then(() => { liveSync = null; });
+    return liveSync;
+  };
+  const commit = async (alreadyFresh) => {
+    if (manual && !alreadyFresh) await syncLiveDoc();
     if (!pending) {
       /* 面板里没有待提交的改动时，这条键位也别空转：live 档的元数据写回只到 markdown
          文档的 buffer（文件仍归用户保存），既然 Ctrl+S 被我们接了，就顺手替他把这份
@@ -601,15 +632,19 @@ function setupEditorPanel(panel, target, jsonText, imgPxW = null, imgKind = null
         expectFlush = false; // 上一轮提交等的那帧像素已经不代表当前文档了
         /* 胶囊那颗「保存」把「上报当前文档」和「提交」合成一封发来：改动落在界面侧要等它
            400ms 的落盘去抖、再到这里最多 250ms 的轮询，抢在这个窗口按保存会写回旧内容，
-           所以按钮先就地取最新文档再连 commit 一起送。带 commit 就不必先标脏再翻回来。 */
-        if (msg.commit) commit();
+           所以按钮先就地取最新文档再连 commit 一起送。带 commit 就不必先标脏再翻回来。
+           若这封是 commit() 刚发的 reqSave 的应答，唤醒等待方即可，别再递归 commit。 */
+        if (msg.commit) {
+          if (reqSaveWaiter) { const w = reqSaveWaiter; reqSaveWaiter = null; w(); }
+          else commit(true);
+        }
         else setDirty(true);
       } else {
         saveBack(saveTarget, msg.json, msg.text);
         if (isImage) armFlush();
       }
     } else if (msg.type === 'commit' && manual) {
-      commit();     // 按钮取不到文档时的兜底：按宿主手里已有的那份提交
+      commit(true);     // 按钮取不到文档时的兜底：按宿主手里已有的那份提交（webview 刚试过取，再要也是空手，不再往返）
     } else if (msg.type === 'pixels' && isImage && msg.json) {
       pendingPx = {
         json: msg.json,
@@ -956,11 +991,17 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
   /* 胶囊上那颗保存：先就地取当前文档（buildJSON 是编辑器的实时状态，绕开界面 400ms 的落盘
      去抖与这里 250ms 的轮询），连同 commit 标记一起发给宿主；取不到就退回 localStorage 那份，
      连那份都没有时只发一封 commit，让宿主按手里已有的内容提交。 */
-  function pillSave() {
+  /* 就地取当前文档：先试编辑器的实时状态（绕开界面 400ms 的落盘去抖），退回 localStorage，
+     都没有 / 解析不了就算拿不到 */
+  function liveDoc() {
     var v = null;
     try { if (typeof buildJSON === 'function') v = JSON.stringify(buildJSON()); } catch (e) { v = null; }
     if (!v) { try { v = localStorage.getItem(KEY); } catch (e) { v = null; } }
     if (v) { try { JSON.parse(v); } catch (e) { v = null; } }
+    return v;
+  }
+  function pillSave() {
+    var v = liveDoc();
     if (v) {
       last = v;
       try { storeSet(KEY, v); } catch (e) {}   // 与轮询对齐，免得同一份内容再报一次、把标签翻回脏
@@ -970,6 +1011,27 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
       try { vs.postMessage({ type: 'commit' }); } catch (e) {}
     }
   }
+  /* 编辑器落盘（persist，400ms 防抖）后立即上报一份：宿主手里的 pending 不必再等 250ms
+     轮询，「打完字马上关面板」的丢失窗口从 ~650ms 缩到 400ms 防抖本身。armed 之前不动
+     作：启动后的第一份 persist 是初始文档，不能把刚打开的面板标成脏（arming 那步会把
+     基线与初始文档对齐，arming 前的编辑也由它兜住）。 */
+  function pushSave() {
+    var v = liveDoc();
+    if (!v) return;
+    last = v;
+    try { vs.postMessage({ type: 'save', json: v, text: displayText(v) }); } catch (e) {}
+    if (IMG) sendPixels();
+  }
+  try {
+    var _wdPersist = window.persist;
+    if (typeof _wdPersist === 'function') {
+      window.persist = function () {
+        var r = _wdPersist.apply(this, arguments);
+        if (armed) pushSave();
+        return r;
+      };
+    }
+  } catch (e) { /* 包不上就维持纯轮询 */ }
   /* 放不下就少显示一点：文案先让位（图标 + 按钮是主角），连按钮都放不下就整颗收起。
      量的是胶囊自己的内容宽与弹性区实宽——两者都是布局结果，不写死断点。 */
   function pillFit() {
@@ -1003,6 +1065,7 @@ function buildEditorHtml(initialJson, docKey = 'wdgui-doc-v1', imageTarget = nul
   }
   window.addEventListener('message', function (ev) {
     var d = ev && ev.data;
+    if (d && d.type === 'reqSave') { pillSave(); return; }   // 宿主提交前要一份实时文档（syncLiveDoc）
     if (!d || d.type !== 'saveState') return;
     try {
       if (d.state === 'idle') { if (pill) pill.style.display = 'none'; return; }
@@ -1164,7 +1227,11 @@ async function saveBack(target, json, displayText, opts) {
       ? Buffer.from(svgWithMeta(bytes.toString('utf8'), json,
           svgDetectExportKind(bytes.toString('utf8')) || 'skill-modern'), 'utf8')
       : pngReplaceITXt(bytes, 'WaveJSON', json);
-    fs.writeFileSync(target.imgPath, out);
+    /* 元数据写回同样是整文件重写：与 flushPixels 同一条「临时文件 + 改名」的原子落盘，
+       进程被杀 / 断电 / 磁盘满时不能留下截断的坏图 */
+    const tmp = wdTmpPath(target.imgPath);
+    try { fs.writeFileSync(tmp, out); fs.renameSync(tmp, target.imgPath); }
+    finally { try { fs.unlinkSync(tmp); } catch (e) { /* 改名成功后本就不存在 */ } }
     target.lastSaved = json;
     vscode.window.setStatusBarMessage(t('WaveDrom: Embedded WaveJSON in the image updated'), 3000);
   } catch (e) { vscode.window.showErrorMessage(t('WaveDrom: Image write-back failed — {0}', e.message)); }
