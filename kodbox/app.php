@@ -56,6 +56,16 @@ class wavedromPlugin extends PluginBase{
 		$this->previewPage($this->target());
 	}
 
+	/** 轮询端点：返回文件当前 mtime。只读元数据，供打开着的编辑器感知「文件已在别处被改」；
+	    精确拦截由 save 的乐观锁负责，这里拿不到/漏报都无害 */
+	public function mtime(){
+		$path = $this->pathTrue($this->in['path']);
+		if (!is_string($path) || $path === '') { show_json('path error', false); }
+		$info = IO::info($path);
+		if (!is_array($info) || $info['isFolder']) { show_json('path error', false); }
+		show_json('ok', true, array('mtime' => (string)_get($info, 'modifyTime')));
+	}
+
 	/** 预览页给 .wave 源码出图用的渲染器：隐藏 iframe 装载编辑器，只出图、不落盘 */
 	public function render(){
 		$this->editorPage($this->target(), true);
@@ -113,6 +123,9 @@ class wavedromPlugin extends PluginBase{
 			'fileName'   => $t['name'],
 			'docKey'     => $docKey,
 			'renderOnly' => $renderOnly,
+			'mtime'      => $t['ver'],        // 打开时的文件 mtime：写回乐观锁的初始基准
+			'mtimeApi'   => $this->pluginApi . 'mtime',   // 外部修改感知的轮询端点
+			'watchRemote'=> !$renderOnly && _get($this->getConfig(), 'watchRemote') != '0',
 			'saveApi'    => $this->pluginApi . 'save',
 			'fresh'      => !$renderOnly && (bool)_get($this->hostArgs(), 'fresh'),
 			'autoSave'   => !$renderOnly && _get($this->getConfig(), 'autoSave') == '1',
@@ -123,7 +136,9 @@ class wavedromPlugin extends PluginBase{
 		   服务端读出来的,不受影响）;带上文件 mtime。 */
 		. '<script src="' . $this->pluginHost . 'static/app/bridge.js?v=' . $this->packageVersion()
 		. '-' . filemtime($this->pluginPath . 'static/app/bridge.js') . '"></script>' . "\n";
-		echo preg_replace('/(<body[^>]*>)/i', '$1' . $boot, $html, 1);
+		/* 不能用 preg_replace 的 '$1' 拼替换串：文件名含 $1 之类子串时会被 PCRE 当反向引用,
+		   把页面 JSON 换成 <body> 标签,该文件的编辑页直接损坏 */
+		echo preg_replace_callback('/<body[^>]*>/i', function ($m) use ($boot) { return $m[0] . $boot; }, $html, 1);
 	}
 
 	/* 预览页：图就是内容——.wave.png / .wave.svg 直接摆原文件,.wave 走 render 路由借
@@ -146,6 +161,9 @@ class wavedromPlugin extends PluginBase{
 			'fileUrl'   => $t['fileUrl'],
 			'ver'       => $t['ver'],
 			'canWrite'  => $t['canWrite'],
+			'mtimeApi'  => $this->pluginApi . 'mtime',
+			'path'      => $t['path'],
+			'watchRemote'=> _get($this->getConfig(), 'watchRemote') != '0',
 			'editUrl'   => $editUrl,
 			'renderUrl' => $renderUrl,
 			'lng'       => $this->previewLang(),
@@ -175,7 +193,8 @@ class wavedromPlugin extends PluginBase{
 	/* bridge.js 里要显示的少量文案：编辑器自带 i18n 只管自己的界面,宿主提示走 kodbox 语言包 */
 	private function hostLang(){
 		$keys = array('loading', 'save', 'saved', 'saving', 'dirty', 'readonly',
-			'noMeta', 'loadFail', 'saveFail', 'noFile', 'saveAs', 'newDefault', 'badName');
+			'noMeta', 'loadFail', 'saveFail', 'noFile', 'saveAs', 'newDefault', 'badName',
+			'conflict', 'conflictAsk', 'remoteChanged', 'remoteChangedDirty', 'reloadNew');
 		$out = array();
 		foreach ($keys as $k) { $out[$k] = LNG('wavedrom.host.' . $k); }
 		return $out;
@@ -229,6 +248,23 @@ class wavedromPlugin extends PluginBase{
 		}
 		if (!$this->kindMatch($kind, $content)) { show_json(LNG('wavedrom.errType'), false); }
 
+		/* 乐观锁：bridge 带上它打开/上次保存成功时看到的 mtime。对不上 = 文件已被别处
+		   （另一标签页、另一端）改过——放行就成了「最后写入者赢」，A 的编辑会被 B 的
+		   陈旧内存静默盖掉。冲突时把可识别的标记同时放进 info 与 data（show_json 两处
+		   落点随核心版本有别，前端两头都读）；force=1 是用户在提示里确认覆盖后的重发。
+		   mtime 拿不到（异常存储后端）就退回无条件写，与旧行为一致。 */
+		$baseMtime = (string)_get($this->in, 'baseMtime');
+		if ($baseMtime !== '' && _get($this->in, 'force') != '1') {
+			$curMtime = (string)_get($info, 'modifyTime');
+			if ($curMtime !== '' && $curMtime !== $baseMtime) {
+				$conflict = array(
+					'conflict' => true, 'mtime' => $curMtime,
+					'message'  => LNG('wavedrom.errConflict'),
+				);
+				show_json($conflict, false, $conflict);
+			}
+		}
+
 		if (IO::setContent($path, $content) === false) {
 			show_json(IO::getLastError(LNG('explorer.saveError')), false);
 		}
@@ -276,12 +312,34 @@ class wavedromPlugin extends PluginBase{
 			&& _get($peer, 'port') == _get($self, 'port');
 	}
 
-	/* 内容与后缀是否相配：png 看文件签名,svg 看是不是 SVG 标记,json 拒绝标记与超大内容 */
+	/* 内容与后缀是否相配：png 看签名并走完整 chunk 链（IEND 恰好收尾，堵「魔数后夹带任意
+	   负载」）;svg 必须带本编辑器导出必写的 WaveJSON 元数据标记、且不得出现脚本元素——
+	   .svg 会被浏览器当文档直接打开,校验太松等于开放「把任意 HTML 存成 svg」的跳板
+	   （CSRF token 存在非 httpOnly cookie 里,真被写进去就不是小事）;json 拒绝标记与超大内容 */
 	private function kindMatch($kind, $content){
 		$head = ltrim($content);
-		if ($kind === 'png')  return strncmp($content, "\x89PNG\r\n\x1a\n", 8) === 0;
-		if ($kind === 'svg')  return strncmp($head, '<', 1) === 0 && stripos($content, '<svg') !== false;
+		if ($kind === 'png')  return $this->pngLooksValid($content);
+		if ($kind === 'svg')  return strncmp($head, '<', 1) === 0
+			&& stripos($content, '<svg') !== false
+			&& preg_match('/<metadata[^>]*data-wavedrom/i', $content) === 1
+			&& !preg_match('/<script[\s\/>]/i', $content);
 		if ($kind === 'json') return strncmp($head, '<', 1) !== 0 && strlen($content) <= 8 * 1024 * 1024;
+		return false;
+	}
+
+	/* PNG 完整性：签名 + chunk 链无越界走到 IEND、且 IEND 后无尾随数据。长度字段按无符号
+	   解析并检查前进量,畸形输入不会拖成死循环。编辑器写回的图必然以此收尾,手工截断的
+	   坏图在这里就被拒。 */
+	private function pngLooksValid($content){
+		if (strncmp($content, "\x89PNG\r\n\x1a\n", 8) !== 0) return false;
+		$n = strlen($content);
+		$off = 8;
+		while ($off + 8 <= $n) {
+			$chunk = unpack('Nlen/a4type', substr($content, $off, 8));
+			$off += 12 + $chunk['len'];
+			if ($chunk['type'] === 'IEND') return $off === $n;
+			if ($off > $n) return false;
+		}
 		return false;
 	}
 }

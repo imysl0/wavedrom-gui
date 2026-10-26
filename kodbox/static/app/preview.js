@@ -14,6 +14,7 @@
   var C = {};
   try { C = JSON.parse(node && node.textContent) || {}; } catch (e) {}
   var L = function (k) { return (C.lng && C.lng[k]) || k; };
+  var curVer = C.ver || '';   // 当前画面所用的缓存串：轮询发现文件被别处改了就跟到新值
 
   var stage = document.getElementById('wdStage');
   var btn = document.getElementById('wdEdit');
@@ -82,7 +83,7 @@
   }
 
   function filePic() {
-    var url = C.fileUrl + (C.fileUrl.indexOf('?') >= 0 ? '&' : '?') + '_wv=' + encodeURIComponent(C.ver || '');
+    var url = C.fileUrl + (C.fileUrl.indexOf('?') >= 0 ? '&' : '?') + '_wv=' + encodeURIComponent(curVer || '');
     picture(url);
   }
 
@@ -103,8 +104,11 @@
   }
 
   /* ---------- .wave：借编辑器渲一张 SVG ---------- */
+  var renderInFlight = false;   // 渲染握手进行中：轮询不再叠开 iframe
   function renderViaEditor() {
     if (!C.renderUrl) return state(L('noFile'), false, true);
+    if (renderInFlight) return;
+    renderInFlight = true;
     state(L('loading'), true);
     var frame = document.createElement('iframe');
     frame.className = 'wd-render';
@@ -115,6 +119,7 @@
 
     var settled = false;
     var kill = function () {
+      renderInFlight = false;
       window.removeEventListener('message', onMessage);
       clearTimeout(timer);
       if (frame.parentNode) frame.parentNode.removeChild(frame);
@@ -146,9 +151,39 @@
     window.addEventListener('message', onMessage);
   }
 
+  /* ---------- 外部修改感知：轮询 mtime，别处改了就静默换新图 ----------
+     预览页只读、无冲突语义，直接自动刷新（编辑页的写回拦截走它自己的乐观锁）。
+     图片 = 换缓存串让浏览器重取；.wave 源码 = 重新走一遍渲染握手。 */
+  function startPollWatch() {
+    if (!C.watchRemote || !C.mtimeApi || !C.path || !C.fileUrl) return;
+    if (/^https?:/i.test(C.fileUrl)) return;
+    var tick = function () { if (!document.hidden && !renderInFlight) pollMtime(); };
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+    setInterval(tick, C.pollMs || 20000);
+  }
+  function pollMtime() {
+    var x = new XMLHttpRequest();
+    x.open('GET', C.mtimeApi + '&path=' + encodeURIComponent(C.path), true);
+    x.timeout = 10000;
+    x.onload = function () {
+      var r = null;
+      try { r = JSON.parse(x.responseText); } catch (e) {}
+      var m = (r && r.data && typeof r.data === 'object') ? String(r.data.mtime || '') : '';
+      if (!m) return;                                // 拿不到就算了，下个周期再试
+      if (!curVer) { curVer = m; return; }           // 打开时没拿到基准：先认领，不当变化
+      if (m === curVer) return;
+      curVer = m;
+      if (C.kind === 'json') renderViaEditor();
+      else filePic();
+    };
+    x.onerror = function () {};
+    x.send();
+  }
+
   /* ---------- 启动 ---------- */
   installEdit();
   if (!C.fileUrl) { state(L('noFile'), false, true); return; }
   if (C.kind === 'json') renderViaEditor();
   else filePic();
+  startPollWatch();
 })();

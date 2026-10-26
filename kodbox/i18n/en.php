@@ -10,6 +10,8 @@ return array(
 	'wavedrom.config.claimImageDesc' => "When on, double-clicking such a file opens the waveform editor (plain images are untouched); when off, pick it from \"Open with\"",
 	'wavedrom.config.autoSave'      => "Auto save after editing",
 	'wavedrom.config.autoSaveDesc'  => "When off, use the toolbar Save button or Ctrl+S; when on, editing stops for about 1s and the file is written back",
+	'wavedrom.config.watchRemote'      => "Detect external file changes",
+	'wavedrom.config.watchRemoteDesc'  => "Open editors poll for file changes every 20s and show a notice (clean pages get one-click reload); off, only the save-time conflict check guards",
 
 	'wavedrom.app.title'     => "Waveform editor",
 	'wavedrom.app.previewTitle' => "Waveform preview",
@@ -38,8 +40,14 @@ return array(
 	'wavedrom.host.saveAs'   => "Choose where to save…",
 	'wavedrom.host.newDefault' => "waveform",
 	'wavedrom.host.badName'  => "The file name must end with .wave, .wave.svg or .wave.png; nothing was written",
+	'wavedrom.host.conflict' => "File changed elsewhere — auto-save paused",
+	'wavedrom.host.conflictAsk' => "The file was changed elsewhere (maybe another tab). Overwrite it with the current content?",
+	'wavedrom.host.remoteChanged' => "File updated elsewhere",
+	'wavedrom.host.remoteChangedDirty' => "File changed elsewhere; your edits are unsaved — saving will ask for confirmation",
+	'wavedrom.host.reloadNew' => "Load new version",
 
 	'wavedrom.errType'       => "Content does not match the file extension; write refused",
+	'wavedrom.errConflict'   => "File changed elsewhere — this save was refused (overwrite from the editor prompt if intended)",
 	'wavedrom.errEmpty'      => "Empty content; write refused",
 	'wavedrom.errDecode'     => "Failed to decode the payload",
 	'wavedrom.errTooLarge'   => "Content too large; write refused",

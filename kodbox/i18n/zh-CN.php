@@ -10,6 +10,8 @@ return array(
 	'wavedrom.config.claimImageDesc' => "开启后，双击这类文件直接进入波形编辑器（普通图片不受影响）；关闭则只在「打开方式」里可手动选择",
 	'wavedrom.config.autoSave'      => "编辑后自动写回",
 	'wavedrom.config.autoSaveDesc'  => "关闭时需用工具栏「保存」或 Ctrl+S；开启后停止编辑约 1 秒自动写回原文件",
+	'wavedrom.config.watchRemote'      => "检测文件在别处被修改",
+	'wavedrom.config.watchRemoteDesc'  => "打开着的编辑器每 20 秒查一次文件改动，变化时给提示（干净页面可一键加载新版）；关闭后只在保存时由冲突检测拦截",
 
 	'wavedrom.app.title'     => "波形图编辑",
 	'wavedrom.app.previewTitle' => "波形预览",
@@ -38,8 +40,14 @@ return array(
 	'wavedrom.host.saveAs'   => "请选择保存位置…",
 	'wavedrom.host.newDefault' => "波形图",
 	'wavedrom.host.badName'  => "文件名需以 .wave / .wave.svg / .wave.png 结尾，已放弃写入",
+	'wavedrom.host.conflict' => "文件已在别处被修改，自动保存已暂停",
+	'wavedrom.host.conflictAsk' => "文件已在别处被修改（可能开在另一个标签页）。仍要用当前内容覆盖吗？",
+	'wavedrom.host.remoteChanged' => "文件已在别处更新",
+	'wavedrom.host.remoteChangedDirty' => "文件已在别处被修改；你的改动尚未保存，保存时会再确认是否覆盖",
+	'wavedrom.host.reloadNew' => "加载新版",
 
 	'wavedrom.errType'       => "文件类型与后缀不符，已拒绝写入",
+	'wavedrom.errConflict'   => "文件已在别处被修改，本次保存被拒绝（可在编辑器里选择覆盖）",
 	'wavedrom.errEmpty'      => "内容为空，已拒绝写入",
 	'wavedrom.errDecode'     => "数据解码失败",
 	'wavedrom.errTooLarge'   => "内容过大，已拒绝写入",

@@ -3,9 +3,9 @@
 	"name":"{{LNG['wavedrom.meta.name']}}",
 	"title":"{{LNG['wavedrom.meta.title']}}",
 	"menu":"{{LNG['wavedrom.menu']}}",
-	"version":"260921.3.0",
+	"version":"261022.3.0",
 	"source":{
-		"icon":"{{pluginHost}}static/images/icon.svg?v=260921.3.0",
+		"icon":"{{pluginHost}}static/images/icon.svg?v=261022.3.0",
 		"screenshoot":[
 			"{{pluginHost}}static/images/shot1.png"
 		]
@@ -67,6 +67,12 @@
 			"value":0,
 			"display":"{{LNG['wavedrom.config.autoSave']}}",
 			"desc":"{{LNG['wavedrom.config.autoSaveDesc']}}"
+		},
+		"watchRemote":{
+			"type":"switch",
+			"value":1,
+			"display":"{{LNG['wavedrom.config.watchRemote']}}",
+			"desc":"{{LNG['wavedrom.config.watchRemoteDesc']}}"
 		},
 		"fileSort":{
 			"type":"number",

@@ -15,7 +15,20 @@
   var KIND = H.kind || 'json';                 // png | svg | json；「另存为」换目标后会跟着改
   var SEED = { signal: [{ name: 'clk', wave: 'p....' }] };   // 新建文件的起点：一拍时钟
 
-  var srcKind = '', baseline = null, dirty = false, busy = false, capture = null, autoTimer = null;
+  var srcKind = '', dirty = false, busy = false, capture = null, autoTimer = null;
+  var saveQueued = false;                      // 保存进行中又触发的保存：记一枪，收尾时补存
+  /* 脏检测挂编辑器自己的 persist 钩子，不再轮询共享 localStorage 键：docKey 按文件派生、
+     两标签页共用，A 的编辑会被 B 的轮询当成自己的改动、B 保存后还会用自己的旧内存盖掉
+     A 未落盘的内容。钩子只听得见本页面编辑器的落盘，串台从根上不存在（与 VS Code 插件的
+     注入脚本同模式）。docKey 键保留给编辑器自己：只承担启动闪现/装载兜底，两页互覆无实害
+     （打开时 loadIntoEditor 永远以服务器文件内容收尾） */
+  var armed = false;                           // 启动装载完成前钩子不计数（遮罩未揭，用户无从输入）
+  var editorTouched = false;                   // 本次保存的载荷取走之后又发生过的编辑
+  var selfPersist = false;                     // 桥自己触发的 persist（captureExport 收尾）不算编辑
+  var loadingRemote = false;                   // 「加载新版」装载中：编辑器自 persist 不算编辑
+  var serverMtime = H.mtime || '';             // 乐观锁基准：打开时/上次保存成功后的文件 mtime
+  var remoteChanged = false, remoteMtime = ''; // 轮询发现的外部修改：只提醒，不动乐观锁基准
+  var conflictStalled = false;                 // 自动保存撞上冲突：停下等用户裁决，不再循环撞墙
   var picking = false;                         // 「另存为」弹窗开着
   var el = {};
 
@@ -112,6 +125,10 @@
         var body = bytes.subarray(off + 8, off + 8 + len), z = body.indexOf(0);
         if (z >= 0 && dec.decode(body.subarray(0, z)) === keyword) {
           if (type === 'tEXt') return dec.decode(body.subarray(z + 1));
+          /* 压缩的 iTXt（第三方工具重写文本块后可能出现）：同步环境解不了 zlib，
+             跳过它继续扫后面的块——绝不能把压缩字节当明文解出乱码 JSON，
+             那会让用户以为文件内容就是一张时钟 */
+          if (body[z + 1] !== 0) { off += 12 + len; continue; }
           var p = z + 3;                                   // 跳过压缩标志与压缩方法
           while (p < body.length && body[p] !== 0) p++; p++;  // 语言标签
           while (p < body.length && body[p] !== 0) p++; p++;  // 翻译关键字
@@ -178,7 +195,8 @@
     }, 20000);
     capture = function (err, blob) {
       clearTimeout(timer);
-      if (!err) try { persist(); } catch (e) {}
+      /* 这一声 persist 是桥的收尾动作（把导出时的状态落盘），不算用户编辑 */
+      if (!err) { selfPersist = true; try { persist(); } catch (e) {} selfPersist = false; }
       cb(err, blob);
     };
     try { handleAct(act); }
@@ -192,21 +210,32 @@
     rd.readAsDataURL(blob);
   }
 
-  function send(content, isBase64, cb) {
+  function send(content, isBase64, cb, force) {
     var body = 'path=' + encodeURIComponent(H.savePath)
       + '&content=' + encodeURIComponent(content)
       + (isBase64 ? '&base64=1' : '')
+      + (serverMtime ? '&baseMtime=' + encodeURIComponent(serverMtime) : '')   // 乐观锁基准
+      + (force ? '&force=1' : '')
       + (H.csrfToken ? '&CSRF_TOKEN=' + encodeURIComponent(H.csrfToken) : '');
     var x = new XMLHttpRequest();
     x.open('POST', H.saveApi, true);
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=utf-8');
+    x.timeout = 30000;                             // 服务器挂起时别让 busy 永久卡死保存通道
     x.onload = function () {
       var r = null;
       try { r = JSON.parse(x.responseText); } catch (e) {}
-      if (r && r.code === true) return cb(null);
-      cb(new Error((r && r.data) || ('HTTP ' + x.status)));
+      if (r && r.code === true) {
+        /* 成功响应里带落盘后的 mtime：接管为下一次乐观锁基准 */
+        if (r.data && typeof r.data === 'object' && r.data.modifyTime) serverMtime = String(r.data.modifyTime);
+        return cb(null, r);
+      }
+      var d = r && r.data;
+      var meta = (d && typeof d === 'object') ? d : null;   // 冲突响应把标记放在 data 对象里
+      cb(new Error((meta && meta.message) || (typeof d === 'string' ? d : null) || ('HTTP ' + x.status)),
+         { conflict: !!(meta && meta.conflict) });
     };
     x.onerror = function () { cb(new Error('network')); };
+    x.ontimeout = function () { cb(new Error('timeout')); };
     x.send(body);
   }
 
@@ -243,6 +272,7 @@
     KIND = kind;
     H.savePath = one.path;
     H.canWrite = true;
+    serverMtime = '';   // 换了目标：原 mtime 属于别的文件，首存不带乐观锁，成功后从响应接管
     return true;
   }
 
@@ -271,8 +301,8 @@
     }, 500);
   }
 
-  function save(manual) {
-    if (busy) return;
+  function save(manual, force) {
+    if (busy) { saveQueued = true; return; }   // 在途不丢：排一枪，收尾时补存（PNG 导出常耗时数秒）
     if (!H.canWrite) {
       if (!H.savePath) { if (manual) saveAs(); return; }   // 自动保存不该弹窗，manual 才走
       if (manual) notify(L('readonly'), true);
@@ -281,14 +311,140 @@
     busy = true;
     setStatus(L('saving'));
     finish(function (err, payload) {
-      if (err) { busy = false; setStatus(err.message || L('saveFail'), 'err'); notify(L('saveFail') + '：' + (err.message || err), true); return; }
+      /* 载荷此刻已取自编辑器实时状态：此后的 persist 钩子才算「没保存进这次的新改动」 */
+      editorTouched = false;
+      if (err) { busy = false; dirty = true; settle(); setStatus(err.message || L('saveFail'), 'err'); notify(L('saveFail') + '：' + (err.message || err), true); return; }
       send(payload.text, payload.base64, function (e2, msg) {
         busy = false;
-        if (e2) { setStatus(e2.message || L('saveFail'), 'err'); notify(L('saveFail') + '：' + e2.message, true); return; }
-        syncBaseline();
-        setStatus(L('saved'));
-        notify(L('saved'));
-      });
+        if (e2) {
+          dirty = true;   // 没存进去，全部内容都还是未保存（warnUnsaved 与状态灯都要认账）
+          /* 冲突：文件已被别处（另一标签页/另一端）改过。手动保存问一次要不要覆盖；
+             自动保存置冲突停机，等下一次手动保存给说法，否则会按 1.2s 节奏无限撞墙 */
+          if (msg && msg.conflict && !force) {
+            conflictStalled = true;
+            setStatus(L('conflict'), 'err');
+            notify(L('conflict'), true);
+            if (manual && window.confirm(L('conflictAsk'))) { save(true, true); return; }
+            settle();
+            return;
+          }
+          settle(); setStatus(e2.message || L('saveFail'), 'err'); notify(L('saveFail') + '：' + e2.message, true);
+          return;
+        }
+        conflictStalled = false;
+        remoteChanged = false;
+        refreshRemoteUi();   // 自己保存成功 = 文件内容已是本页的，外部修改提示过时了
+        /* 只认载荷取走之后的钩子 fire；另一标签页写什么都与本页无关 */
+        dirty = editorTouched;
+        if (dirty) setStatus(L('dirty'), 'warn');
+        else { setStatus(L('saved')); notify(L('saved')); }
+        settle(true);
+      }, force);
+    });
+  }
+
+  /* 保存收尾。rearm 只在成功时给 true：失败的保存不自动重试（网络坏掉时不能按 1.2s
+     节奏无限撞服务器），用户的下一次编辑会经钩子重新排起 */
+  function settle(rearm) {
+    if (saveQueued) { saveQueued = false; save(false); return; }
+    if (rearm && dirty && H.autoSave && H.canWrite && !conflictStalled) {
+      clearTimeout(autoTimer);
+      autoTimer = setTimeout(function () { save(false); }, 1200);
+    }
+  }
+
+  /* persist 钩子：编辑器每次落盘（400ms 防抖 / 撤销恢复 / beforeunload）都经过这里 */
+  function onEditorTouched() {
+    editorTouched = true;
+    if (busy) return;                        // 保存收尾按 editorTouched 结账，中途不动状态灯
+    if (!dirty) { dirty = true; if (saveable()) setStatus(L('dirty'), 'warn'); }
+    if (H.autoSave && H.canWrite && !conflictStalled) {
+      clearTimeout(autoTimer);
+      autoTimer = setTimeout(function () { save(false); }, 1200);
+    }
+  }
+  function hookPersist() {
+    if (RENDER || typeof window.persist !== 'function') return;
+    var orig = window.persist;
+    window.persist = function () {
+      var r = orig.apply(this, arguments);
+      if (armed && !selfPersist && !loadingRemote) onEditorTouched();
+      return r;
+    };
+  }
+  /* 启动收尾：此后钩子才计数。文件路径下遮罩一直盖到此刻——武装前用户没有输入窗口，
+     装载与启动自产生的 persist 全部被挡住；无文件路径没有自动保存目标，900ms 窗口期
+     内的编辑无实害（手动保存取的是实时文档） */
+  function arm() {
+    armed = true;
+    editorTouched = false;
+    dirty = false;
+  }
+
+  /* ---------- 外部修改感知：轮询 mtime，让开着的编辑器知道文件被别处改了 ----------
+     只负责提醒（干净页给「加载新版」，编辑中只提示保存时会再确认）；写回的精确拦截
+     由 save 的乐观锁负责——轮询同秒漏报也不会静默覆盖。后台设置「检测文件在别处被
+     修改」可关；外链文件（http/s）没有 mtime 可比，不轮询。 */
+  function startPollWatch() {
+    if (RENDER || !H.watchRemote || !H.fileUrl || !H.mtimeApi || !H.savePath) return;
+    if (/^https?:/i.test(H.fileUrl)) return;
+    var tick = function () { if (!document.hidden && !busy && !picking) pollMtime(); };
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+    setInterval(tick, H.pollMs || 20000);
+  }
+  function pollMtime() {
+    var x = new XMLHttpRequest();
+    x.open('GET', H.mtimeApi + '&path=' + encodeURIComponent(H.savePath), true);
+    x.timeout = 10000;
+    x.onload = function () {
+      var r = null;
+      try { r = JSON.parse(x.responseText); } catch (e) {}
+      var m = (r && r.data && typeof r.data === 'object') ? String(r.data.mtime || '') : '';
+      if (!m) return;                                    // 拿不到就算了，下个周期再试
+      if (!serverMtime) { serverMtime = m; return; }     // 没有基准（另存的新目标）：先认领
+      if (m === serverMtime) return;
+      remoteMtime = m;
+      if (remoteChanged) return;                         // 已在提醒中，别反复弹
+      remoteChanged = true;
+      if (dirty) { setStatus(L('remoteChangedDirty'), 'warn'); notify(L('remoteChangedDirty'), true); }
+      else { setStatus(L('remoteChanged'), 'warn'); notify(L('remoteChanged'), true); showReloadBtn(); }
+    };
+    x.onerror = function () {};
+    x.send();
+  }
+  function showReloadBtn() {
+    if (el.rbtn || !el.status) return;                   // 顶栏没装起来就只留 toast
+    el.rbtn = document.createElement('button');
+    el.rbtn.type = 'button';
+    el.rbtn.className = 'btn';
+    el.rbtn.textContent = L('reloadNew');
+    el.rbtn.title = L('remoteChanged');
+    el.rbtn.addEventListener('click', function () { reloadFromServer(); });
+    el.status.insertAdjacentElement('afterend', el.rbtn);
+  }
+  function refreshRemoteUi() {
+    if (el.rbtn) { try { el.rbtn.remove(); } catch (e) {} el.rbtn = null; }
+  }
+  /* 干净页的「加载新版」：走与打开时同一条 解码→装载 链；失败保留现状只报错。
+     装载自 persist（同步 + 400ms 防抖落盘）不能算用户编辑，loadingRemote 门盖过防抖窗 */
+  function reloadFromServer() {
+    if (busy) return;
+    busy = true;
+    setStatus(L('loading'));
+    readFile(function (err, bytes) {
+      busy = false;
+      if (err) { setStatus(err.message || L('loadFail'), 'err'); notify(L('loadFail') + '：' + (err.message || err), true); return; }
+      var out = decodeFile(bytes);
+      if (!out.json && !out.empty) { notify(L('noMeta'), true); setStatus(L('remoteChanged'), 'warn'); return; }
+      loadingRemote = true;
+      loadIntoEditor(out.json);
+      serverMtime = remoteMtime || serverMtime;          // 基准跟到看到的这份
+      editorTouched = false;
+      dirty = false;
+      remoteChanged = false;
+      refreshRemoteUi();
+      setStatus(L('saved'));
+      setTimeout(function () { loadingRemote = false; editorTouched = false; }, 500);
     });
   }
 
@@ -311,23 +467,7 @@
     });
   }
 
-  /* ---------- 脏检测：编辑器每次改动都会防抖写入本文件的自动保存键 ---------- */
-  function stored() { try { return localStorage.getItem(H.docKey); } catch (e) { return null; } }
-  function syncBaseline() {
-    try { persist(); } catch (e) {}
-    baseline = stored();
-    dirty = false;
-  }
-  function watchTick() {
-    var v = stored();
-    if (v === null || baseline === null) return;
-    if (v === baseline) return;
-    if (!dirty) { dirty = true; if (saveable()) setStatus(L('dirty'), 'warn'); }
-    if (H.autoSave && H.canWrite) {
-      clearTimeout(autoTimer);
-      autoTimer = setTimeout(function () { save(false); }, 1200);
-    }
-  }
+  /* ---------- 脏检测已改走 persist 钩子（见文件头注释与 onEditorTouched） ---------- */
 
   function saveShortcut(ev) {
     if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
@@ -380,12 +520,13 @@
       hideMask(L('loadFail'));
       return;
     }
+    hookPersist();   // 脏检测改挂编辑器自己的 persist（见文件头注释与 onEditorTouched）
     if (!H.fileUrl) {                          // 从左侧菜单直接打开：保存时选位置，或「导出」下载到本地
       if (RENDER) return post({ type: 'wd-svg', error: 'no-file' });
       hideMask();
       if (!saveable() && el.btn) el.btn.disabled = true;
       setStatus(L('noFile'), 'warn');
-      syncBaseline(); setInterval(watchTick, 300);
+      setTimeout(arm, 900);                    // 等编辑器启动自 persist 落地再武装（见 arm 注释）
       return;
     }
     readFile(function (err, bytes) {
@@ -398,9 +539,9 @@
       loadIntoEditor(out.json);
       if (RENDER) return renderMode(!!out.json);
       if (!out.json && !out.empty) notify(L('noMeta'), true);
-      setTimeout(function () {                       // 等编辑器的防抖自动保存落地，再取脏检测基线
-        syncBaseline();
-        setInterval(watchTick, 300);
+      setTimeout(function () {                       // 等装载与启动自 persist 全部落地，再武装钩子
+        arm();
+        startPollWatch();
         hideMask();
         if (fresh && H.canWrite) { setStatus(L('saving')); save(false); }
         else if (out.json && H.canWrite) setStatus(L('saved'));   // 打开即与盘上一致，别留着空白状态
