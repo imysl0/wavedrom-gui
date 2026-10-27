@@ -167,6 +167,43 @@ while (off + 8 <= png2.length) {
 }
 ok(count === 1, '替换后仅剩一个 WaveJSON 文本块');
 ok(meta.pngExtractWaveJSON(skeleton) === null, '无元数据 PNG 提取为 null');
+/* ---- 1b. 压缩文本块：外部工具（oxipng 之类）重写元数据后仍要读得回 ----
+   曾经的两个坑：iTXt 的压缩标志判反（flag 0 = 未压缩，写成「必须 0」等于解压分支永不进），
+   以及 zTXt 根本不在块类型白名单里；另外单块解不开时 return null 会放弃整张图的扫描 */
+const zlibT = require('zlib');
+const crcT = (() => {
+  const t = [];
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return buf => { let r = 0xFFFFFFFF; for (let i = 0; i < buf.length; i++) r = t[(r ^ buf[i]) & 0xFF] ^ (r >>> 8); return (r ^ 0xFFFFFFFF) >>> 0; };
+})();
+function tChunk(type, data) {
+  const out = Buffer.alloc(12 + data.length);
+  out.writeUInt32BE(data.length, 0);
+  out.write(type, 4, 'latin1');
+  data.copy(out, 8);
+  out.writeUInt32BE(crcT(out.subarray(4, 8 + data.length)), 8 + data.length);
+  return out;
+}
+function injectBeforeIEND(png, chunks) {
+  let off = 8;
+  while (off + 8 <= png.length) {
+    const len = png.readUInt32BE(off);
+    if (png.toString('latin1', off + 4, off + 8) === 'IEND') break;
+    off += 12 + len;
+  }
+  return Buffer.concat([png.subarray(0, off), ...chunks, png.subarray(off)]);
+}
+const kwNul = Buffer.from(meta.WD_PNG_KEYWORD + '\0', 'latin1'), nulByte = Buffer.from('\0', 'latin1');
+const rawJson = Buffer.from(json1, 'utf8'), defJson = zlibT.deflateSync(rawJson);
+const chITxtPlain = tChunk('iTXt', Buffer.concat([kwNul, Buffer.from([0, 0]), nulByte, nulByte, rawJson]));
+const chITxtComp = tChunk('iTXt', Buffer.concat([kwNul, Buffer.from([1, 0]), nulByte, nulByte, defJson]));
+const chZTxt = tChunk('zTXt', Buffer.concat([kwNul, Buffer.from([0]), defJson]));
+const chBroken = tChunk('iTXt', Buffer.concat([kwNul, Buffer.from([1, 0]), nulByte, nulByte, Buffer.from('这不是 zlib 流', 'utf8')]));
+ok(meta.pngExtractWaveJSON(injectBeforeIEND(skeleton, [chITxtPlain])) === json1, '未压缩 iTXt 提取');
+ok(meta.pngExtractWaveJSON(injectBeforeIEND(skeleton, [chITxtComp])) === json1, '压缩 iTXt（标志 1 + 方法 0）解压提取');
+ok(meta.pngExtractWaveJSON(injectBeforeIEND(skeleton, [chZTxt])) === json1, 'zTXt 解压提取');
+ok(meta.pngExtractWaveJSON(injectBeforeIEND(skeleton, [chBroken, chITxtComp])) === json1, '坏块在前后有真块：跳过坏块继续扫');
+ok(meta.pngExtractWaveJSON(injectBeforeIEND(skeleton, [chBroken])) === null, '只有坏块：返回 null 而不是抛异常');
 const dims = meta.pngGetSize(png1);
 ok(dims && dims.width === 4 && dims.height === 4, 'pngGetSize 读出 IHDR 尺寸');
 ok(meta.pngGetSize(Buffer.from('not a png')) === null, '非 PNG 返回 null');

@@ -57,6 +57,9 @@ function parseArgs(argv) {
   };
   for (; i < argv.length; i++) {
     const a = argv[i];
+    /* '--' = 选项结束，后面全按位置参数处理。没有它，名为 '-o.json' 或以 '--' 开头的
+       输入路径会被当成未知 flag 直接报错，用户也无从表达「这就是个文件名」 */
+    if (a === '--') { pos.push(...argv.slice(i + 1)); break; }
     if (a === '-h' || a === '--help') { o.help = true; }
     else if (a === '--strict') o.strict = true; // 只接受严格 JSON：渲染不可信输入时禁用宽松求值回退
     else if (a === '--no-meta') o.noMeta = true;
@@ -64,22 +67,26 @@ function parseArgs(argv) {
     else if (a === '--mode') o.mode = takeVal(a);
     else if (a === '--format') o.format = takeVal(a);
     else if (a === '--out' || a === '-o') o.out = takeVal(a);
-    else if (a === '--scale') o.scale = parseFloat(takeVal(a));
+    else if (a === '--scale') o.scale = Number(takeVal(a));
     else if (a === '--skin') o.skin = takeVal(a);
     else if (a === '--node-pos') o.nodePos = takeVal(a);
-    else if (a === '--node-scale') o.nodeScale = parseFloat(takeVal(a));
-    else if (a === '--node-inset') o.nodeInset = parseInt(takeVal(a), 10);
+    else if (a === '--node-scale') o.nodeScale = Number(takeVal(a));
+    else if (a === '--node-inset') o.nodeInset = Number(takeVal(a));
     else if (a === '--node-mode') o.nodeMode = takeVal(a);
     else if (a === '--bus-join') o.busJoin = takeVal(a);
     else if (a === '--auto-scale') o.autoScale = takeVal(a) !== 'off';
-    else if (a === '--auto-scale-max') o.autoScaleMax = parseInt(takeVal(a), 10);
+    else if (a === '--auto-scale-max') o.autoScaleMax = Number(takeVal(a));
     else if (a === '-') pos.push(a);          // stdin 标记
     else if (/^-/.test(a)) { console.error('unknown option: ' + a + ' (see --help)'); process.exit(1); }
     else pos.push(a);
   }
   if (pos.length > 1) { console.error('unexpected extra argument: ' + pos[1]); process.exit(1); }
   if (!Number.isFinite(o.scale) || o.scale <= 0) { console.error('--scale must be a positive number'); process.exit(1); }
-  if (!Number.isFinite(o.autoScaleMax) || o.autoScaleMax < 1) { console.error('--auto-scale-max must be a number >= 1'); process.exit(1); }
+  if (!Number.isInteger(o.autoScaleMax) || o.autoScaleMax < 1) { console.error('--auto-scale-max must be an integer >= 1'); process.exit(1); }
+  /* 节点相关两档同样要校验：以前 --node-scale abc 会被 parseFloat 变成 NaN 再被渲染层
+     悄悄回落到默认值，--node-inset 100 则被 clamp 成 9 —— 都是「给了参数但没生效」且无提示 */
+  if (!Number.isFinite(o.nodeScale) || o.nodeScale <= 0) { console.error('--node-scale must be a positive number'); process.exit(1); }
+  if (!Number.isInteger(o.nodeInset) || o.nodeInset < 0 || o.nodeInset > 9) { console.error('--node-inset must be an integer from 0 to 9'); process.exit(1); }
   if (o.skin && !['default', 'narrow'].includes(o.skin)) { console.error('unknown --skin: ' + o.skin); process.exit(1); }
   o.input = pos[0];
   return o;
@@ -154,8 +161,8 @@ function main() {
     : renderModern(source, { nodePos: o.nodePos, nodeScale: o.nodeScale, nodeInset: o.nodeInset, nodeMode: o.nodeMode, autoScale: o.autoScale, autoScaleMax: o.autoScaleMax, busJoin: o.busJoin });
 
   // Resolve output base name. Default (no --out): same convention as the app —
-  // wavdrom_gui_<title> if the chart has a head title, else
-  // wavdrom_gui_<YYMMDD>_<N> where N continues the day's numbering in the CWD.
+  // wavedrom_gui_<title> if the chart has a head title, else
+  // wavedrom_gui_<YYMMDD>_<N> where N continues the day's numbering in the CWD.
   let base;
   if (o.out) {
     base = o.out.replace(/\.(svg|png)$/i, '');
@@ -167,16 +174,18 @@ function main() {
     const d = new Date();
     const date = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
     if (title) {
-      base = 'wavdrom_gui_' + title;
+      base = 'wavedrom_gui_' + title;
     } else {
       let n = 0;
       try {
+        /* 前缀在 261028 之前拼错过（wavdrom_gui_）。旧文件仍要被数到，否则当天已导出 5 张
+           老命名的图、第 6 张会从 1 重新开始并覆盖前一张 */
         for (const f of fs.readdirSync(process.cwd())) {
-          const m = /^wavdrom_gui_(\d{6})_(\d+)\./.exec(f);
+          const m = /^(?:wavedrom|wavdrom)_gui_(\d{6})_(\d+)\./.exec(f);
           if (m && m[1] === date) n = Math.max(n, +m[2]);
         }
       } catch (e) { /* unreadable dir -> start at 1 */ }
-      base = 'wavdrom_gui_' + date + '_' + (n + 1);
+      base = 'wavedrom_gui_' + date + '_' + (n + 1);
     }
     if (o.input && o.input !== '-') base = path.join(path.dirname(path.resolve(o.input)), base);
   }

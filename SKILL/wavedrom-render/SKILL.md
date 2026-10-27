@@ -149,7 +149,7 @@ node render.js -              # 从 stdin 读取 WaveJSON
 |---|---|---|---|
 | `--mode` | `modern` \| `traditional` | `modern` | 渲染风格 |
 | `--format` | `svg` \| `png` \| `both` | `png` | 输出格式 |
-| `--out` / `-o` | 路径 | 自动命名（`wavdrom_gui_*`） | 输出路径（扩展名自动补）。不给时按与网页版同一套约定命名：有标题用 `wavdrom_gui_标题`，否则 `wavdrom_gui_日期_序号`；**目录**跟随输入文件（stdin 输入时为当前目录）。父目录需已存在，脚本不会创建它 |
+| `--out` / `-o` | 路径 | 自动命名（`wavedrom_gui_*`） | 输出路径（扩展名自动补）。不给时按与网页版同一套约定命名：有标题用 `wavedrom_gui_标题`，否则 `wavedrom_gui_日期_序号`；**目录**跟随输入文件（stdin 输入时为当前目录）。父目录需已存在，脚本不会创建它 |
 | `--scale` | 数字 | `2` | PNG 缩放倍数（2 = 2×，更清晰） |
 | `--skin` | `default` \| `narrow` | 先用文档里的 `config.skin`，缺省 `default` | **仅传统模式**：官方皮肤 |
 | `--node-pos` | `lt tm rt lm c rm lb bm rb` | `lm` | **仅现代模式**：节点圆标位置 |

@@ -51,7 +51,7 @@
 
 ## 7. 面板内导出
 
-编辑器里的导出按钮不落浏览器式下载：注入脚本装上 `window.__wdDownloadHook`，把产物读成 base64 后以 `{type:'export', name, b64}` 交给宿主；宿主弹**系统保存框**，`defaultUri` = 来源文件所在目录（代码块目标 = 该 Markdown 文件，图片目标 = 原图路径）+ 编辑器给出的文件名（有标题 `wavdrom_gui_标题`，否则 `wavdrom_gui_日期_序号`）。取消则不落盘，成功后状态栏提示落盘路径。
+编辑器里的导出按钮不落浏览器式下载：注入脚本装上 `window.__wdDownloadHook`，把产物读成 base64 后以 `{type:'export', name, b64}` 交给宿主；宿主弹**系统保存框**，`defaultUri` = 来源文件所在目录（代码块目标 = 该 Markdown 文件，图片目标 = 原图路径）+ 编辑器给出的文件名（有标题 `wavedrom_gui_标题`，否则 `wavedrom_gui_日期_序号`）。取消则不落盘，成功后状态栏提示落盘路径。
 
 ## 8. 源码侧预览入口
 

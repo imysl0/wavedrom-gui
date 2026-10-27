@@ -148,7 +148,7 @@ function pngExtractWaveJSON(buf) {
           while (p < body.length && body[p] !== 0) p++; p++;
           while (p < body.length && body[p] !== 0) p++; p++;
           return zlib.inflateSync(body.subarray(p)).toString('utf8');
-        } catch (e) { return null; }
+        } catch (e) { /* 这一块坏（截断 / 非 zlib 流）不等于整张图没有元数据：接着扫后面那块 */ }
       }
     }
     off += 12 + len;

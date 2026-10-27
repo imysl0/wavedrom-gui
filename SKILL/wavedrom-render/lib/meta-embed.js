@@ -107,7 +107,7 @@ function pngExtractWaveJSON(buf) {
           while (p < body.length && body[p] !== 0) p++; p++; /* language tag */
           while (p < body.length && body[p] !== 0) p++; p++; /* translated keyword */
           return body.toString('utf8', p);
-        } catch (e) { return null; }
+        } catch (e) { /* 这一块坏（截断 / 非 zlib 流）不等于整张图没有元数据：接着扫后面那块 */ }
       }
     }
     off += 12 + len;

@@ -244,6 +244,19 @@ svg { display: block; }
 .menu button svg { color: var(--muted); flex: none; }
 .menu button .kbd { margin-left: auto; font: 10px var(--font-mono); color: var(--faint); }
 .menu button .check { margin-left: auto; color: var(--acc-text); }
+/* 一行两出口：整行仍是「下载」，右端挂一个小「复制」。图形编辑器那四档最常用的动作是
+   直接粘进目标画布，为它另开四行会把菜单撑到要滚；图标不带文字，所以 title / aria 必须把
+   「粘到哪、按什么键」说全。行结构换成 div 包两个 button —— button 里不能再套 button，
+   拿 span 假装有独立点击区则键盘到不了（Tab 停不住、Enter 也不触发）。 */
+.menu .mbtn { display: flex; align-items: stretch; }
+.menu .mbtn > button { width: auto; min-width: 0; }
+.menu .mbtn > button:first-child { flex: 1 1 auto; }
+.menu .mbtn > .mini { flex: 0 0 auto; width: 28px; padding: 0; justify-content: center; margin-left: 2px; }
+.menu .mbtn > .mini svg { color: var(--faint); }
+/* 悬停只提亮度、不上主题绿：绿色在这套界面里是「成了」的信号色，挂在常驻控件上会和成功
+   提示抢语义。无底色档的小图标也不画虚线框——13px 的方框上 2.4/1.7 的虚线看着像画坏了，
+   那一档的意思由行本身的标签与主图标承担就够 */
+.menu .mbtn > .mini:hover svg, .menu .mbtn > .mini:focus-visible svg { color: var(--text); }
 .menu .sep { height: 1px; background: var(--line-soft); margin: 5px 4px; }
 .menu .menu-tip { padding: 2px 10px 6px; font-size: 11px; color: var(--faint); }
 /* 设置菜单固定宽：fixed 定位脱离父容器后没有包含块约束，浏览器会按内容「偏好宽度」
@@ -1354,10 +1367,10 @@ html[data-mobile] {
       <button data-act="export-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载 WaveDrom PNG（2×）">下载 WaveDrom PNG（2×）</span></button>
       <button data-act="export-editor-svg"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载编辑区 SVG">下载编辑区 SVG</span></button>
       <button data-act="export-editor-png"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v7m0 0 2.8-2.8M8 9.5 5.2 6.7"/><path d="M2.5 12.8h11"/></svg><span data-i18n="下载编辑区 PNG（2×）">下载编辑区 PNG（2×）</span></button>
-      <button data-act="export-drawio" data-i18n-title="drawio 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio">下载 drawio</span></button>
-      <button data-act="export-drawio-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1" stroke-dasharray="2.4 1.7"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio（无底色）">下载 drawio（无底色）</span></button>
-      <button data-act="export-excalidraw" data-i18n-title="excalidraw 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1.9"/><ellipse cx="11.7" cy="11.4" rx="2.6" ry="2.1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h2.6"/></svg><span data-i18n="下载 excalidraw">下载 excalidraw</span></button>
-      <button data-act="export-excalidraw-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1.9" stroke-dasharray="2.4 1.7"/><ellipse cx="11.7" cy="11.4" rx="2.6" ry="2.1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h2.6"/></svg><span data-i18n="下载 excalidraw（无底色）">下载 excalidraw（无底色）</span></button>
+      <div class="mbtn"><button data-act="export-drawio" data-i18n-title="drawio 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio">下载 drawio</span></button><button class="mini" data-act="copy-drawio" data-i18n-title="复制到剪贴板 —— 到 draw.io 画布按 Ctrl+V，落为原生可编辑图形"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button></div>
+      <div class="mbtn"><button data-act="export-drawio-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1" stroke-dasharray="2.4 1.7"/><rect x="9.2" y="9.4" width="5" height="4" rx="1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h3.3"/></svg><span data-i18n="下载 drawio（无底色）">下载 drawio（无底色）</span></button><button class="mini" data-act="copy-drawio-nobg" data-i18n-title="复制到剪贴板（无底色）—— 到 draw.io 画布按 Ctrl+V，不出底色、通道色点与分隔线"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button></div>
+      <div class="mbtn"><button data-act="export-excalidraw" data-i18n-title="excalidraw 图形文件，每格都是可编辑的原生图形"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1.9"/><ellipse cx="11.7" cy="11.4" rx="2.6" ry="2.1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h2.6"/></svg><span data-i18n="下载 excalidraw">下载 excalidraw</span></button><button class="mini" data-act="copy-excalidraw" data-i18n-title="复制到剪贴板 —— 到 Excalidraw 画布按 Ctrl+V，落为原生可编辑图形"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button></div>
+      <div class="mbtn"><button data-act="export-excalidraw-nobg" data-i18n-title="不带底色、通道色点与分隔线，只留波形与文字"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="5" height="4" rx="1.9" stroke-dasharray="2.4 1.7"/><ellipse cx="11.7" cy="11.4" rx="2.6" ry="2.1"/><path d="M4.3 6.6v3.2a1.6 1.6 0 0 0 1.6 1.6h2.6"/></svg><span data-i18n="下载 excalidraw（无底色）">下载 excalidraw（无底色）</span></button><button class="mini" data-act="copy-excalidraw-nobg" data-i18n-title="复制到剪贴板（无底色）—— 到 Excalidraw 画布按 Ctrl+V，不出底色、通道色点与分隔线"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button></div>
       <div class="sep"></div>
       <button data-act="export-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3H4.5A1.5 1.5 0 0 0 3 4.5V6c0 1-1 2-2 2 1 0 2 1 2 2v1.5A1.5 1.5 0 0 0 4.5 13H6"/><path d="M10 3h1.5A1.5 1.5 0 0 1 13 4.5V6c0 1 1 2 2 2-1 0-2 1-2 2v1.5a1.5 1.5 0 0 1-1.5 1.5H10"/></svg><span data-i18n="下载 JSON">下载 JSON</span></button>
       <button data-act="copy-json"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg><span data-i18n="复制 JSON">复制 JSON</span></button>
@@ -1649,6 +1662,10 @@ const I18N_EN = {
   '下载 drawio（无底色）': 'Download drawio (no background)', '不带底色、通道色点与分隔线，只留波形与文字': 'No fills, lane dots or separator lines — waveforms and text only',
   '下载 excalidraw': 'Download excalidraw', 'excalidraw 图形文件，每格都是可编辑的原生图形': 'excalidraw file — every cell is a native, editable shape',
   '下载 excalidraw（无底色）': 'Download excalidraw (no background)',
+  '复制到剪贴板 —— 到 draw.io 画布按 Ctrl+V，落为原生可编辑图形': 'Copy to clipboard — Ctrl+V on the draw.io canvas pastes it as native, editable shapes',
+  '复制到剪贴板（无底色）—— 到 draw.io 画布按 Ctrl+V，不出底色、通道色点与分隔线': 'Copy to clipboard (no background) — Ctrl+V on the draw.io canvas, without fills, lane dots or separator lines',
+  '复制到剪贴板 —— 到 Excalidraw 画布按 Ctrl+V，落为原生可编辑图形': 'Copy to clipboard — Ctrl+V on the Excalidraw canvas pastes it as native, editable shapes',
+  '复制到剪贴板（无底色）—— 到 Excalidraw 画布按 Ctrl+V，不出底色、通道色点与分隔线': 'Copy to clipboard (no background) — Ctrl+V on the Excalidraw canvas, without fills, lane dots or separator lines',
   '导入示例': 'Examples', '打开文件（JSON / SVG / PNG）…': 'Open file (JSON / SVG / PNG)…',
   '粘贴 WaveJSON…': 'Paste WaveJSON…', '也可把文件直接拖进窗口': 'You can also drag a file into the window',
   'WaveDrom 语法教程': 'WaveDrom tutorial',
@@ -1935,6 +1952,7 @@ const I18N_EN = {
   '一次只能导入一个文件，已取第一个': 'Only one file can be imported at a time — took the first',
   '预览还没有内容': 'Preview is still empty', '编辑区还没有内容': 'Editor grid is still empty',
   '复制失败，请手动复制': 'Copy failed — please copy manually', 'PNG 生成失败': 'PNG generation failed',
+  '无法导出 PNG：图表尺寸无法确定或超出浏览器画布上限': 'Cannot export PNG: the chart size could not be determined or exceeds the browser canvas limit',
   'drawio 导出失败': 'drawio export failed',
   'drawio 已导出 —— 每格都是可编辑的原生图形': 'drawio exported — every cell is a native, editable shape',
   'drawio 已导出（部分图元退回贴图，drawio 里不可再编辑其内部）': 'drawio exported (some primitives fell back to embedded images; their interior is not editable in drawio)',
@@ -1943,6 +1961,14 @@ const I18N_EN = {
   'excalidraw 已导出 —— 每格都是可编辑的原生图形': 'excalidraw exported — every cell is a native, editable shape',
   'excalidraw 已导出（部分图元无法转换，已跳过）': 'excalidraw exported (some primitives could not be converted and were skipped)',
   'excalidraw 已导出（无底色）—— 底色、通道色点与分隔线都不出': 'excalidraw exported (no background) — fills, lane dots and separator lines left out',
+  'drawio 复制失败': 'copying drawio failed',
+  'drawio 已复制到剪贴板': 'drawio copied to clipboard — Ctrl+V on the draw.io canvas',
+  'drawio 已复制到剪贴板（无底色）': 'drawio (no background) copied to clipboard — Ctrl+V on the draw.io canvas',
+  'drawio 已复制到剪贴板（部分图元退回贴图）': 'drawio copied to clipboard (some primitives fell back to embedded images)',
+  'excalidraw 复制失败': 'copying excalidraw failed',
+  'excalidraw 已复制到剪贴板': 'excalidraw copied to clipboard — Ctrl+V on the Excalidraw canvas',
+  'excalidraw 已复制到剪贴板（无底色）': 'excalidraw (no background) copied to clipboard — Ctrl+V on the Excalidraw canvas',
+  'excalidraw 已复制到剪贴板（部分图元无法转换，已跳过）': 'excalidraw copied to clipboard (some primitives could not be converted and were skipped)',
   '无底色': 'no-bg',
   '钉住笔刷弹层': 'Pin brush flyout', '标签': 'Label', '数据标签': 'Data label', '子组': 'Subgroup',
   '图表较大（链接 ': 'Large diagram (link of ', ' 字符），可能超出部分应用的粘贴上限，建议改用压缩分享链接': ' chars) — may exceed paste limits in some apps; prefer the compressed share link',
@@ -2731,10 +2757,15 @@ function restoreSnapshot(json) {
   lastCommitTag = null; lastCommitTime = 0;
   closePop();
   restoring = true;
-  adoptState(parseDoc(JSON.parse(json)));
-  syncSettings();
-  update(true);
-  restoring = false;
+  /* try/finally 而非顺序两句：中途任何一处抛异常（快照 JSON 坏 / 渲染管线炸）都会把
+     restoring 永久留在 true，此后 commitUndo 每次都直接 return——撤销悄悄失灵且无从恢复 */
+  try {
+    adoptState(parseDoc(JSON.parse(json)));
+    syncSettings();
+    update(true);
+  } finally {
+    restoring = false;
+  }
   /* update 之后按实际状态取：applyAutoScale 可能在恢复中重算 hscale，用恢复前的快照当
      undoBase 会把「刚恢复的这份」原样压回撤销栈——下一步撤销原地踏步（幻影），redo 也被清掉 */
   undoBase = JSON.stringify(buildJSON());
@@ -3104,19 +3135,20 @@ function parseEntry(e) {
     for (let t = 0; t < e.node.length; t++) if (/[a-zA-Z]/.test(e.node[t])) lane.nodeByT[t] = e.node[t];
   }
   if (e.period !== undefined) lane.period = +e.period || null;
-  /* phase 只提数值：导入脏值（如 "0,5"）若原样进算术会让 laneUnits 得 NaN、整张网格静默变空白；
-     提不动的原样留在 extras 里往返，不静默丢 */
-  if (e.phase !== undefined) {
-    const ph = +e.phase;
-    if (Number.isFinite(ph)) lane.phase = ph;
-  }
+  /* phase 只提「确实是个数」的值：导入脏值（如 "0,5"）若原样进算术会让 laneUnits 得 NaN、
+     整张网格静默变空白。但也不能无脑 +e.phase —— +null 与 +'' 都等于 0，那样会把「写了个
+     空相位 / null 相位」悄悄变成「相位 0 拍」并顺手删掉原键，用户的错处就此永久消失。
+     先按原始类型筛（数值，或非空数值串），认不动的原样留在 extras 里往返，不静默丢 */
+  const phRaw = (typeof e.phase === 'number' || (typeof e.phase === 'string' && e.phase.trim() !== '')) ? +e.phase : NaN;
+  const phOk = Number.isFinite(phRaw);
+  if (phOk) lane.phase = phRaw;
   /* color 是编辑器的扩展键：认得的（合法 hex）提成 lane.color 并跟 extras 说再见；
      认不得的（非法写法）原样留在 extras 里往返，不静默丢用户数据。
      datacolor 是更早的旧扩展键，已不识别但同样留在 extras 里往返（删掉 = 旧文档一保存就永久丢色） */
   const colorIn = typeof e.color === 'string' ? lcNorm(e.color) : null;
   if (colorIn) lane.color = colorIn;
   ['name', 'wave', 'data', 'node', 'period'].forEach(k => delete e[k]);
-  if (Number.isFinite(+e.phase) && e.phase !== undefined && e.phase !== '') delete e.phase;
+  if (phOk) delete e.phase;   // 只有真提成 lane.phase 的那一份才从 extras 里摘走
   if (colorIn) delete e.color;
   lane.extras = e;
   return lane;
@@ -7471,17 +7503,17 @@ function pngExtractWaveJSON(bytes) {
           while (p < body.length && body[p] !== 0) p++; p++; /* 跳过语言标签 */
           while (p < body.length && body[p] !== 0) p++; p++; /* 跳过翻译关键字 */
           return new TextDecoder().decode(body.subarray(p));
-        } catch (e) { return null; }
+        } catch (e) { off += 12 + len; continue; }   // 坏块不等于「整张图没有元数据」，接着扫
       }
     }
     off += 12 + len;
   }
   return null;
 }
-/* 压缩 iTXt 的兜底：本应用只写未压缩块，但第三方工具（oxipng 重写文本块之类）可能把
-   WaveJSON 块转成 zlib 压缩，同步提取会当「没有元数据」误报。找到压缩块就用
-   DecompressionStream('deflate') 解开——iTXt 压缩方法 0 恰是 zlib 流，该 API 的 'deflate'
-   也是 zlib 容器格式，正好对上 */
+/* 压缩文本块的兜底：本应用只写未压缩 iTXt，但第三方工具（oxipng 重写文本块之类）可能把
+   WaveJSON 块转成 zlib 压缩，也可能改用 zTXt（PNG 里唯一「必然压缩」的文本块）。同步提取解不了
+   压缩流，会当「没有元数据」误报，这里用 DecompressionStream('deflate') 解开——两种块的压缩
+   方法 0 都是 zlib 流，该 API 的 'deflate' 恰是 zlib 容器格式，正好对上 */
 async function pngInflateWaveJSON(bytes) {
   if (typeof DecompressionStream !== 'function') return null;
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -7489,20 +7521,33 @@ async function pngInflateWaveJSON(bytes) {
   while (off + 8 <= bytes.length) {
     const len = dv.getUint32(off);
     const type = String.fromCharCode(bytes[off + 4], bytes[off + 5], bytes[off + 6], bytes[off + 7]);
-    const body = (type === 'iTXt' && len > 0) ? bytes.subarray(off + 8, Math.min(off + 8 + len, bytes.length)) : null;
+    const body = ((type === 'iTXt' || type === 'zTXt') && len > 0) ? bytes.subarray(off + 8, Math.min(off + 8 + len, bytes.length)) : null;
     off += 12 + len;
     if (type === 'IEND') break;
     if (!body) continue;
     const z = body.indexOf(0);
     if (z < 0 || new TextDecoder('latin1').decode(body.subarray(0, z)) !== WD_PNG_KEYWORD) continue;
-    if (body[z + 1] !== 0 || body[z + 2] !== 0) continue;   // 只认压缩标志 0 + zlib 方法 0
-    let p = z + 3;
-    while (p < body.length && body[p] !== 0) p++; p++;      // 跳过语言标签
-    while (p < body.length && body[p] !== 0) p++; p++;      // 跳过翻译关键字
+    /* 两种块的头部不同，别按同一套偏移读：
+         iTXt = 关键字 \0 压缩标志（0 未压缩 / 1 压缩）压缩方法（0 zlib）语言标签 \0 翻译关键字 \0 文本
+         zTXt = 关键字 \0 压缩方法（0 zlib）文本
+       本函数只管「压缩」那一路：iTXt 的压缩标志必须是 1（标志 0 是未压缩，归同步路径读），
+       方法必须是 0；zTXt 没有标志位，方法字节紧跟关键字 */
+    let p;
+    if (type === 'iTXt') {
+      if (body[z + 1] !== 1 || body[z + 2] !== 0) continue;
+      p = z + 3;
+      while (p < body.length && body[p] !== 0) p++; p++;   // 跳过语言标签
+      while (p < body.length && body[p] !== 0) p++; p++;   // 跳过翻译关键字
+    } else {
+      if (body[z + 1] !== 0) continue;
+      p = z + 2;
+    }
+    if (p >= body.length) continue;                        // 头都读不完 = 畸形块，找下一块
     try {
       const resp = new Response(new Blob([body.subarray(p)]).stream().pipeThrough(new DecompressionStream('deflate')));
-      return await resp.text();
-    } catch (e) { return null; }
+      const text = await resp.text();
+      if (text) return text;
+    } catch (e) { /* 截断或非 zlib 流：继续扫后面的块，别因一块坏数据放弃整张图 */ }
   }
   return null;
 }
@@ -7584,12 +7629,15 @@ function download(name, blob) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
 }
 /* 导出文件名：导入过文件 → 沿用导入文件名（改扩展名即可，来源图迭代编辑的默认动作）；
-   有标题 → wavdrom_gui_标题（清洗文件系统非法字符、超长截断）；
-   无标题 → wavdrom_gui_日期_序号（日期 YYMMDD，序号 = 当天第 N 次导出，localStorage 跨刷新记忆） */
+   有标题 → wavedrom_gui_标题（清洗文件系统非法字符、超长截断）；
+   无标题 → wavedrom_gui_日期_序号（日期 YYMMDD，序号 = 当天第 N 次导出，localStorage 跨刷新记忆） */
 /* PNG 画布尺寸上限保护：部分浏览器超限会静默钳制尺寸（导出一张被压扁的图且无提示），
    Chrome 则 toBlob 返回 null 只报一句「生成失败」。先按 2× 赋值并回读校验：被钳制就降
    1×，1× 也放不下就返回 null 由调用方明确报错 */
 function pngCanvasSize(w, h) {
+  /* 非有限数先挡掉：+svg.getAttribute('width') 遇缺属性/非数值就是 NaN，赋进 canvas 变 0，
+     两轮回读都不等，最后一路落到「图表太大」——明明是尺寸取不到，却报成超出上限 */
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
   const cv = document.createElement('canvas');
   cv.width = w * 2; cv.height = h * 2;
   if (cv.width === w * 2 && cv.height === h * 2) return { cv, scale: 2 };
@@ -7605,7 +7653,7 @@ function exportBaseName() {
   const title = headFootTextOf(state.head.text).trim()
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
     .replace(/\s+/g, ' ').slice(0, 40).trim().replace(/[. ]+$/, '');
-  if (title) return 'wavdrom_gui_' + title;
+  if (title) return 'wavedrom_gui_' + title;
   const d = new Date();
   const date = String(d.getFullYear()).slice(2) + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
   let seq = { date: '', n: 0 };
@@ -7613,7 +7661,7 @@ function exportBaseName() {
   seq.n = seq.date === date ? seq.n + 1 : 1;
   seq.date = date;
   try { storeSet('wdgui-export-seq', JSON.stringify(seq)); } catch (e) { /* 隐私模式等场景忽略 */ }
-  return 'wavdrom_gui_' + date + '_' + seq.n;
+  return 'wavedrom_gui_' + date + '_' + seq.n;
 }
 function getExportSvg() {
   const svg = $('#wv0 svg');
@@ -8287,6 +8335,21 @@ async function exportDrawio(noBg) {
   toast(res.bad.length ? i18n('drawio 已导出（部分图元退回贴图，drawio 里不可再编辑其内部）')
     : i18n(noBg ? 'drawio 已导出（无底色）—— 底色、通道色点与分隔线都不出' : 'drawio 已导出 —— 每格都是可编辑的原生图形'));
 }
+/* 复制档与下载档出的是同一份 XML，只换落地方式。draw.io 的画布 Ctrl+V 走
+   EditorUi.pasteCells：没有 text/html 时直接吃 text/plain，isCompatibleString() 认出
+   <mxfile> 后按「单页导入进当前页」落成原生图元（实测 app.diagrams.net 32.x，81 格全落）。
+   浏览器能写进剪贴板的也只有 text/plain / text/html / image/png，自定义 MIME 写不出去，
+   所以这条只能走纯文本 —— 正好 draw.io 与 Excalidraw 两边收的都是纯文本。 */
+async function copyDrawio(noBg) {
+  /* 不调 exportBaseName()：无标题档它会占掉当天一个下载序号，而复制出去的 diagram name
+     在 drawio 那边根本用不上（导入进当前页时 name 被丢），所以只取图内标题 */
+  const nm = headFootTextOf(state.head.text).trim().replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').slice(0, 40) || 'wavedrom';
+  let res = null;
+  try { res = await buildEditorDrawio(noBg, nm); } catch (e) { res = null; }
+  if (!res) { toast(i18n('drawio 复制失败'), true); return; }
+  copyText(res.xml, i18n(res.bad.length ? 'drawio 已复制到剪贴板（部分图元退回贴图）'
+    : noBg ? 'drawio 已复制到剪贴板（无底色）' : 'drawio 已复制到剪贴板'));
+}
 
 /* ---------- 导出 excalidraw（原生可编辑档） ----------
    与 drawio 档共用同一棵 DOM 和 drawioPrims() / drawioCol() 这层中间图元，只换最后的落地格式：
@@ -8436,6 +8499,17 @@ function exportExcalidraw(noBg) {
     new Blob([res.json], { type: 'application/json' }));
   toast(res.bad.length || res.skipped ? i18n('excalidraw 已导出（部分图元无法转换，已跳过）')
     : i18n(noBg ? 'excalidraw 已导出（无底色）—— 底色、通道色点与分隔线都不出' : 'excalidraw 已导出 —— 每格都是可编辑的原生图形'));
+}
+/* Excalidraw 的画布 Ctrl+V 走 parseClipboard：读 text/plain → JSON.parse →
+   clipboardContainsElements 认 type:"excalidraw" + elements 数组，正是发射器的产物；
+   它的 ALLOWED_PASTE_MIME_TYPES 只收 text/plain、text/html 与图片，所以同样只能走纯文本
+   （实测 0.18.1 真编辑器，169 个元素全落并被选中） */
+function copyExcalidraw(noBg) {
+  let res = null;
+  try { res = buildEditorExcalidraw(noBg); } catch (e) { res = null; }
+  if (!res) { toast(i18n('excalidraw 复制失败'), true); return; }
+  copyText(res.json, i18n(res.bad.length || res.skipped ? 'excalidraw 已复制到剪贴板（部分图元无法转换，已跳过）'
+    : noBg ? 'excalidraw 已复制到剪贴板（无底色）' : 'excalidraw 已复制到剪贴板'));
 }
 
 function copyText(text, okMsg) {
@@ -8600,7 +8674,7 @@ function handleAct(act, btn) {
       const url = URL.createObjectURL(new Blob([ex.str], { type: 'image/svg+xml' }));
       img.onload = () => {
         const size = pngCanvasSize(ex.w, ex.h);
-        if (!size) { toast(i18n('图表太大，无法导出 PNG（画布尺寸超出浏览器上限）'), true); URL.revokeObjectURL(url); return; }
+        if (!size) { toast(i18n('无法导出 PNG：图表尺寸无法确定或超出浏览器画布上限'), true); URL.revokeObjectURL(url); return; }
         const cv = size.cv;
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -8625,7 +8699,7 @@ function handleAct(act, btn) {
       const url = URL.createObjectURL(new Blob([str], { type: 'image/svg+xml' }));
       img.onload = () => {
         const size = pngCanvasSize(+es.getAttribute('width'), +es.getAttribute('height'));
-        if (!size) { toast(i18n('图表太大，无法导出 PNG（画布尺寸超出浏览器上限）'), true); URL.revokeObjectURL(url); return; }
+        if (!size) { toast(i18n('无法导出 PNG：图表尺寸无法确定或超出浏览器画布上限'), true); URL.revokeObjectURL(url); return; }
         const cv = size.cv;
         const ctx = cv.getContext('2d');
         /* 底色与 buildEditorSvg 的 waveBg() 同一条规则：透明档回退画布底色（'transparent'
@@ -8644,6 +8718,11 @@ function handleAct(act, btn) {
     case 'export-drawio-nobg': exportDrawio(true); break;
     case 'export-excalidraw': exportExcalidraw(); break;
     case 'export-excalidraw-nobg': exportExcalidraw(true); break;
+    /* 上面四行行尾的小图标：与下载走同一次生成路径，只换落地方式（见 copyDrawio / copyExcalidraw） */
+    case 'copy-drawio': copyDrawio(false); break;
+    case 'copy-drawio-nobg': copyDrawio(true); break;
+    case 'copy-excalidraw': copyExcalidraw(false); break;
+    case 'copy-excalidraw-nobg': copyExcalidraw(true); break;
     case 'export-json': download(exportBaseName() + '.json', new Blob([fmtJSON(buildJSON(), 0, codeCompact)], { type: 'application/json' })); break;
     case 'copy-json': copyText(fmtJSON(buildJSON(), 0, codeCompact), i18n('JSON 已复制到剪贴板')); break;
     case 'copy-kroki': {
