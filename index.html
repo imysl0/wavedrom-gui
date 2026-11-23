@@ -4464,6 +4464,7 @@ function renderGrid() {
   renderMiniEdges();
   if (autoChain && chainSel) restoreChainSelHighlight();
   if (colInsCol !== null) anchorColIns(); // 重建后胶囊跟着重新定位（列增减 / 滚动都会变）
+  if (tickPopCol !== null) positionTickPop(); // 「计数起始值」同理：锚点换了元素，重新贴回拍号
 }
 
 /* 编辑区网格上的边线叠加层：把两个节点标记连起来 */
@@ -4823,11 +4824,36 @@ function scheduleHideColIns() { clearTimeout(colInsHideTimer); colInsHideTimer =
    （空格分隔、末尾空格是官方 3.x 的兼容占位；这是官方渲染唯一吃得住的自定义刻度形式）。
    every 筛档照官方：数字形式按显示值取模筛；标签序列在官方渲染里会被 every 整体隐藏（弹层有提示）。
    改完同步「图表设置 → 刻度」；「恢复默认」清掉 tick、回到按拍序号显示。 */
-let tickPopCol = null;
+let tickPopCol = null, tickPopAnchor = null;
 function closeTickPop() {
   const pop = $('#tickPop');
   if (pop) pop.classList.remove('open');
   tickPopCol = null;
+  tickPopAnchor = null;
+  watchPopViewport(false); // 两个弹窗共用的软键盘监听：还有开着的会自动保留
+}
+/* 锚点（表头拍号格）：优先用打开时记下的元素，网格重建后失效就按列号回查 */
+function tickPopAnchorEl() {
+  if (tickPopAnchor && tickPopAnchor.isConnected) return tickPopAnchor;
+  return tickPopCol === null ? null : document.querySelector(`#gridInner .time-cell[data-t="${tickPopCol}"]`);
+}
+/* 定位：贴锚点下方居中，下方放不下翻到锚点上方；锚点没了（文档变了）就收起。
+   滚动 / 窗口缩放 / 网格重建都只重新定位——不再当「窗口缩放」直接关掉
+   （手机上软键盘弹出就会发 resize，以前弹窗因此秒关）；键盘遮挡另由
+   watchPopViewport → clampPopToViewport 把面板夹回可见区。 */
+function positionTickPop() {
+  const pop = $('#tickPop');
+  if (!pop || tickPopCol === null) return;
+  const anchorEl = tickPopAnchorEl();
+  if (!anchorEl) { closeTickPop(); return; }
+  tickPopAnchor = anchorEl;
+  const r = anchorEl.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const x = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, innerWidth - pw - 8));
+  let y = r.bottom + 6;
+  if (y + ph > innerHeight - 8) y = Math.max(8, r.top - ph - 6); // 下方放不下翻到上方
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
 }
 /* 算一次「从 col 拍起标为 v、其后 +1」的刻度计划（不落库）：返回落库值、形式与是否与现状相同。
    归一规则：整排等差 → 数字 N（N=0 且原本没开 tick → null，保持文档干净）；
@@ -4895,6 +4921,7 @@ function openTickPop(col, anchorEl) {
   if (!pop) return;
   hideColIns();
   tickPopCol = col;
+  tickPopAnchor = anchorEl || null;
   const H = state.head;
   const hasTick = H.tick !== null && H.tick !== undefined && H.tick !== '';
   /* 当前这一拍实际显示的数字当预填值；未启用 tick 时表头显的是拍序号（= tick 0 的公式），
@@ -4907,13 +4934,8 @@ function openTickPop(col, anchorEl) {
   pop.querySelector('.tp-col').textContent = fmtT('第 {n} 拍', { n: col });
   tickPopHint();
   pop.classList.add('open');
-  const r = (anchorEl || pop).getBoundingClientRect();
-  const pw = pop.offsetWidth, ph = pop.offsetHeight;
-  const x = Math.max(8, Math.min(r.left + r.width / 2 - pw / 2, innerWidth - pw - 8));
-  let y = r.bottom + 6;
-  if (y + ph > innerHeight - 8) y = Math.max(8, r.top - ph - 6); // 下方放不下翻到上方
-  pop.style.left = x + 'px';
-  pop.style.top = y + 'px';
+  positionTickPop();
+  watchPopViewport(true); // 手机软键盘弹出/收起时把面板夹回可见区（以前被 resize 误判成窗口缩放、直接关掉）
   input.focus();
   input.select();
 }
@@ -6418,23 +6440,27 @@ function extendSample() {
 }
 /* 软键盘弹出会压缩视觉视口，而 fixed 弹窗仍停在打开时的坐标，被键盘盖住
    （手机上给总线格输标签必现）。弹窗打开期间监听 visualViewport 的 resize/scroll，
-   把弹窗实时夹回当前可见区：弹窗比可视区还高时贴可视区顶（输入框在弹窗上部，先保住它）。 */
+   把弹窗实时夹回当前可见区：弹窗比可视区还高时贴可视区顶（输入框在弹窗上部，先保住它）。
+   状态面板（#cellPop）与「计数起始值」（#tickPop）共用这套机制。 */
 let popVVGuard = null;
+const VV_POPS = ['#cellPop', '#tickPop'];
 function clampPopToViewport() {
-  const pop = $('#cellPop');
-  if (!pop.classList.contains('open')) return;
   const vv = window.visualViewport;
   const vw = vv ? vv.width : innerWidth;
   const vh = vv ? vv.height : innerHeight;
   const vx = vv ? vv.offsetLeft : 0;
   const vy = vv ? vv.offsetTop : 0;
-  const pw = pop.offsetWidth, ph = pop.offsetHeight;
-  let x = parseFloat(pop.style.left) || 0;
-  let y = parseFloat(pop.style.top) || 0;
-  x = pw >= vw - 16 ? vx + 8 : Math.min(Math.max(x, vx + 8), vx + vw - pw - 8);
-  y = ph >= vh - 16 ? vy + 8 : Math.min(Math.max(y, vy + 8), vy + vh - ph - 8);
-  pop.style.left = x + 'px';
-  pop.style.top = y + 'px';
+  VV_POPS.forEach(sel => {
+    const pop = $(sel);
+    if (!pop || !pop.classList.contains('open')) return;
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
+    let x = parseFloat(pop.style.left) || 0;
+    let y = parseFloat(pop.style.top) || 0;
+    x = pw >= vw - 16 ? vx + 8 : Math.min(Math.max(x, vx + 8), vx + vw - pw - 8);
+    y = ph >= vh - 16 ? vy + 8 : Math.min(Math.max(y, vy + 8), vy + vh - ph - 8);
+    pop.style.left = x + 'px';
+    pop.style.top = y + 'px';
+  });
 }
 function watchPopViewport(on) {
   const vv = window.visualViewport;
@@ -6448,6 +6474,8 @@ function watchPopViewport(on) {
     vv.addEventListener('resize', popVVGuard);
     vv.addEventListener('scroll', popVVGuard);
   } else if (!on && popVVGuard) {
+    /* 两个弹窗共用一条监听：只要还有一个开着就先不摘，谁后关谁摘 */
+    if (VV_POPS.some(sel => { const p = $(sel); return p && p.classList.contains('open'); })) return;
     vv.removeEventListener('resize', popVVGuard);
     vv.removeEventListener('scroll', popVVGuard);
     popVVGuard = null;
@@ -6744,10 +6772,19 @@ function bindGrid() {
     const col = t.classList.contains('col-ins') ? +t.dataset.col : +t.dataset.t;
     if (colInsCol === col) hideColIns(); else showColIns(col, t);
   });
-  /* 网格滚动时胶囊跟着重新定位；锚点被滚出可视区就收起。窗口缩放直接收起（下次悬停/点按再出） */
+  /* 网格滚动时胶囊与「计数起始值」面板跟着重新定位；锚点被滚出可视区才收起。
+     胶囊的窗口缩放仍直接收起（下次悬停/点按再出）；tickPop 只重新定位不关——
+     手机上软键盘弹出就会发 resize，不能当窗口缩放误关（键盘遮挡由
+     watchPopViewport → clampPopToViewport 处理）。 */
   const gridScroller = $('#gridScroll');
   if (gridScroller) gridScroller.addEventListener('scroll', () => {
-    if (tickPopCol !== null) closeTickPop(); // 弹层是 fixed 定位，滚走即关（重新点拍号再开）
+    if (tickPopCol !== null) {
+      const tEl = tickPopAnchorEl();
+      const tGr = gridScroller.getBoundingClientRect();
+      const tAr = tEl ? tEl.getBoundingClientRect() : null;
+      if (!tAr || tAr.right < tGr.left || tAr.left > tGr.right || tAr.bottom < tGr.top || tAr.top > tGr.bottom) closeTickPop();
+      else positionTickPop();
+    }
     if (colInsCol === null) return;
     const el = colInsAnchorEl();
     const gr = gridScroller.getBoundingClientRect();
@@ -6755,7 +6792,7 @@ function bindGrid() {
     if (!ar || ar.right < gr.left || ar.left > gr.right || ar.bottom < gr.top || ar.top > gr.bottom) { hideColIns(); return; }
     anchorColIns();
   });
-  window.addEventListener('resize', () => { if (colInsCol !== null) hideColIns(); if (tickPopCol !== null) closeTickPop(); });
+  window.addEventListener('resize', () => { if (colInsCol !== null) hideColIns(); if (tickPopCol !== null) positionTickPop(); });
   /* 触屏点到网格与胶囊之外（工具栏、侧栏等）也收起；网格内的点按由上面的 pointerup 判定 */
   document.addEventListener('pointerdown', ev => {
     if (!isTouchPointer(ev) || colInsCol === null) return;
