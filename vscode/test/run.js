@@ -5,6 +5,15 @@ const os = require('os');
 const path = require('path');
 const Module = require('module');
 
+/* 换行归一：Windows 检出（autocrlf）会把源文件变成 CRLF，而下面不少断言用带 \n 的正则
+   提取函数体 / 围栏；读文本统一归一成 LF，让断言只看内容、不看检出时的换行风格
+   （Buffer 二进制读不受影响；CRLF 写回用例走内存文档里的字面 \r\n，同样不受影响）。 */
+const _readFileSync = fs.readFileSync.bind(fs);
+fs.readFileSync = (p, enc) => {
+  const v = _readFileSync(p, enc);
+  return typeof v === 'string' ? v.replace(/\r\n/g, '\n') : v;
+};
+
 /* ---- 内存文档 + WorkspaceEdit：让 saveBack 能在纯 Node 下跑完整写回 ---- */
 const fakeDocs = new Map(); // fsPath -> { text }
 function posAt(text, off) {
