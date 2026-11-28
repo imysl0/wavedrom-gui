@@ -1283,6 +1283,121 @@ ok((trapMd.match(FENCE_RE) || []).length === 1, '锚定后仅匹配真实围栏'
   vm.runInContext(edLoose[0], sb2);
   ok(JSON.stringify(sb2.parseLoose("{ signal: [ { name: 'clk', wave: 'p...', }, ], } // 尾注")) === JSON.stringify({ signal: [{ name: 'clk', wave: 'p...' }] }), 'index.html 的 parseLoose 同样吃宽松写法');
 
+  /* 8b-6. 字体偏好：旧配置迁移、系统模式零请求、在线字体回退/成功/失败/迟到回调 */
+  const fontCoreStart = editorSrcFull.indexOf('const ONLINE_FONTS =');
+  const fontCoreSrc = editorSrcFull.slice(
+    fontCoreStart,
+    editorSrcFull.indexOf('\napplyFonts();', fontCoreStart) + '\napplyFonts();'.length
+  );
+  ok(fontCoreSrc.includes('function ensureOnlineFont') && fontCoreSrc.includes('function applyFonts'), '能取出完整的字体加载核心');
+  const makeFontSandbox = (initial = {}, faces = [{}]) => {
+    const store = Object.assign({}, initial), vars = {}, links = [], timers = new Map();
+    let timerId = 0;
+    const mkNode = (tag, attrs) => ({
+      tag, attrs: attrs || {}, handlers: {}, children: [], style: {}, removed: false,
+      addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
+      appendChild(child) { this.children.push(child); return child; },
+      remove() { this.removed = true; },
+    });
+    const sandbox = {
+      console, Promise,
+      tryGet: k => (k in store ? store[k] : null),
+      storeSet: (k, v) => { store[k] = v; },
+      i18n: s => s,
+      h: mkNode,
+      appReady: false,
+      resetLabelWidths() {},
+      document: {
+        documentElement: { style: { setProperty: (k, v) => { vars[k] = v; } } },
+        querySelectorAll: () => [],
+        head: { appendChild: link => { links.push(link); return link; } },
+        fonts: { load: () => Promise.resolve(faces) },
+      },
+      setTimeout: fn => { const id = ++timerId; timers.set(id, fn); return id; },
+      clearTimeout: id => timers.delete(id),
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(fontCoreSrc, sandbox);
+    return {
+      store, vars, links, timers, sandbox,
+      run: code => vm.runInContext(code, sandbox),
+      flush: async () => { await Promise.resolve(); await Promise.resolve(); },
+    };
+  };
+
+  const migrated = makeFontSandbox({
+    'wdgui-uifont': 'custom', 'wdgui-uifont-custom': 'Legacy Mono', 'wdgui-datafont-size': '99',
+  });
+  ok(migrated.run("state_font.uiSource === 'system' && state_font.uiSystem === 'Legacy Mono'"), '旧 custom 字体偏好迁移为系统字体');
+  ok(migrated.run('state_font.dataSize') === 22, '旧字号超出上限时收敛到 22px');
+
+  const systemOnly = makeFontSandbox({
+    'wdgui-uifont-source': 'system', 'wdgui-datafont-source': 'system',
+  });
+  ok(systemOnly.links.length === 0, '系统字体模式不创建在线字体样式表');
+
+  const onlineOk = makeFontSandbox();
+  ok(onlineOk.vars['--font-ui'] === '"PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif'
+    && onlineOk.links.length === 1, '在线字体加载前先使用系统回退栈');
+  onlineOk.links[0].handlers.load.forEach(fn => fn());
+  await onlineOk.flush();
+  ok(onlineOk.vars['--font-ui'].startsWith('"LXGW WenKai Mono"')
+    && onlineOk.run("fontStatus.ui === 'ready'"), '字体真实可用后才切换为在线字体');
+
+  const onlineFail = makeFontSandbox({}, []);
+  onlineFail.links[0].handlers.load.forEach(fn => fn());
+  await onlineFail.flush();
+  ok(onlineFail.links[0].removed && onlineFail.run("onlineFontCache.get('lxgw-mono').status") === 'failed'
+    && onlineFail.vars['--font-ui'].startsWith('"PingFang SC"'), '字体不可用时移除样式表并保留系统回退');
+
+  const stale = makeFontSandbox();
+  stale.run("setSystemFont('ui', 'Stale Safe')");
+  stale.links[0].handlers.load.forEach(fn => fn());
+  await stale.flush();
+  ok(stale.vars['--font-ui'].startsWith('"Stale Safe"'), '迟到在线字体不会覆盖用户新选系统字体');
+
+  /* 系统字体枚举被拒绝/不支持时，手动输入入口始终可用 */
+  const fontPickerSrc = editorSrcFull.slice(editorSrcFull.indexOf('let fontPop = null;'), editorSrcFull.indexOf('/* 语言菜单：'));
+  const makePickerSandbox = queryLocalFonts => {
+    const mkNode = (tag, attrs, ...children) => ({
+      tag, attrs: attrs || {}, children, style: {}, handlers: {}, textContent: '', offsetWidth: 280, offsetHeight: 320,
+      addEventListener(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
+      appendChild(child) { this.children.push(child); return child; },
+      remove() {}, focus() {},
+    });
+    const sandbox = {
+      console, Promise, Set, Map,
+      i18n: s => s,
+      h: mkNode,
+      closeFontPop() {}, closeSetPop() {},
+      state_font: { uiSystem: '', dataSystem: '' },
+      FONT_SAMPLE: '永东灵式 Aa Bb 012',
+      FONT_FALLBACKS: { ui: 'system-ui, sans-serif', mono: 'monospace' },
+      cleanFontFamily: s => String(s || '').trim().replace(/["'\\,;{}]/g, '').slice(0, 80),
+      setSystemFont() {},
+      document: { body: { appendChild() {} } },
+      window: { innerWidth: 1000, innerHeight: 800, queryLocalFonts },
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(fontPickerSrc, sandbox);
+    return sandbox;
+  };
+  const pickerDenied = makePickerSandbox(() => Promise.reject(new Error('denied')));
+  pickerDenied.openFontPop({ getBoundingClientRect: () => ({ left: 10, right: 40, top: 10 }) }, 'ui');
+  await Promise.resolve(); await Promise.resolve();
+  ok(vm.runInContext('fontPop', pickerDenied).el.children[2].textContent.includes('可手动输入字体族名'), '系统字体权限被拒时保留手动输入兜底');
+
+  /* 字号只进入自有渲染/导出：官方预览函数不读字体偏好，编辑区导出从真实计算样式取字号 */
+  const previewFnSrc = /function renderPreview\(prebuilt\) \{[\s\S]*?\n\}/.exec(editorSrcFull)[0];
+  ok(!previewFnSrc.includes('state_font') && !previewFnSrc.includes('--font-'), '右侧官方 WaveDrom 预览不注入字号或字体偏好');
+  const exportSrc = editorSrcFull.slice(editorSrcFull.indexOf('function buildEditorSvg()'), editorSrcFull.indexOf('/* ---------- 导出 drawio'));
+  ok(exportSrc.includes('const fsTime = fsOf(') && exportSrc.includes("'font-size': fsTime")
+    && exportSrc.includes("replaceAll('var(--font-mono)', mono)"), '编辑区 SVG 导出跟随计算字号并解析字体变量');
+  ok(/setAttribute\('font-size', String\(state_font\.dataSize/.test(editorSrcFull)
+    && /state_font\.dataSize \/ 15/.test(editorSrcFull), '自有画布文字与节点几何共同跟随数据字号');
+  ok(editorSrcFull.includes('async function buildEditorDrawio') && editorSrcFull.includes('function buildEditorExcalidraw')
+    && (editorSrcFull.match(/const svg = buildEditorSvg\(\);/g) || []).length >= 2, 'drawio 与 Excalidraw 共用同一棵编辑区 SVG');
+
   /* ---- 9. 编辑面板位置设置（wavedrom-gui.editorPanelPosition，默认 beside） ---- */
   const { editorPanelPosition, openEditor } = ext.__test;
   const openWith = async pos => {

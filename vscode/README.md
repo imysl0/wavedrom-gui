@@ -139,7 +139,7 @@ Markdown 里引用的 **PNG / SVG 图片**如果内嵌了 WaveJSON 元数据，�
 
 ## 限制
 
-- 编辑器 webview 首选霞鹜文楷经 CDN 加载，离线时自动回退系统字体（与网页版一致）。
+- 编辑器 webview 与网页版一致：界面与数据/代码字体可分别选择系统字体或在线字体；在线字体加载失败会自动回退系统字体，并可重试。
 - 图片重绘写回的是「编辑器当前状态」的重新导出：SVG 整文件重绘会覆盖文件里手工做的图形改动；PNG 重绘比例夹在 1×–4×。
 - **手动保存**档下，提交前的改动只在扩展宿主的内存里：关面板后靠通知「仍然保存」补救，但通知没点就随宿主退出一起丢了（重开面板以文件内容为准）。
 - **自动实时保存**档下，像素落盘发生在停手约 1 秒后（界面自动保存 0.4 秒 + 轮询 ≤250ms + 重绘 + 250ms 去抖；去抖窗口内继续改则整体后移，不会逐次写盘）：期间强杀 VS Code 的话像素保持上次落盘版本（元数据最多落后约 0.65 秒 = 界面 400ms 自动保存去抖 + 250ms 轮询，未写回文件的那部分编辑会丢——面板重开时以文件内容为准）；正常关闭面板不受影响。
@@ -289,7 +289,7 @@ Where to change them (three options):
 
 ## Limitations
 
-- The editor webview prefers LXGW WenKai, loaded from a CDN, and falls back to system fonts offline (same as the web app).
+- The editor webview matches the web app: UI and data/code fonts can independently use system or online families; online fonts fall back to system fonts on failure and can be retried.
 - Image redraws write back a re-export of "the editor's current state": an SVG is redrawn as a whole file, overwriting hand-made graphic edits; PNG redraw ratios are clamped to 1×–4×.
 - Under **Manual save**, uncommitted edits live only in the extension host's memory: closing the panel offers the "Save anyway" remedy, but if that notification is never clicked the edits go away with the host (a reopened panel takes the file as the source of truth).
 - Under **Automatic live save**, pixel flushing happens about 1 s after you stop (UI autosave 0.4 s + poll ≤250 ms + redraw + 250 ms debounce; further edits inside that debounce window push the whole write back rather than writing once per change): killing VS Code during that window leaves the last flushed pixels (metadata lags at most ~0.65 s = the UI's 400 ms autosave debounce + the 250 ms poll; edits not yet written back to the file are lost, since a reopened panel takes the file as the source of truth). Closing the panel normally is unaffected.

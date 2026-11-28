@@ -73,7 +73,7 @@ node render.js wave.json --mode traditional --skin narrow --format svg   # 传�
 - 内嵌官方 [WaveDrom](https://wavedrom.com/) v3.5.0 渲染库与 default/narrow 两套皮肤（来源 wavedrom.com）
 - 编辑区迷你波形为自绘 SVG，生成逻辑对照官方源码（`gen-wave-brick.js` 等）实现：成对状态转换、半拍转换标记、电平-时钟半砖融合（xclude 表）、`.`/`|` 重复器、period/phase/hscale 缩放等均按官方语义
 - 导出图片内嵌 WaveJSON 元数据：SVG `<metadata>` / PNG `iTXt` 文本块（纯 JS 零依赖实现，CRC32 手写），导入按文件头嗅探自动回读，不影响图片显示；另存**导出来源标记**（`data-export` 属性 / `WaveDromGui` iTXt 关键字），导入方据此按原风格重绘
-- 字体：霞鹜文楷等宽经 npmmirror CDN 分片按需加载（国内直连），离线自动回退系统字体；**官方渲染**导出的 SVG/PNG 恒为浅色原色、与界面字体和主题无关，**编辑区矢量重建**导出则跟随当前主题底色与字体设置（所见即所得）
+- 字体：界面与数据/代码可分别选择系统字体或在线字体；在线字体先以系统回退显示，加载成功后才切换，失败可重试。界面字号 11–18px、数据字号 12–22px；**官方渲染**导出的 SVG/PNG 恒为浅色原色、与界面字体、字号和主题无关，**编辑区矢量重建**导出则跟随当前主题底色、字体与字号（所见即所得）
 
 ## 致谢
 

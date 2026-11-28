@@ -11,10 +11,6 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23EEF1F6'/%3E%3Cpath d='M5 21.5H9.4V10.5H13.8V21.5H18.2V10.5H22.6V21.5H27' fill='none' stroke='%230E9F6E' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <meta name="app-version" content="dev">
 <style>
-@import url('https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkaimono-regular.css');
-@import url('https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkai-regular.css');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 :root {
   --bg: #0B1220;
   --panel: #101A2E;
@@ -56,8 +52,10 @@
   --danger-line: rgba(248, 113, 113, .4);
   --danger-veil: rgba(248, 113, 113, .12);
   color-scheme: dark;
-  --font-ui: "LXGW WenKai Mono Medium", "LXGW WenKai Mono", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-mono: "LXGW WenKai Mono Medium", "LXGW WenKai Mono", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace;
+  --font-ui: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace;
+  --font-ui-size: 13px;
+  --font-data-size: 15px;
   --r-lg: 10px; --r-md: 8px; --r-sm: 6px;
   --shadow-pop: 0 14px 38px rgba(2, 8, 20, .55), 0 2px 8px rgba(2, 8, 20, .4);
 }
@@ -154,7 +152,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 13px/1.5 var(--font-ui);
+  font: var(--font-ui-size)/1.5 var(--font-ui);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -168,6 +166,7 @@ body {
 input, textarea, select, button { font: inherit; color: inherit; caret-color: var(--acc); }
 button { cursor: pointer; }
 svg { display: block; }
+.topbar, .menu, .popover, .modal, .side, .editor-toolbar, .preview-foot, .code-foot { font-size: var(--font-ui-size); }
 
 /* ============ 顶栏 ============ */
 .topbar {
@@ -340,28 +339,31 @@ svg { display: block; }
 #setPop button:hover { background: rgba(120,150,200,.14); }
 #setPop button.active { color: var(--acc-text); }
 #setPop button .ck { margin-left: auto; color: var(--acc); flex: none; }
-/* 自定义字体弹层 */
+/* 字体选择弹层：系统字体枚举列表 + 手动输入，在线字体状态就地显示 */
 #fontPop {
-  position: fixed; z-index: 90; width: 252px; padding: 10px;
+  position: fixed; z-index: 90; width: 280px; max-width: calc(100vw - 16px); padding: 10px;
   background: var(--raise); border: 1px solid var(--line-hover);
   border-radius: var(--r-lg); box-shadow: var(--shadow-pop);
 }
 #fontPop .fp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 #fontPop .fp-title { font-size: 12px; color: var(--muted); }
-#fontPop .fp-browse {
-  padding: 3px 8px; border: 1px solid var(--line-hover); border-radius: var(--r-sm);
-  background: transparent; color: var(--text); font-size: 11px; white-space: nowrap;
-}
-#fontPop .fp-browse:hover { border-color: var(--acc); color: var(--acc-text); }
 #fontPop input[type="text"] {
   width: 100%; box-sizing: border-box; padding: 6px 8px;
   border: 1px solid var(--line-hover); border-radius: var(--r-sm);
   background: var(--bg); color: var(--text); font-size: 12px; font-family: var(--font-ui);
 }
 #fontPop input[type="text"]:focus { outline: none; border-color: var(--acc); }
-#fontPop .fp-prev {
-  margin-top: 8px; font-size: 14px; color: var(--text);
+#fontPop .fp-status { margin-top: 6px; min-height: 16px; font-size: 11px; line-height: 1.5; color: var(--faint); }
+#fontPop .fp-list { max-height: 210px; overflow-y: auto; margin-top: 6px; overscroll-behavior: contain; }
+#fontPop .fp-list button {
+  display: block; width: 100%; padding: 6px 8px; border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--text); text-align: left; font-size: 13px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#fontPop .fp-list button:hover, #fontPop .fp-list button.active { background: var(--acc-veil); color: var(--acc-text); }
+#fontPop .fp-prev {
+  margin-top: 8px; padding: 7px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-sm);
+  font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #fontPop .fp-prev span { color: var(--text); }
 #fontPop .fp-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
@@ -369,6 +371,10 @@ svg { display: block; }
   padding: 4px 14px; border: none; border-radius: var(--r-sm);
   background: var(--acc); color: var(--acc-ink); font-size: 12px; font-weight: 600;
 }
+.font-status { margin: 0 10px 5px 22px; font-size: 11px; line-height: 1.5; color: var(--faint); }
+.font-status.ready { color: var(--acc-text); }
+.font-status.failed { color: var(--warn-ink); }
+.font-status button { margin-left: 6px; padding: 0; border: none; background: none; color: inherit; text-decoration: underline; font-size: inherit; }
 .slider-cell input[type="range"] {
   flex: 1; min-width: 0; height: 18px;
   -webkit-appearance: none; appearance: none;
@@ -1351,6 +1357,17 @@ html[data-mobile] {
 }
 /* 波形单元格：触摸单指绘制不被原生滚动打断（touch-action 只影响触摸，桌面零影响） */
 .cell { touch-action: none; }
+/* 界面字号只改变文字，不缩放布局；自有波形编辑区的数据字号单独设置 */
+.brand .name { font-size: calc(var(--font-ui-size) + 1px); }
+.btn, .menu .mbtn > button, .set-row, #setPop button, .field label, .field input,
+.pop-field label, .pop-field input, .code-foot .btn, .menu-sec, .set-cat,
+.slider-cap, .code-ok, .code-err { font-size: calc(var(--font-ui-size) - 1px); }
+.time-corner { font-size: var(--font-ui-size); }
+.time-cell, .strip-num, .lane-head input.lane-name, .lane-head .pp-badge,
+.lane-head .g-count { font-size: var(--font-data-size); }
+.strip-text, .lane-head .gname { font-size: calc(var(--font-ui-size) + 2px); line-height: 1.2; }
+.lane-row.spacer-row .lane-head .spacer-label { font-size: calc(var(--font-data-size) - 3.5px); }
+.code-wrap textarea { font-size: var(--font-data-size); }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -1742,7 +1759,22 @@ const I18N_EN = {
   '已打开自动缩放：水平缩放将按最宽的总线标签自动加宽': 'Auto scale enabled: the horizontal scale grows to fit the widest bus label',
   '已关闭提示（': 'Prompts disabled (', '）；之后可在 设置 → 笔刷 → 自动缩放 或 左栏「图表」→ 波形 → 自动缩放 打开': '); enable it later at Settings → Brushes → Auto scale, or the left panel’s "Chart" → Waveform → Auto scale',
   '界面字体': 'UI font', '数据·代码字体': 'Data font',
-  '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans', '系统字体': 'System',
+  '字体': 'Fonts', '界面字体来源': 'UI font source', '数据·代码字体来源': 'Data font source',
+  '系统字体': 'System font', '在线字体': 'Online font', '系统默认': 'System default',
+  '选择系统字体': 'Choose system font', '选择系统字体…': 'Choose system font…',
+  '搜索或输入字体族名': 'Search or enter a font family',
+  '正在读取系统字体…': 'Reading system fonts…', '已读取 {n} 个系统字体': 'Loaded {n} system fonts',
+  '没有读到系统字体，可手动输入字体族名': 'No system fonts found; enter a family manually',
+  '当前浏览器不支持枚举系统字体，可手动输入字体族名': 'This browser cannot list system fonts; enter a family manually',
+  '无法读取系统字体，可手动输入字体族名': 'Cannot read system fonts; enter a family manually',
+  '没有匹配的系统字体': 'No matching system fonts', '预览': 'Preview', '使用': 'Use',
+  '界面字号': 'UI size', '数据字号': 'Data size',
+  '只改变界面文字大小，不缩放布局': 'Changes UI text size without scaling the layout',
+  '作用于自有波形编辑区与代码，不改变右侧 WaveDrom 预览': 'Applies to the custom editor and code, not the WaveDrom preview',
+  '正在加载在线字体，当前使用系统字体…': 'Loading online font; using the system font…',
+  '在线字体已加载': 'Online font loaded', '在线字体不可用，当前使用系统字体': 'Online font unavailable; using the system font',
+  '重试': 'Retry',
+  '霞鹜文楷等宽': 'LXGW Mono', '霞鹜文楷': 'LXGW WenKai', 'IBM Plex Sans': 'IBM Plex Sans',
   '自定义…': 'Custom…', '自定义字体': 'Custom font', '确定': 'OK',
   '字体族名，如 Noto Sans CJK SC': 'Font family, e.g. Georgia',
   '浏览系统字体…': 'Browse system fonts…',
@@ -2109,72 +2141,227 @@ function setViewModePref(mode) {
   if (!isMobile()) closeBrushFly();
   state.autoFit = true; renderPreview();
 }
-/* 界面字体 / 数据·代码字体（独立选择，JS 写入 CSS 变量） */
-const FONT_STACKS = {
-  /* 霞鹜文楷等宽默认取 Medium 字重（略粗、投影更清楚）；机器上没装 Medium 时自然退回 Regular */
+/* 界面字体 / 数据·代码字体：来源、字体族与字号分别持久化 */
+const ONLINE_FONTS = {
   'lxgw-mono': {
-    ui: '"LXGW WenKai Mono Medium", "LXGW WenKai Mono", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
-    mono: '"LXGW WenKai Mono Medium", "LXGW WenKai Mono", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace',
+    family: 'LXGW WenKai Mono', label: '霞鹜文楷等宽',
+    css: 'https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkaimono-regular.css',
   },
   'lxgw': {
-    ui: '"LXGW WenKai", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
-    mono: '"LXGW WenKai", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace',
+    family: 'LXGW WenKai', label: '霞鹜文楷',
+    css: 'https://registry.npmmirror.com/lxgw-wenkai-webfont/latest/files/lxgwwenkai-regular.css',
   },
   'plex': {
-    ui: '"IBM Plex Sans", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
-    mono: '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Noto Sans Mono CJK SC", monospace',
-  },
-  'system': {
-    ui: 'system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif',
-    mono: 'system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif',
+    family: 'IBM Plex Sans', dataFamily: 'JetBrains Mono', label: 'IBM Plex Sans',
+    css: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap',
   },
 };
-const state_font = {
-  ui: tryGet('wdgui-uifont') || 'lxgw-mono',
-  data: tryGet('wdgui-dfont') || 'lxgw-mono',
-  uiCustom: tryGet('wdgui-uifont-custom') || '',
-  dataCustom: tryGet('wdgui-dfont-custom') || '',
+const FONT_FALLBACKS = {
+  ui: '"PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif',
+  mono: '"Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace',
 };
-// 旧单键迁移
-const legacyFont = tryGet('wdgui-font');
-if (legacyFont && !tryGet('wdgui-uifont')) {
-  const m = { lxgw: ['lxgw-mono', 'lxgw-mono'], plex: ['plex', 'plex'], system: ['system', 'system'], default: ['plex', 'plex'] }[legacyFont];
-  if (m) { state_font.ui = m[0]; state_font.data = m[1]; }
+const FONT_SIZE_DEFAULT = { ui: 13, data: 15 };
+const FONT_SIZE_LIMIT = { ui: [11, 18], data: [12, 22] };
+const FONT_SAMPLE = '永东灵式 Aa Bb 012';
+function cleanFontFamily(s) { return String(s || '').trim().replace(/["'\\,;{}]/g, '').slice(0, 80); }
+function readFontSize(which) {
+  const raw = parseFloat(tryGet('wdgui-' + which + 'font-size'));
+  const [min, max] = FONT_SIZE_LIMIT[which];
+  return Number.isFinite(raw) ? Math.max(min, Math.min(max, raw)) : FONT_SIZE_DEFAULT[which];
 }
-if (state_font.ui !== 'custom' && !FONT_STACKS[state_font.ui]) state_font.ui = 'lxgw-mono';
-if (state_font.data !== 'custom' && !FONT_STACKS[state_font.data]) state_font.data = 'lxgw-mono';
-/* 自定义档：用户字体族名排最前，后面留同角色的兜底（ui 走无衬线尾、data 走等宽尾）。
-   族名只来自输入框清洗 + queryLocalFonts 的 family，不再引号——CSS 变量值里进引号会破坏整条栈 */
-function fontStackOf(which, kind) {
-  if (state_font[which] === 'custom') {
-    const fam = state_font[which + 'Custom'] || 'system-ui';
-    return kind === 'ui'
-      ? '"' + fam + '", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", system-ui, sans-serif'
-      : '"' + fam + '", "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", monospace';
+function initialFont(which) {
+  const source = tryGet('wdgui-' + which + 'font-source');
+  const family = tryGet('wdgui-' + which + 'font-family');
+  const system = cleanFontFamily(tryGet('wdgui-' + which + 'font-system'));
+  if (source === 'system' || source === 'online') {
+    return {
+      source,
+      family: source === 'online' ? (ONLINE_FONTS[family] ? family : 'lxgw-mono') : 'system',
+      system: system || cleanFontFamily(tryGet('wdgui-' + which + 'font-custom')),
+    };
   }
-  return FONT_STACKS[state_font[which]][kind];
+  const legacy = tryGet('wdgui-' + which + 'font');
+  if (legacy === 'custom') return { source: 'system', family: 'system', system: cleanFontFamily(tryGet('wdgui-' + which + 'font-custom')) };
+  if (legacy === 'system') return { source: 'system', family: 'system', system: '' };
+  if (legacy && ONLINE_FONTS[legacy]) return { source: 'online', family: legacy, system: '' };
+  return { source: 'online', family: 'lxgw-mono', system: '' };
+}
+const oldLegacyFont = tryGet('wdgui-font');
+const legacyFontMap = { lxgw: 'lxgw-mono', plex: 'plex', system: 'system', default: 'plex' };
+const state_font = { uiSize: readFontSize('ui'), dataSize: readFontSize('data') };
+['ui', 'data'].forEach(which => {
+  let saved = initialFont(which);
+  if (oldLegacyFont && !tryGet('wdgui-' + which + 'font') && !tryGet('wdgui-' + which + 'font-source')) {
+    const mapped = legacyFontMap[oldLegacyFont];
+    if (mapped) saved = mapped === 'system'
+      ? { source: 'system', family: 'system', system: '' }
+      : { source: 'online', family: mapped, system: '' };
+  }
+  state_font[which + 'Source'] = saved.source;
+  state_font[which + 'Family'] = saved.family;
+  state_font[which + 'System'] = saved.system;
+});
+const onlineFontCache = new Map();
+const fontStatus = { ui: 'idle', data: 'idle' };
+function onlineFamilyOf(which) {
+  const font = ONLINE_FONTS[state_font[which + 'Family']];
+  return which === 'data' && font.dataFamily ? font.dataFamily : font.family;
+}
+function fontStackOf(which, kind) {
+  const fallback = FONT_FALLBACKS[kind];
+  if (state_font[which + 'Source'] === 'system') {
+    const family = state_font[which + 'System'];
+    return family ? '"' + family + '", ' + fallback : fallback;
+  }
+  const id = state_font[which + 'Family'];
+  if (onlineFontCache.get(id)?.status === 'ready') return '"' + onlineFamilyOf(which) + '", ' + fallback;
+  return fallback;
+}
+function fontKeyOf(which) {
+  return state_font[which + 'Source'] === 'online'
+    ? 'online:' + state_font[which + 'Family']
+    : 'system:' + state_font[which + 'System'];
+}
+function setFontStatus(which, status) {
+  fontStatus[which] = status;
+  document.querySelectorAll('[data-font-status="' + which + '"]').forEach(el => {
+    el.className = 'font-status ' + status;
+    el.textContent = status === 'loading' ? i18n('正在加载在线字体，当前使用系统字体…')
+      : status === 'ready' ? i18n('在线字体已加载')
+      : status === 'failed' ? i18n('在线字体不可用，当前使用系统字体') : '';
+    if (status === 'failed') {
+      const retry = h('button', { type: 'button' }, i18n('重试'));
+      retry.addEventListener('click', ev => { ev.stopPropagation(); onlineFontCache.delete(state_font[which + 'Family']); applyFonts(); });
+      el.appendChild(retry);
+    }
+  });
+}
+function updateFontStatuses() {
+  ['ui', 'data'].forEach(which => {
+    if (state_font[which + 'Source'] === 'online') setFontStatus(which, fontStatus[which]);
+  });
+}
+function ensureOnlineFont(id) {
+  const cached = onlineFontCache.get(id);
+  if (cached?.status === 'ready') return Promise.resolve(true);
+  if (cached?.status === 'loading') return cached.promise;
+  const font = ONLINE_FONTS[id];
+  if (!font) return Promise.resolve(false);
+  const link = h('link', { rel: 'stylesheet', href: font.css });
+  let timer = null;
+  let settled = false;
+  const promise = new Promise((resolve, reject) => {
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      link.remove();
+      onlineFontCache.set(id, { status: 'failed' });
+      reject(new Error('font load failed'));
+    };
+    link.addEventListener('load', () => {
+      if (!document.fonts?.load) { fail(); return; }
+      document.fonts.load('400 16px "' + font.family + '"', FONT_SAMPLE).then(faces => {
+        if (settled) return;
+        if (!faces.length) { fail(); return; }
+        settled = true;
+        if (timer) clearTimeout(timer);
+        onlineFontCache.set(id, { status: 'ready' });
+        resolve(true);
+      }).catch(fail);
+    });
+    link.addEventListener('error', fail);
+    timer = setTimeout(fail, 7000);
+    document.head.appendChild(link);
+  });
+  onlineFontCache.set(id, { status: 'loading', promise });
+  return promise;
+}
+function refreshFontLayout() {
+  const active = document.activeElement;
+  const row = active?.closest?.('.lane-row');
+  const laneId = row?.dataset.lane, groupId = row?.dataset.group;
+  const selStart = active?.selectionStart, selEnd = active?.selectionEnd;
+  resetLabelWidths();
+  if (appReady) renderEdges();
+  if (laneId !== undefined || groupId !== undefined) {
+    const input = laneId !== undefined
+      ? document.querySelector('.lane-row[data-lane="' + laneId + '"] input.lane-name')
+      : document.querySelector('.lane-row[data-group="' + groupId + '"] input.gname');
+    if (input) {
+      input.focus();
+      if (typeof selStart === 'number') input.setSelectionRange(selStart, selEnd);
+    }
+  }
+}
+function applyFonts() {
+  const root = document.documentElement;
+  root.style.setProperty('--font-ui-size', state_font.uiSize + 'px');
+  root.style.setProperty('--font-data-size', state_font.dataSize + 'px');
+  ['ui', 'data'].forEach(which => {
+    const kind = which === 'ui' ? 'ui' : 'mono';
+    root.style.setProperty('--font-' + kind, fontStackOf(which, kind));
+    if (state_font[which + 'Source'] === 'system') { setFontStatus(which, 'idle'); return; }
+    const id = state_font[which + 'Family'];
+    const cached = onlineFontCache.get(id);
+    if (cached?.status === 'ready') { setFontStatus(which, 'ready'); return; }
+    setFontStatus(which, cached?.status === 'failed' ? 'failed' : 'loading');
+    if (cached?.status === 'failed') return;
+    const key = fontKeyOf(which);
+    ensureOnlineFont(id).then(ok => {
+      if (fontKeyOf(which) !== key) return;
+      root.style.setProperty('--font-' + kind, fontStackOf(which, kind));
+      setFontStatus(which, ok ? 'ready' : 'failed');
+      refreshFontLayout();
+    }).catch(() => {
+      if (fontKeyOf(which) !== key) return;
+      root.style.setProperty('--font-' + kind, fontStackOf(which, kind));
+      setFontStatus(which, 'failed');
+    });
+  });
+  resetLabelWidths();
+}
+function persistFont(which) {
+  storeSet('wdgui-' + which + 'font-source', state_font[which + 'Source']);
+  storeSet('wdgui-' + which + 'font-family', state_font[which + 'Family']);
+  storeSet('wdgui-' + which + 'font-system', state_font[which + 'System']);
+}
+function setFontSource(which, source) {
+  state_font[which + 'Source'] = source;
+  if (source === 'online' && !ONLINE_FONTS[state_font[which + 'Family']]) state_font[which + 'Family'] = 'lxgw-mono';
+  persistFont(which); applyFonts();
+}
+function setOnlineFont(which, id) {
+  if (!ONLINE_FONTS[id]) return;
+  state_font[which + 'Source'] = 'online'; state_font[which + 'Family'] = id;
+  persistFont(which); applyFonts();
+}
+function setSystemFont(which, family) {
+  state_font[which + 'Source'] = 'system'; state_font[which + 'Family'] = 'system';
+  state_font[which + 'System'] = cleanFontFamily(family);
+  persistFont(which); applyFonts();
+}
+function setFontSize(which, size) {
+  const [min, max] = FONT_SIZE_LIMIT[which];
+  state_font[which + 'Size'] = Math.max(min, Math.min(max, size));
+  storeSet('wdgui-' + which + 'font-size', String(state_font[which + 'Size']));
+  applyFonts();
+}
+function fontLabel(which) {
+  if (state_font[which + 'Source'] === 'system') return state_font[which + 'System'] || i18n('系统默认');
+  const font = ONLINE_FONTS[state_font[which + 'Family']];
+  return i18n(which === 'data' && font.dataFamily ? font.dataFamily : font.label);
+}
+function fontRowItems(which) {
+  if (state_font[which + 'Source'] === 'system') {
+    const items = [['system', i18n('系统默认')]];
+    if (state_font[which + 'System']) items.push(['pick', state_font[which + 'System']]);
+    items.push(['choose', i18n('选择系统字体…')]);
+    return items;
+  }
+  return Object.keys(ONLINE_FONTS).map(id => [id, i18n(which === 'data' && ONLINE_FONTS[id].dataFamily ? ONLINE_FONTS[id].dataFamily : ONLINE_FONTS[id].label)]);
 }
 applyFonts();
-function applyFonts() {
-  document.documentElement.style.setProperty('--font-ui', fontStackOf('ui', 'ui'));
-  document.documentElement.style.setProperty('--font-mono', fontStackOf('data', 'mono'));
-  resetLabelWidths(); // 数据字体换了 → 标签实测宽度变了，清缓存重排（节点避让也依赖它）
-}
-/* 设置菜单里的字体选项：界面用无衬线名，数据/代码用对应等宽名；
-   末尾拼一个「自定义」档——选中后弹输入框，可填任意本机字体（label 动态换成族名） */
-const FONT_CHOICES = [
-  ['lxgw-mono', '霞鹜文楷等宽'], ['lxgw', '霞鹜文楷'],
-  ['plex', 'IBM Plex Sans'], ['system', '系统字体'],
-];
-const FONT_CHOICES_DATA = [
-  ['lxgw-mono', '霞鹜文楷等宽'], ['lxgw', '霞鹜文楷'],
-  ['plex', 'JetBrains Mono'], ['system', '系统字体'],
-];
-function fontRowItems(which) {
-  const base = (which === 'ui' ? FONT_CHOICES : FONT_CHOICES_DATA).map(x => [x[0], i18n(x[1])]);
-  const customLabel = state_font[which] === 'custom' && state_font[which + 'Custom'] ? state_font[which + 'Custom'] : i18n('自定义…');
-  return base.concat([['custom', customLabel]]);
-}
 
 /* 笔刷栏默认样式（设置里 3 选）；运行时另有两档折叠态：compact 横向弹窗条、panel 右侧完整面板 */
 const BRUSH_DEFAULTS = [['bar', '下横条'], ['vgroup', '右纵条'], ['fab', '右下角']];
@@ -2235,7 +2422,7 @@ if (!NODE_MODES.includes(state_node.mode)) state_node.mode = 'bare';
    切回数据字符即恢复，暂存随该格脱离选中而失效。关闭则沿用旧行为（换字符即清标签）。 */
 let keepLabel = tryGet('wdgui-keep-label') !== 'off';
 let labelStash = null; // { laneId, t, label }
-const nodeR = () => 6.5 * state_node.scale;
+const nodeR = () => 6.5 * state_node.scale * (state_font.dataSize / 15);
 /* 在 svg 上画一个节点标记：
    letter = 圆圈 + 字母；bare = 仅字母（垫一层微透明白底，压住底下的波形线但不喧宾夺主）；
    dot = 只画小圆点（不画字母） */
@@ -2253,14 +2440,14 @@ function drawNodeMarker(svg, x, y, letter) {
   c.setAttribute('cx', x); c.setAttribute('cy', y);
   /* 无圈模式：底衬收到刚好托住字身，并带一点透明度让波形隐约透出来。
      底色取主题的 --node-fill（浅色主题即白色），深色主题下自动跟着走，字仍然清楚。 */
-  c.setAttribute('r', bare ? 5.2 * state_node.scale : nodeR());
+  c.setAttribute('r', bare ? 5.2 * state_node.scale * (state_font.dataSize / 15) : nodeR());
   c.setAttribute('fill', bare ? hexA(cssVar('--node-fill'), .82) : cssVar('--node-fill'));
   if (!bare) { c.setAttribute('stroke', cssVar('--node-line')); c.setAttribute('stroke-width', 1.3); }
   svg.appendChild(c);
   const tx = document.createElementNS(NS, 'text');
   tx.setAttribute('x', 0); tx.setAttribute('y', 3.5);
   tx.setAttribute('text-anchor', 'middle');
-  tx.setAttribute('font-size', '9'); tx.setAttribute('font-weight', '600');
+  tx.setAttribute('font-size', String(state_font.dataSize * .6)); tx.setAttribute('font-weight', '600');
   tx.setAttribute('transform', `translate(${x} ${y}) scale(${state_node.scale})`);
   tx.style.fontFamily = 'var(--font-mono)';
   tx.setAttribute('fill', cssVar('--node-line'));
@@ -2280,12 +2467,12 @@ function nodeAnchorXY(bx, bw) {
 /* 节点圆标的实际外接半径（含描边）：letter 模式是圆圈，dot 模式是小圆点 */
 function nodeMarkerR() {
   if (state_node.mode === 'dot') return 3 * state_node.scale + 1;
-  if (state_node.mode === 'bare') return 5.2 * state_node.scale; // 无圈：底衬更小，占位随之收窄
+  if (state_node.mode === 'bare') return 5.2 * state_node.scale * (state_font.dataSize / 15); // 无圈：底衬更小，占位随之收窄
   return nodeR() + 0.65;
 }
 /* 数据框里 14px 标签的实际占位行（基线 29，上到字冠、下到降部） */
 const LABEL_BAND = [18.5, 32];
-/* 数据框标签宽度：按渲染字体实测（14px var(--font-mono)）。
+/* 数据框标签宽度：按渲染字体实测（数据字号 var(--font-mono)）。
    不能用「每字符固定宽度」估算——中文/全角在等宽字体里正好是 ASCII 的两倍宽，
    按单倍算会把中文标签算窄一半，省略后仍溢出格子压到相邻数据框。 */
 /* 宽度缓存用 var 并延迟创建：applyFonts() 在模块顶层（本文件更靠前的位置）就会被调用一次，
@@ -2298,11 +2485,11 @@ const WIDE_CH = /[\u1100-\u115F\u2014\u2026\u2E80-\u303E\u3041-\u33FF\u3400-\u4D
 function estimateLabelW(s) {
   let units = 0;
   for (const ch of String(s)) units += WIDE_CH.test(ch) ? 2 : 1;
-  return units * 7.4;
+  return units * state_font.dataSize * .53;
 }
 function labelFontSpec() {
   const stack = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'monospace';
-  return '14px ' + stack;
+  return state_font.dataSize + 'px ' + stack;
 }
 function labelTextW(s) {
   const str = String(s);
@@ -2330,11 +2517,7 @@ function resetLabelWidths() {
   if (appReady) renderGrid();
 }
 if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
-  document.fonts.ready.then(() => {
-    if (labelWCache) labelWCache.clear();
-    try { textPxCache.clear(); } catch (e) { /* 同上 */ }
-    if (appReady) renderGrid();
-  });
+  document.fonts.ready.then(() => { if (appReady) refreshFontLayout(); });
 }
 /* 标签放不下时按字符省略，绝不做字距压缩：优先「开头…末尾字符」，
    空间还不够就只留开头，最终在可用宽度里正常显示尽可能多的字符 */
@@ -3475,7 +3658,7 @@ function laneSVG(lane, colCount, color, cropX, noVeil) {
         const tx = document.createElementNS(NS, 'text');
         tx.setAttribute('x', (lo + hi) / 2); tx.setAttribute('y', 29);
         tx.setAttribute('text-anchor', 'middle');
-        tx.setAttribute('font-size', '14'); tx.style.fontFamily = 'var(--font-mono)';
+        tx.setAttribute('font-size', String(state_font.dataSize)); tx.style.fontFamily = 'var(--font-mono)';
         tx.setAttribute('fill', isDigit ? dbox.ink : color);
         const shown = fitLabel(label, avail); // 过长只省略显示，不压缩字距
         tx.textContent = shown;
@@ -3822,8 +4005,8 @@ function textPx(s, group) {
   if (!textPx.ctx) textPx.ctx = document.createElement('canvas').getContext('2d');
   const root = getComputedStyle(document.documentElement);
   textPx.ctx.font = group
-    ? '700 15px ' + root.getPropertyValue('--font-ui')
-    : '500 15px ' + root.getPropertyValue('--font-mono');
+    ? '700 ' + (state_font.uiSize + 2) + 'px ' + root.getPropertyValue('--font-ui')
+    : '500 ' + state_font.dataSize + 'px ' + root.getPropertyValue('--font-mono');
   const w = textPx.ctx.measureText(s).width;
   if (textPxCache.size > 4000) textPxCache.clear();   // 长会话里用户手输名字可能越攒越多，封顶重来
   textPxCache.set(key, w);
@@ -3834,10 +4017,10 @@ function calcNamew() {
   walkTree(state.tree, (n, d) => {
     let extra = 0;
     if (n.kind === 'group' && collapsedGroups.has(n.id)) {
-      extra = 18 + String(n.children.length).length * 6.5; // 子行数角标
+      extra = 18 + String(n.children.length).length * (state_font.uiSize * .43); // 子行数角标
     } else if (n.kind === 'lane' && ((n.period && n.period > 1) || n.phase)) {
       const label = (n.period && n.period > 1 ? '×' + n.period : '') + (n.phase ? ' φ' + n.phase : '');
-      extra = 14 + label.length * 6; // period/phase 徽标
+      extra = 14 + label.length * (state_font.dataSize * .4); // period/phase 徽标
     }
     const nameW = n.name ? textPx(n.name, n.kind === 'group') : 0;
     /* 基础偏移 = 色点列 + 文字起点（44）+ 右侧留白；留白此前给到 26px，导出图里
@@ -4627,7 +4810,7 @@ function renderMiniEdges() {
         const tx = document.createElementNS(NS, 'text');
         tx.setAttribute('x', lp[0]); tx.setAttribute('y', lp[1]);
         tx.setAttribute('text-anchor', lp[2]);
-        tx.setAttribute('font-size', '9.5');
+        tx.setAttribute('font-size', String(Math.round(state_font.dataSize * .68 * 10) / 10));
         tx.style.fontFamily = 'var(--font-mono)';
         tx.setAttribute('fill', col);
         tx.setAttribute('stroke', cssVar('--wave-bg'));   /* 描边是「垫在标签底下的画布色」，取波形底不是页面底 */
@@ -7163,60 +7346,56 @@ function openSetPop(anchor, items, isActive, onPick) {
   pop.style.top = Math.max(8, Math.min(r.top - 4, window.innerHeight - ph - 8)) + 'px';
   setPopEl = pop;
 }
-/* ---------- 自定义字体弹层：任意本机字体族名 + queryLocalFonts 枚举（Chromium 且安全上下文才有） ---------- */
+/* ---------- 系统字体选择：枚举已安装字体 + 手动输入兜底 ---------- */
 let fontPop = null;
 function closeFontPop() { if (fontPop) { fontPop.el.remove(); fontPop = null; } }
 function openFontPop(anchor, which, onDone) {
   closeFontPop(); closeSetPop();
   const isUI = which === 'ui';
-  const el = h('div', { id: 'fontPop' });
+  const el = h('div', { id: 'fontPop', role: 'dialog', 'aria-label': i18n('选择系统字体') });
   const input = h('input', { type: 'text', spellcheck: 'false', autocomplete: 'off',
-    placeholder: i18n('字体族名，如 Noto Sans CJK SC') });
-  input.value = state_font[isUI ? 'uiCustom' : 'dataCustom'] || '';
-  const dl = h('datalist', { id: 'fontPopDatalist' });
-  input.setAttribute('list', 'fontPopDatalist');
+    placeholder: i18n('搜索或输入字体族名'), 'aria-label': i18n('搜索或输入字体族名') });
+  input.value = state_font[which + 'System'] || '';
+  const status = h('div', { class: 'fp-status' });
+  const list = h('div', { class: 'fp-list' });
   const prev = h('div', { class: 'fp-prev' }, i18n('预览') + '：');
-  const prevText = h('span', null, '永东灵式 Aa Bb 012');
+  const prevText = h('span', null, FONT_SAMPLE);
   prev.appendChild(prevText);
+  let families = [];
+  const stackFor = fam => '"' + fam + '", ' + FONT_FALLBACKS[isUI ? 'ui' : 'mono'];
   const applyPrev = () => {
-    const fam = input.value.trim().replace(/["'\\,;{}]/g, '');
-    prevText.style.fontFamily = fam ? '"' + fam + '", ' + (isUI ? 'sans-serif' : 'monospace') : '';
+    const fam = cleanFontFamily(input.value);
+    prevText.style.fontFamily = fam ? stackFor(fam) : FONT_FALLBACKS[isUI ? 'ui' : 'mono'];
   };
-  input.addEventListener('input', applyPrev);
-  applyPrev();
-  /* 枚举系统字体要用户手势 + 安全上下文；拒绝授权就静默——输入框手填永远可用 */
-  if (window.queryLocalFonts) {
-    const browse = h('button', { class: 'fp-browse', type: 'button' }, i18n('浏览系统字体…'));
-    browse.addEventListener('click', ev => {
-      ev.stopPropagation();
-      window.queryLocalFonts().then(fonts => {
-        const fams = [...new Set(fonts.map(f => f.family))].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
-        dl.textContent = '';
-        fams.forEach(f => dl.appendChild(h('option', { value: f })));
-        input.focus();
-      }).catch(() => {});
+  const renderList = () => {
+    list.textContent = '';
+    const q = cleanFontFamily(input.value).toLocaleLowerCase();
+    const shown = families.filter(f => !q || f.toLocaleLowerCase().includes(q));
+    const defaults = h('button', { type: 'button', class: input.value ? '' : 'active' }, i18n('系统默认'));
+    defaults.style.fontFamily = FONT_FALLBACKS[isUI ? 'ui' : 'mono'];
+    defaults.addEventListener('click', ev => { ev.stopPropagation(); choose(''); });
+    list.appendChild(defaults);
+    shown.forEach(fam => {
+      const b = h('button', { type: 'button', class: fam === input.value ? 'active' : '' }, fam);
+      b.style.fontFamily = stackFor(fam);
+      b.addEventListener('click', ev => { ev.stopPropagation(); choose(fam); });
+      list.appendChild(b);
     });
-    el.appendChild(h('div', { class: 'fp-head' }, h('span', { class: 'fp-title' }, i18n('自定义字体')), browse));
-  } else {
-    el.appendChild(h('div', { class: 'fp-head' }, h('span', { class: 'fp-title' }, i18n('自定义字体'))));
-  }
-  el.appendChild(input); el.appendChild(dl); el.appendChild(prev);
-  const ok = h('button', { class: 'fp-ok', type: 'button' }, i18n('确定'));
-  ok.addEventListener('click', ev => {
-    ev.stopPropagation();
-    const fam = input.value.trim().replace(/["'\\,;{}]/g, '').slice(0, 80);
-    closeFontPop();
-    if (!fam) return;   // 空 = 取消，不动现状
-    state_font[isUI ? 'uiCustom' : 'dataCustom'] = fam;
-    state_font[which] = 'custom';
-    storeSet(isUI ? 'wdgui-uifont' : 'wdgui-dfont', 'custom');
-    storeSet(isUI ? 'wdgui-uifont-custom' : 'wdgui-dfont-custom', fam);
-    if (onDone) onDone();
-  });
+    if (families.length && !shown.length) list.appendChild(h('div', { class: 'fp-status' }, i18n('没有匹配的系统字体')));
+  };
+  const choose = fam => {
+    closeFontPop(); setSystemFont(which, fam); if (onDone) onDone();
+  };
+  input.addEventListener('input', () => { applyPrev(); renderList(); });
+  applyPrev(); renderList();
+  el.appendChild(h('div', { class: 'fp-head' }, h('span', { class: 'fp-title' }, i18n('选择系统字体'))));
+  el.appendChild(input); el.appendChild(status); el.appendChild(list); el.appendChild(prev);
+  const ok = h('button', { class: 'fp-ok', type: 'button' }, i18n('使用'));
+  ok.addEventListener('click', ev => { ev.stopPropagation(); choose(input.value); });
   el.appendChild(h('div', { class: 'fp-foot' }, ok));
   input.addEventListener('keydown', ev => {
     if (ev.key === 'Enter') { ev.preventDefault(); ok.click(); }
-    ev.stopPropagation();   // 别让全局 Esc/快捷键抢走输入框里的按键
+    ev.stopPropagation();
   });
   document.body.appendChild(el);
   fontPop = { el };
@@ -7226,6 +7405,23 @@ function openFontPop(anchor, which, onDone) {
   el.style.left = left + 'px';
   el.style.top = Math.max(8, Math.min(r.top - 4, window.innerHeight - ph - 8)) + 'px';
   input.focus();
+  if (!window.queryLocalFonts) {
+    status.textContent = i18n('当前浏览器不支持枚举系统字体，可手动输入字体族名');
+    return;
+  }
+  status.textContent = i18n('正在读取系统字体…');
+  try {
+    window.queryLocalFonts().then(fonts => {
+      if (fontPop?.el !== el) return;
+      families = [...new Set(fonts.map(f => f.family).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+      status.textContent = families.length ? i18n('已读取 {n} 个系统字体').replace('{n}', families.length) : i18n('没有读到系统字体，可手动输入字体族名');
+      renderList();
+    }).catch(() => {
+      if (fontPop?.el !== el) return;
+      status.textContent = i18n('无法读取系统字体，可手动输入字体族名');
+    });
+  } catch (e) { status.textContent = i18n('无法读取系统字体，可手动输入字体族名'); }
 }
 /* 语言菜单：跟随系统 / 简体中文 / English，选中打勾 */
 function buildLangMenu(menu) {
@@ -7281,8 +7477,8 @@ function buildSettingsMenu(menu) {
       rebuild();
     });
     menu.appendChild(head);
-    fill(body);
     menu.appendChild(body);
+    fill(body);
   };
 
   const THEMES = [['light', i18n('浅色')], ['dark', i18n('深色')]];
@@ -7326,14 +7522,38 @@ function buildSettingsMenu(menu) {
     /* 总线数据块怎么衔接：偏好档，管所有没在图表设置里钉死的文档 */
     row(body, i18n('总线数据块'), BUS_JOIN_CAPS().map(([v, cap]) => [v, cap, cap, () => busJoinSample(v, 124)]),
       () => (state.busJoinPref === 'joined' ? 'joined' : 'split'), v => setBusJoinPref(v));
-    row(body, i18n('界面字体'), fontRowItems('ui'), () => state_font.ui, (v, btn) => {
-      if (v === 'custom') { openFontPop(btn, 'ui', () => { applyFonts(); rebuild(); }); return false; }
-      state_font.ui = v; storeSet('wdgui-uifont', v); applyFonts();
+    body.appendChild(h('div', { class: 'menu-sec' }, i18n('字体')));
+    row(body, i18n('界面字体来源'), [['system', i18n('系统字体')], ['online', i18n('在线字体')]],
+      () => state_font.uiSource, v => setFontSource('ui', v));
+    row(body, i18n('界面字体'), fontRowItems('ui'), () => state_font.uiSource === 'online' ? state_font.uiFamily : (state_font.uiSystem ? 'pick' : 'system'), (v, btn) => {
+      if (state_font.uiSource === 'system') {
+        if (v === 'choose' || v === 'pick') { openFontPop(btn, 'ui', rebuild); return false; }
+        setSystemFont('ui', '');
+      } else setOnlineFont('ui', v);
     });
-    row(body, i18n('数据·代码字体'), fontRowItems('data'), () => state_font.data, (v, btn) => {
-      if (v === 'custom') { openFontPop(btn, 'data', () => { applyFonts(); rebuild(); }); return false; }
-      state_font.data = v; storeSet('wdgui-dfont', v); applyFonts();
+    if (state_font.uiSource === 'online') body.appendChild(h('div', { class: 'font-status', 'data-font-status': 'ui' }));
+    row(body, i18n('数据·代码字体来源'), [['system', i18n('系统字体')], ['online', i18n('在线字体')]],
+      () => state_font.dataSource, v => setFontSource('data', v));
+    row(body, i18n('数据·代码字体'), fontRowItems('data'), () => state_font.dataSource === 'online' ? state_font.dataFamily : (state_font.dataSystem ? 'pick' : 'system'), (v, btn) => {
+      if (state_font.dataSource === 'system') {
+        if (v === 'choose' || v === 'pick') { openFontPop(btn, 'data', rebuild); return false; }
+        setSystemFont('data', '');
+      } else setOnlineFont('data', v);
     });
+    if (state_font.dataSource === 'online') body.appendChild(h('div', { class: 'font-status', 'data-font-status': 'data' }));
+    const sizes = h('div', { class: 'slider-duo' });
+    sizes.appendChild(settingsSliderCell(i18n('界面字号'), {
+      min: 11, max: 18, step: .5, value: state_font.uiSize, schedule: false,
+      fmt: v => v + 'px', aria: i18n('界面字号'), title: i18n('只改变界面文字大小，不缩放布局'),
+      onInput: v => setFontSize('ui', v),
+    }));
+    sizes.appendChild(settingsSliderCell(i18n('数据字号'), {
+      min: 12, max: 22, step: .5, value: state_font.dataSize, schedule: false,
+      fmt: v => v + 'px', aria: i18n('数据字号'), title: i18n('作用于自有波形编辑区与代码，不改变右侧 WaveDrom 预览'),
+      onInput: v => setFontSize('data', v),
+    }));
+    body.appendChild(sizes);
+    updateFontStatuses();
   });
 
   cat('view', i18n('视图'), () => labelOf(VIEWS, root.dataset.view, i18n('预览在右侧')), body => {
@@ -7440,7 +7660,7 @@ function settingsSliderCell(label, opts) {
     valEl.textContent = opts.fmt(v);
     fill();
     opts.onInput(v);
-    scheduleUpdate();
+    if (opts.schedule !== false) scheduleUpdate();
   });
   cell.appendChild(sl);
   return cell;
@@ -9268,9 +9488,9 @@ function init() {
   renderGrid();
   animateLanes = null;
   appReady = true; // 初始化完成：此后字体变化才允许触发标签宽度的重排
-  // 界面字体异步加载完成后按真实字形重算列宽（只更新 --namew 变量，不重建 DOM，不打断输入）
+  // 字体字形就绪后重算标签与名称列，并恢复用户正在编辑的输入框
   if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => { if (!state.sizes.namew) document.documentElement.style.setProperty('--namew', calcNamew() + 'px'); });
+    document.fonts.ready.then(() => { if (appReady) { refreshFontLayout(); if (!state.sizes.namew) document.documentElement.style.setProperty('--namew', calcNamew() + 'px'); } });
   }
 }
 document.addEventListener('DOMContentLoaded', init);
